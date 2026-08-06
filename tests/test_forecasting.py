@@ -1,0 +1,175 @@
+"""Tests for src/forecasting.py — multi-horizon, recursive, leakage-safe forecasting."""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+from sklearn.tree import DecisionTreeRegressor
+
+from config import settings
+from src.feature_engineering import FEATURE_COLUMNS
+from src.forecasting import (
+    _build_feature_row,
+    _next_school_days,
+    forecast_school_demand,
+    get_school_history,
+)
+
+
+def _fake_processed_df(n_days: int = 60) -> pd.DataFrame:
+    """Minimal processed-shape DataFrame with real column names for two schools."""
+    rng = np.random.default_rng(7)
+    dates = pd.bdate_range("2024-01-01", periods=n_days)  # business days only
+    rows = []
+    for school, base in [("SCH001", 300), ("SCH002", 500)]:
+        for i, d in enumerate(dates):
+            rows.append(
+                {
+                    "date": d,
+                    "school_id": school,
+                    "school_name": f"{school} Primary",
+                    "enrolled_students": 400 if school == "SCH001" else 600,
+                    "students_present": base * 0.9 + rng.normal(0, 5),
+                    "meals_served": base + rng.normal(0, 10),
+                    "rainfall_mm": max(0.0, rng.normal(3, 2)),
+                    "temperature_c": rng.normal(22, 1),
+                    "is_holiday": 0,
+                    "is_exam_period": 0,
+                    "is_school_event": 0,
+                    "month": d.month,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+class _StubModel:
+    """Deterministic stand-in for a trained regressor: predicts lag_1_meals + 1."""
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return (X["lag_1_meals"].fillna(300) + 1).to_numpy()
+
+
+def test_get_school_history_sorted_and_filtered():
+    df = _fake_processed_df()
+    history = get_school_history(df, "SCH001")
+    assert (history["school_id"] == "SCH001").all()
+    assert history[settings.DATE_COLUMN].is_monotonic_increasing
+
+
+def test_get_school_history_invalid_school_id_raises():
+    df = _fake_processed_df()
+    with pytest.raises(ValueError):
+        forecast_school_demand(df, "NOT_A_REAL_SCHOOL", horizon_days=1, model=_StubModel())
+
+
+def test_one_day_forecast_shape_and_columns():
+    df = _fake_processed_df()
+    result = forecast_school_demand(df, "SCH001", horizon_days=1, model=_StubModel())
+    assert len(result) == 1
+    expected_cols = {
+        "date", "school_id", "predicted_meals_served",
+        "attendance_assumption", "rainfall_assumption", "temperature_assumption",
+    }
+    assert expected_cols.issubset(result.columns)
+
+
+def test_seven_day_forecast_returns_seven_school_days():
+    df = _fake_processed_df()
+    result = forecast_school_demand(df, "SCH001", horizon_days=7, model=_StubModel())
+    assert len(result) == 7
+    # All forecast dates must be strictly after the last historical date.
+    last_hist_date = df[df["school_id"] == "SCH001"][settings.DATE_COLUMN].max()
+    assert (pd.to_datetime(result["date"]) > last_hist_date).all()
+    # Forecast dates must be weekdays only (school days).
+    assert all(pd.Timestamp(d).weekday() < 5 for d in result["date"])
+
+
+def test_thirty_day_forecast_returns_thirty_school_days():
+    df = _fake_processed_df()
+    result = forecast_school_demand(df, "SCH002", horizon_days=30, model=_StubModel())
+    assert len(result) == 30
+    assert result["date"].is_monotonic_increasing
+
+
+def test_recursive_feature_updates_use_predicted_values_as_history():
+    """With the stub model (predicts lag_1_meals + 1), each day's forecast must be
+    exactly 1 higher than the previous day's forecast — proving predictions are fed
+    back into the lag history rather than the model always seeing the same lag_1."""
+    df = _fake_processed_df()
+    result = forecast_school_demand(df, "SCH001", horizon_days=5, model=_StubModel())
+    diffs = result["predicted_meals_served"].diff().dropna()
+    assert np.allclose(diffs, 1.0)
+
+
+def test_missing_optional_inputs_falls_back_to_recent_average():
+    df = _fake_processed_df()
+    result = forecast_school_demand(df, "SCH001", horizon_days=1, model=_StubModel())
+    row = result.iloc[0]
+    assert row["attendance_assumption"] == "recent 14-day average"
+    assert row["rainfall_assumption"] == "recent 14-day average"
+    assert row["temperature_assumption"] == "recent 14-day average"
+
+
+def test_user_provided_inputs_are_labelled_as_such():
+    df = _fake_processed_df()
+    result = forecast_school_demand(
+        df, "SCH001", horizon_days=1,
+        expected_attendance=350, expected_rainfall_mm=10.0, expected_temperature_c=25.0,
+        model=_StubModel(),
+    )
+    row = result.iloc[0]
+    assert row["attendance_assumption"] == "user-provided"
+    assert row["rainfall_assumption"] == "user-provided"
+    assert row["temperature_assumption"] == "user-provided"
+
+
+def test_predictions_never_negative():
+    df = _fake_processed_df()
+
+    class _NegativeStub:
+        def predict(self, X):
+            return np.full(len(X), -50.0)
+
+    result = forecast_school_demand(df, "SCH001", horizon_days=3, model=_NegativeStub())
+    assert (result["predicted_meals_served"] >= 0).all()
+
+
+def test_forecast_reproducible_with_same_inputs():
+    df = _fake_processed_df()
+    result_a = forecast_school_demand(df, "SCH001", horizon_days=7, model=_StubModel())
+    result_b = forecast_school_demand(df, "SCH001", horizon_days=7, model=_StubModel())
+    pd.testing.assert_frame_equal(result_a, result_b)
+
+
+def test_forecast_with_real_model_type_runs_end_to_end():
+    """Sanity check against a real (if untuned) sklearn regressor, not just the stub."""
+    df = _fake_processed_df(n_days=40)
+    train_rows = []
+    for school in df["school_id"].unique():
+        hist = get_school_history(df, school)
+        for i in range(14, len(hist)):
+            feature_row = _build_feature_row(
+                forecast_date=hist.iloc[i][settings.DATE_COLUMN].date(),
+                meals_history=hist["meals_served"].iloc[:i].tolist(),
+                students_present_history=hist["students_present"].iloc[:i].tolist(),
+                enrolled_students=float(hist["enrolled_students"].iloc[i]),
+                rainfall_mm=float(hist["rainfall_mm"].iloc[i]),
+                temperature_c=float(hist["temperature_c"].iloc[i]),
+            )
+            feature_row[settings.TARGET_COLUMN] = hist["meals_served"].iloc[i]
+            train_rows.append(feature_row)
+    train_df = pd.DataFrame(train_rows)
+    model = DecisionTreeRegressor(random_state=42).fit(train_df[FEATURE_COLUMNS], train_df[settings.TARGET_COLUMN])
+
+    result = forecast_school_demand(df, "SCH001", horizon_days=7, model=model)
+    assert len(result) == 7
+    assert result["predicted_meals_served"].notna().all()
+
+
+def test_next_school_days_skips_weekends():
+    from datetime import date
+
+    days = _next_school_days(date(2024, 1, 5), 3)  # Friday
+    assert all(d.weekday() < 5 for d in days)
+    assert days[0] == date(2024, 1, 8)  # next Monday

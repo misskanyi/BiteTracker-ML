@@ -1,0 +1,23 @@
+# Core data & ML
+pandas==2.3.3
+numpy==2.0.2
+scikit-learn==1.6.1
+xgboost==2.1.4
+statsmodels==0.14.6
+
+# Visualization & app
+plotly==6.9.0
+streamlit==1.50.0
+
+# Persistence & config
+joblib==1.5.3
+python-dotenv==1.2.1
+
+# Reporting
+tabulate==0.9.0
+
+# Testing
+pytest==8.4.2
+
+# Prepared for future PostgreSQL integration (not used by the CSV-based v1 pipeline)
+psycopg2-binary==2.9.12
