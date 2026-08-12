@@ -15,71 +15,79 @@ if str(_APP_DIR.parent) not in sys.path:
     sys.path.insert(0, str(_APP_DIR.parent))
 
 import streamlit as st
-from theme import configure_page, page_header
+from theme import band, configure_page, hero, kpi_row, quote_block, step_row
 
 from data_access import artifacts_ready
 
 configure_page("Home", icon="🍽️")
-page_header(
+
+hero(
     "BiteTracker",
-    subtitle="Proactive School Meal Planning: Time Series Forecasting for Food Demand Prediction",
+    subtitle=(
+        "Proactive School Meal Planning: <b>Time Series Forecasting</b> for Food Demand "
+        "Prediction — BiteTracker is a machine-learning decision-support platform that predicts "
+        "future school meal demand, so schools, county governments, NGOs, and donors can plan "
+        "procurement and budgets <b>before</b> a shortage or a wasteful surplus happens, not after."
+    ),
     icon="🍽️",
+    badge_text="Synthetic Development Data",
 )
 
-st.markdown(
+# ---- Problem / Stakeholders, as alternating full-bleed bands (F4E layout) ----
+band(
     """
-BiteTracker is a machine-learning decision-support platform that predicts **future school meal
-demand**, so schools, county governments, NGOs, and donors can plan procurement and budgets
-*before* a shortage or a wasteful surplus happens — not after.
-"""
+    <h2>School feeding programmes routinely face two opposite failures.</h2>
+    <p style="max-width:760px;font-size:1.05rem;">
+    <b>Food waste</b> — preparing more meals than students who show up can eat, driven by
+    rainfall, holidays, exams, and other hard-to-anticipate attendance swings.<br><br>
+    <b>Meal shortages</b> — under-preparing on days attendance spikes (school events,
+    post-holiday return), leaving students without a meal.<br><br>
+    Both come from the same root cause: <b>meal preparation decisions are reactive</b>, based on
+    yesterday's numbers or gut feel, not a forecast of tomorrow's actual demand.
+    </p>
+    """,
+    variant="dark",
+    eyebrow="🎯 Problem Statement",
 )
 
-col1, col2 = st.columns(2, gap="medium")
+band(
+    """
+    <h2>Built for the people who plan the plate.</h2>
+    <ul style="font-size:1.02rem;max-width:760px;">
+    <li><b>Schools</b> — kitchen/catering staff deciding how much to prepare each day.</li>
+    <li><b>County governments</b> — allocating feeding-programme budgets across schools.</li>
+    <li><b>NGOs &amp; development partners</b> — planning food supply and logistics.</li>
+    <li><b>Donors</b> — evaluating programme efficiency and impact.</li>
+    </ul>
+    """,
+    variant="gold",
+    eyebrow="🤝 Key Stakeholders",
+)
 
-with col1:
-    st.markdown("#### 🎯 Problem Statement")
-    st.markdown(
-        """
-<div class="bite-card">
-School feeding programmes routinely face two opposite failures:
-
-- <b>Food waste</b> — preparing more meals than students who show up can eat, driven by
-  rainfall, holidays, exams, and other hard-to-anticipate attendance swings.
-- <b>Meal shortages</b> — under-preparing on days attendance spikes (school events,
-  post-holiday return), leaving students without a meal.
-
-Both come from the same root cause: <b>meal preparation decisions are reactive</b>, based on
-yesterday's numbers or gut feel, not a forecast of tomorrow's actual demand.
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-with col2:
-    st.markdown("#### 🤝 Key Stakeholders")
-    st.markdown(
-        """
-<div class="bite-card">
-
-- <b>Schools</b> — kitchen/catering staff deciding how much to prepare each day.
-- <b>County governments</b> — allocating feeding-programme budgets across schools.
-- <b>NGOs & development partners</b> — planning food supply and logistics.
-- <b>Donors</b> — evaluating programme efficiency and impact.
-
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-st.markdown("#### ⚙️ System Purpose")
+# ---- System purpose, as a Design > Operate > Replicate-style step row ----
+st.markdown("### ⚙️ System Purpose")
 st.markdown(
     """
-<div class="bite-card">
 BiteTracker compares four regression approaches — <b>Linear Regression, Decision Tree,
 Random Forest, and XGBoost</b> — trained on historical attendance, weather, and calendar
 data, selects the best-performing model by measured test-set error (MAE/RMSE/R², not
 assumption), and uses it to forecast next-day, next-7-day, and next-30-day meal demand
-per school. Explore the pages in the sidebar:
+per school.
+""",
+    unsafe_allow_html=True,
+)
+
+step_row(
+    [
+        ("Predict", "Forecast next-day, next-7-day, and next-30-day meal demand per school from the winning model."),
+        ("Plan", "Turn a demand forecast into a recommended prep quantity, a safety buffer, and a risk level."),
+        ("Compare & Allocate", "Compare demand, attendance, waste, and cost across schools, then allocate budget and resources."),
+    ]
+)
+
+st.markdown(
+    """
+Explore the pages in the sidebar:
 
 - <b>Dashboard</b> — current state at a glance.
 - <b>Forecast</b> — generate a demand estimate for a chosen school and horizon.
@@ -93,16 +101,21 @@ per school. Explore the pages in the sidebar:
 - <b>Data Explorer</b> — browse, filter, and download the underlying dataset.
 - <b>Model Performance</b> — how the four models compare, and why the winner was selected.
 - <b>About</b> — methodology, ethics, and limitations.
-</div>
 """,
     unsafe_allow_html=True,
 )
 
+quote_block(
+    "This is a decision-support estimate, not a guaranteed outcome — use it to inform meal "
+    "preparation planning alongside local judgement.",
+    author="BiteTracker",
+    role="Decision Support Framing",
+)
+
 st.divider()
-st.markdown("#### 🩺 Pipeline Status")
+st.markdown("### 🩺 Pipeline Status")
 
 status = artifacts_ready()
-cols = st.columns(len(status))
 labels = {
     "processed_data": "Processed Dataset",
     "baseline_metrics": "Baseline Models",
@@ -110,8 +123,7 @@ labels = {
     "final_model": "Final Best Model",
     "final_model_metadata": "Final Model Metadata",
 }
-for col, (key, ready) in zip(cols, status.items()):
-    col.metric(labels[key], "Ready ✅" if ready else "Missing ❌")
+kpi_row([(labels[key], "Ready ✅" if ready else "Missing ❌", None) for key, ready in status.items()])
 
 if not all(status.values()):
     st.warning(
