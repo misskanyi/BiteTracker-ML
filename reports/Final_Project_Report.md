@@ -140,24 +140,66 @@ Six Streamlit pages, all reading live from `data/processed/` and `models/`:
 **Not yet production-ready for real deployment** — see Known Limitations below;
 principally, the model has only ever seen synthetic data.
 
+## Decision-Support Capabilities (Phase 2)
+
+The original 6-page ML demonstration was extended into a 13-page decision-support product
+without altering the selected model, its features, or the pipeline that trains it. New
+capabilities, each backed by a dedicated `src/` module and covered by unit tests:
+
+- **Specific Date Prediction** (`src/forecasting.predict_specific_date`) — a single-point
+  estimate for one exact future date, with user-supplied context (attendance, weather, term,
+  holiday/exam/event) explicitly separated from auto-derived values (day-of-week, month,
+  lag/rolling history from the school's own past records).
+- **Safety buffer & decision-support bundle** (`src/decision_support.py`) — recommended
+  preparation quantity = predicted demand + a transparent buffer driven by recent demand
+  volatility (`rolling_std_7`) and forecast horizon, with qualitative risk (Low/Moderate/High)
+  and uncertainty (Lower/Moderate/Higher) labels — never a fabricated confidence percentage.
+- **Scenario Simulator** — baseline-vs-what-if comparison for one school, explaining the result
+  in decision-support language without claiming causality from correlation.
+- **Forecast Calendar** — a 14/30-school-day planning table with per-day risk and cost, plus a
+  day-level decision-support detail view.
+- **School Comparison & Resource Allocation** (`src/resource_allocation.py`) — cross-school
+  metrics (demand, attendance, waste, cost, risk) and a demand-vs-planned-capacity gap analysis,
+  framed as a recommendation for review, never an automatic reallocation instruction.
+- **Budget Planning** (`src/budgeting.py`) — daily/weekly/monthly KSh cost projections from
+  predicted demand and average cost-per-meal, plus historical-vs-forecast expenditure charting.
+- **Upload School Data & validation** (`src/data_validation.py`) — CSV/Excel upload, a
+  transparent 0–100 data-quality score (completeness, duplicates, date validity, coverage,
+  column richness, numeric validity), and a forecast-readiness verdict (READY / LIMITED /
+  NOT READY) based on how much history a school has. Uploads never overwrite the synthetic
+  dataset and never trigger automatic retraining — the workflow is strictly
+  upload → validate → process → assess readiness → forecast where compatible.
+
+All of the above are decision-support heuristics layered on top of the existing model's raw
+prediction — they do not change what the model was trained on or how it predicts.
+
 ## Known Limitations
 
 - Synthetic data only — no real-world accuracy claim.
 - Forecast error compounds over longer horizons (recursive multi-step prediction).
 - No true future weather/attendance forecast — day 2+ always uses a historical average.
-- No safety-buffer/recommended-preparation-quantity logic on top of the raw point forecast.
+- The safety buffer (`src/decision_support.py`) is a documented heuristic based on recent
+  volatility and horizon, not a statistically fitted prediction interval.
 - Only 3 synthetic schools, ~2 years of history — limited data for the longer lag
   features and cross-school generalization.
 - Kenyan school calendar in the synthetic generator is approximated, not sourced from an
   authoritative gazette.
 - PostgreSQL support is prepared in `config/settings.py` but not wired into the pipeline —
   the app runs entirely on CSV files.
+- Uploaded schools need 14+ daily records before any prediction is possible (lag-14 feature
+  requirement) and 60+ to be marked forecast-ready; a real school with a very different feature
+  distribution than the synthetic training schools may still produce misleading predictions even
+  once "ready" — `src/data_validation.check_feature_compatibility` flags the detectable cases only.
 
 ## Future Improvements
 
 - Replace synthetic data with real school records and re-run baseline + tuning from
   scratch — hyperparameters found here are fit to synthetic noise, not real patterns.
 - Add genuine weather/attendance forecast inputs instead of historical-average fallbacks.
-- Calibrate a safety-stock recommendation from each model's measured residual spread.
+- Fit the safety buffer to each model's measured residual spread instead of the current
+  volatility/horizon heuristic.
+- Add a controlled retraining workflow for uploaded school data.
+- Evaluate SHAP for local (per-prediction) explainability if it can be added without
+  destabilizing the app.
 - Wire in the prepared PostgreSQL schema for multi-user, real-time data.
 - Add authentication and role-based views (school / county / NGO).

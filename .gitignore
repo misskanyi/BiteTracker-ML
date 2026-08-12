@@ -235,4 +235,6 @@ reports/figures/*
 reports/metrics/*
 !reports/figures/.gitkeep
 !reports/metrics/.gitkeep
+data/uploads/*
+!data/uploads/.gitkeep
 

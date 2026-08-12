@@ -45,6 +45,25 @@ def load_csv_if_exists(path: Path) -> pd.DataFrame | None:
     return pd.read_csv(path)
 
 
+def list_uploaded_datasets() -> list[Path]:
+    """List previously-saved uploads, most recent first."""
+    if not settings.UPLOADS_DIR.exists():
+        return []
+    return sorted(settings.UPLOADS_DIR.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def save_uploaded_dataset(df: pd.DataFrame, original_filename: str) -> Path:
+    """Persist a validated upload as CSV under data/uploads/, never overwriting the synthetic dataset."""
+    import re
+    from datetime import datetime
+
+    stem = re.sub(r"[^A-Za-z0-9_-]+", "_", Path(original_filename).stem)[:50]
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = settings.UPLOADS_DIR / f"{timestamp}_{stem}.csv"
+    df.to_csv(dest, index=False)
+    return dest
+
+
 def artifacts_ready() -> dict[str, bool]:
     """Check which pipeline outputs exist, so pages can degrade gracefully."""
     return {

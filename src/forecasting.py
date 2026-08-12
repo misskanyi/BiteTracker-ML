@@ -56,6 +56,9 @@ def _build_feature_row(
     rainfall_mm: float,
     temperature_c: float,
     is_school_event: bool = False,
+    term_override: str | None = None,
+    holiday_override: bool | None = None,
+    exam_override: bool | None = None,
 ) -> dict:
     """Build one row of model features for `forecast_date` from running history lists.
 
@@ -63,10 +66,16 @@ def _build_feature_row(
     up to (but not including) `forecast_date`, most recent last — lag/rolling
     values are computed the same way as `src.feature_engineering` (past-only,
     excluding the day being forecast).
+
+    `term_override`/`holiday_override`/`exam_override` let a caller (e.g. the
+    Specific Date Prediction page, where the user states these explicitly)
+    override the calendar-derived defaults from `src.synthetic_data`.
     """
-    term = _school_term(forecast_date)
-    holiday = _is_holiday(forecast_date)
-    exam_period = (not holiday) and _is_exam_period(forecast_date, term)
+    term = term_override if term_override is not None else _school_term(forecast_date)
+    holiday = holiday_override if holiday_override is not None else _is_holiday(forecast_date)
+    exam_period = (
+        exam_override if exam_override is not None else ((not holiday) and _is_exam_period(forecast_date, term))
+    )
 
     def lag(n: int) -> float:
         return meals_history[-n] if len(meals_history) >= n else float("nan")
@@ -201,3 +210,74 @@ def forecast_school_demand(
         present_hist = present_hist + [present_today]
 
     return pd.DataFrame(results)
+
+
+def predict_specific_date(
+    df: pd.DataFrame,
+    school_id: str,
+    target_date: date,
+    expected_attendance: float,
+    expected_rainfall_mm: float,
+    expected_temperature_c: float,
+    school_term: str,
+    is_holiday: bool,
+    is_exam_period: bool,
+    is_school_event: bool = False,
+    model=None,
+) -> dict:
+    """Predict meal demand for one specific, user-chosen future date.
+
+    Unlike `forecast_school_demand` (which derives term/holiday/exam from the
+    calendar and lets attendance/weather default to a recent average), every
+    calendar/context input here is explicitly supplied by the user on the
+    Specific Date Prediction page — this function only auto-derives what's
+    genuinely derivable: day-of-week/month (from `target_date` itself) and
+    lag/rolling history (from the school's actual past records).
+
+    Raises `ValueError` if `target_date` is not strictly after the school's
+    last recorded date — the model has no lag history to predict backward
+    or into an already-observed day.
+    """
+    model = model or load_forecasting_model()
+    history = get_school_history(df, school_id)
+    if history.empty:
+        raise ValueError(f"No history found for school_id={school_id}")
+
+    last_date = history[settings.DATE_COLUMN].max()
+    if hasattr(last_date, "date"):
+        last_date = last_date.date()
+    if target_date <= last_date:
+        raise ValueError(
+            f"Target date {target_date} must be after this school's last recorded date ({last_date})."
+        )
+
+    enrolled = float(history["enrolled_students"].iloc[-1])
+    meals_hist = history["meals_served"].tolist()
+    present_hist = history["students_present"].tolist()
+
+    feature_row = _build_feature_row(
+        forecast_date=target_date,
+        meals_history=meals_hist,
+        students_present_history=present_hist + [expected_attendance],
+        enrolled_students=enrolled,
+        rainfall_mm=expected_rainfall_mm,
+        temperature_c=expected_temperature_c,
+        is_school_event=is_school_event,
+        term_override=school_term,
+        holiday_override=is_holiday,
+        exam_override=is_exam_period,
+    )
+    X = pd.DataFrame([feature_row])[FEATURE_COLUMNS]
+    predicted_meals = max(0.0, float(model.predict(X)[0]))
+
+    days_ahead = (target_date - last_date).days
+
+    return {
+        "school_id": school_id,
+        "target_date": target_date,
+        "days_ahead": days_ahead,
+        "predicted_meals_served": predicted_meals,
+        "recent_std_7": feature_row["rolling_std_7"],
+        "recent_history": history.tail(21),
+        "feature_row": feature_row,
+    }

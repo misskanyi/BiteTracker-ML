@@ -13,10 +13,12 @@ if str(_APP_DIR.parent) not in sys.path:
 
 import plotly.graph_objects as go
 import streamlit as st
-from theme import configure_page, page_header, style_chart
+from theme import configure_page, decision_support_card, page_header, style_chart
 
 from config import settings
 from data_access import artifacts_ready, load_processed_data, load_final_model
+from src.budgeting import estimate_meal_cost
+from src.decision_support import build_decision_support_result
 from src.forecasting import forecast_school_demand
 
 configure_page("Forecast", icon="🔮")
@@ -101,7 +103,33 @@ if st.button("Generate Forecast", type="primary"):
             model=model,
         )
 
-    st.markdown(f"### Forecast for {school_name}")
+    st.markdown(f"### Decision-Support Summary — Day 1 ({forecast_df['date'].iloc[0]:%d %b %Y})")
+    day1_meals = float(forecast_df["predicted_meals_served"].iloc[0])
+    day1_std = float(history["meals_served"].tail(14).std() or 0.0)
+    ds_result = build_decision_support_result(
+        predicted_meals=day1_meals,
+        recent_std=day1_std,
+        horizon_days=1,
+        horizon_label="Next school day",
+        assumptions=[
+            f"Attendance basis: {forecast_df['attendance_assumption'].iloc[0]}",
+            f"Rainfall basis: {forecast_df['rainfall_assumption'].iloc[0]}",
+            f"Temperature basis: {forecast_df['temperature_assumption'].iloc[0]}",
+        ],
+    )
+    decision_support_card(ds_result)
+
+    avg_cost_per_meal = float(history["average_cost_per_meal"].tail(14).mean()) if "average_cost_per_meal" in history else 0.0
+    if avg_cost_per_meal:
+        cost = estimate_meal_cost(day1_meals, avg_cost_per_meal)
+        st.markdown("#### Estimated Cost (Day 1)")
+        ccol1, ccol2, ccol3 = st.columns(3)
+        ccol1.metric("Estimated Daily Cost", f"KSh {cost['daily_cost']:,.0f}")
+        ccol2.metric("Estimated Weekly Cost", f"KSh {cost['weekly_cost']:,.0f}")
+        ccol3.metric("Estimated Monthly Cost", f"KSh {cost['monthly_cost']:,.0f}")
+        st.caption(f"Based on a recent average cost of KSh {avg_cost_per_meal:.2f} per meal.")
+
+    st.markdown(f"### Full Forecast Table for {school_name}")
     display_df = forecast_df.copy()
     display_df["predicted_meals_served"] = display_df["predicted_meals_served"].round(0)
     st.dataframe(

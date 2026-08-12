@@ -20,6 +20,7 @@ A machine-learning decision-support platform that forecasts school meal demand, 
 - [Installation](#installation)
 - [Running Locally](#running-locally)
 - [Running the Streamlit App](#running-the-streamlit-app)
+- [Decision-Support Features](#decision-support-features)
 - [ML Pipeline](#ml-pipeline)
 - [Models Compared](#models-compared)
 - [Evaluation Metrics](#evaluation-metrics)
@@ -55,8 +56,10 @@ Kitchen and procurement staff need to decide, every school day, how many meals t
 - **Chronological 80/20 train-test split** — no shuffling, ever.
 - **Baseline → tuned model comparison** with `GridSearchCV`/`RandomizedSearchCV` + `TimeSeriesSplit`, and an explicit overfitting classifier applied consistently to both stages.
 - **Multi-horizon recursive forecasting** with transparent assumption labelling (user-provided vs. recent-average) for attendance/weather.
-- **6-page Streamlit dashboard**: Home, Dashboard, Forecast, Model Performance, Data Explorer, About.
-- **76 automated tests** covering preprocessing, feature engineering, evaluation, model training, hyperparameter tuning, forecasting, and the Streamlit app itself (via `streamlit.testing.v1.AppTest`).
+- **13-page Streamlit decision-support platform**: Home, Dashboard, Forecast, Specific Date Prediction, Scenario Simulator, Forecast Calendar, School Comparison, Resource Allocation, Budget Planning, Upload School Data, Data Explorer, Model Performance, About.
+- **School data upload** with CSV/Excel support, transparent data-quality scoring, and forecast-readiness assessment — without retraining the model or overwriting the development dataset.
+- **What-if scenario simulation**, cross-school comparison, resource-allocation gap analysis, and cost/budget projections in KSh.
+- **128 automated tests** covering preprocessing, feature engineering, evaluation, model training, hyperparameter tuning, forecasting, decision-support logic, data validation, resource allocation, budgeting, and the Streamlit app itself (via `streamlit.testing.v1.AppTest`).
 
 ## Technology Stack
 
@@ -104,14 +107,22 @@ BiteTracker/
 │   └── pages/
 │       ├── 1_Dashboard.py
 │       ├── 2_Forecast.py
-│       ├── 3_Model_Performance.py
-│       ├── 4_Data_Explorer.py
-│       └── 5_About.py
+│       ├── 3_Specific_Date_Prediction.py
+│       ├── 4_Scenario_Simulator.py
+│       ├── 5_Forecast_Calendar.py
+│       ├── 6_School_Comparison.py
+│       ├── 7_Resource_Allocation.py
+│       ├── 8_Budget_Planning.py
+│       ├── 9_Upload_School_Data.py
+│       ├── 10_Data_Explorer.py
+│       ├── 11_Model_Performance.py
+│       └── 12_About.py
 ├── config/
 │   └── settings.py               # Central pathlib-based config, seeds, schema
 ├── data/
 │   ├── raw/                      # Real data goes here (gitignored)
 │   ├── processed/                # Pipeline output (gitignored)
+│   ├── uploads/                  # User-uploaded datasets (gitignored)
 │   └── sample/                   # Synthetic dataset (committed)
 ├── models/                       # Trained models + metadata (gitignored)
 ├── notebooks/                    # Exploratory notebooks (empty by default)
@@ -132,11 +143,15 @@ BiteTracker/
 │   ├── model_training.py         # Baseline model training
 │   ├── model_tuning.py           # GridSearchCV/RandomizedSearchCV + TimeSeriesSplit
 │   ├── model_evaluation.py       # Metrics, chronological split, overfitting classifier
-│   ├── forecasting.py            # Multi-horizon recursive forecasting
+│   ├── forecasting.py            # Multi-horizon recursive forecasting + specific-date prediction
+│   ├── decision_support.py       # Safety buffer, risk level, uncertainty labelling
+│   ├── data_validation.py        # Upload parsing, validation, quality score, forecast readiness
+│   ├── resource_allocation.py    # School comparison + demand-vs-capacity gap logic
+│   ├── budgeting.py               # Cost projection from predicted demand + cost-per-meal
 │   ├── visualization.py          # Reusable Plotly chart builders
 │   ├── eda.py                    # Statistical summaries, data-quality report
 │   └── utils.py                  # Logging, seeding
-├── tests/                        # 76 automated tests
+├── tests/                        # 128 automated tests
 ├── run_pipeline.py                # CLI: data pipeline
 ├── run_eda.py                     # CLI: EDA charts + reports
 ├── run_training.py                # CLI: baseline model training
@@ -188,6 +203,66 @@ Open the printed local URL (typically `http://localhost:8501`) in your browser. 
 | `FileNotFoundError: final_best_model.joblib` | Run `python run_tuning.py`. |
 | Port 8501 already in use | `streamlit run app/Home.py --server.port 8502`. |
 
+## Decision-Support Features
+
+Beyond the raw ML pipeline, the app provides a set of practical planning tools built on top of
+the trained model — for schools, county governments, NGOs, and donors, not just ML practitioners:
+
+- **Specific Date Prediction** (`app/pages/3_Specific_Date_Prediction.py`) — an estimate for one
+  exact future date and school, with explicit user-provided assumptions (attendance, rainfall,
+  temperature, term, holiday/exam/event status) clearly distinguished from auto-derived values
+  (day of week, month, lag/rolling history) — plus a decision-support summary (predicted demand,
+  recommended preparation, safety buffer, risk level) and a model-wide feature-importance chart.
+- **Scenario Simulator** (`app/pages/4_Scenario_Simulator.py`) — compares a baseline next-day
+  forecast against a user-defined what-if scenario (attendance change %, rainfall, temperature,
+  holiday/exam/event), with a plain-language explanation that stops short of claiming causality.
+- **Forecast Calendar** (`app/pages/5_Forecast_Calendar.py`) — a 14/30-school-day planning table
+  (predicted demand, recommended preparation, risk, estimated cost) with a day-selector for
+  full decision-support detail on any date.
+- **School Comparison** (`app/pages/6_School_Comparison.py`) — side-by-side demand, attendance,
+  waste, and cost metrics across selected schools, aimed at NGOs/donors/county governments.
+- **Resource Allocation** (`app/pages/7_Resource_Allocation.py`) — forecast demand vs
+  manually-entered planned capacity per school, surfacing shortage/surplus gaps as a
+  **decision-support recommendation** (never an automatic reallocation command).
+- **Budget Planning** (`app/pages/8_Budget_Planning.py`) — translates predicted demand and
+  average cost-per-meal into daily/weekly/monthly cost estimates (KSh), plus a
+  historical-vs-forecast expenditure chart.
+- **Upload School Data** (`app/pages/9_Upload_School_Data.py`) — lets a school/NGO bring its own
+  historical CSV/Excel dataset. Runs a full validation pass (schema, dates, duplicates, missing
+  values, numeric ranges, coverage) and a transparent 0–100 **Data Quality Score**, then a
+  **forecast readiness** verdict (READY / LIMITED / NOT READY, based on record count — see
+  `src/data_validation.py`). Uploads are stored under `data/uploads/` (git-ignored), never
+  overwrite the synthetic dataset, and never trigger automatic retraining.
+
+### Forecast Assumptions
+
+Every prediction distinguishes three kinds of input, shown consistently across pages:
+
+- **Auto-derived** — day of week, month, and lag/rolling demand history (computed from the
+  school's own past records).
+- **User-provided** — attendance, rainfall, temperature, term, holiday/exam/event status.
+- **Assumed default** — when a page falls back to a recent historical average because the user
+  hasn't supplied a value (e.g. beyond day 1 of a multi-day forecast).
+
+The **safety buffer** and **recommended preparation quantity** (`src/decision_support.py`) are a
+transparent planning heuristic — *not* a statistical prediction interval — driven by the school's
+recent demand volatility (`rolling_std_7`) and the forecast horizon (later days in a recursive
+multi-day forecast carry more compounding error). Risk level (Low/Moderate/High) and uncertainty
+labels (Lower/Moderate/Higher) are derived from that same buffer logic; no confidence percentage
+is fabricated. See the module docstring for the exact formula.
+
+### Data Privacy
+
+The upload workflow only accepts aggregated, school-level daily records — never student names,
+admission numbers, phone numbers, addresses, or other personally-identifying information. This is
+stated explicitly on the Upload School Data page.
+
+### Synthetic vs. Real Data
+
+Every page shows a badge indicating whether it is looking at **Synthetic Development Data** or
+**User-Uploaded Data** (`app/theme.py::page_header`'s `badge_text` parameter) — the two are never
+mixed silently.
+
 ## ML Pipeline
 
 1. **Data generation / loading** (`src/synthetic_data.py`, `src/data_loader.py`) — schema-validated CSV, synthetic by default, swappable for real data via `config.settings.ACTIVE_DATA_PATH`.
@@ -236,15 +311,18 @@ Open the printed local URL (typically `http://localhost:8501`) in your browser. 
 - **Synthetic data only** — no real-world accuracy claim is made; see the in-app "Synthetic Development Data" badge on every page.
 - **Compounding forecast error** over longer horizons (recursive multi-step forecasting).
 - **No true future weather/attendance forecast** — beyond day 1 of a forecast, attendance/weather always fall back to a recent historical average.
-- **No safety-buffer/recommended-preparation-quantity logic yet** — only a raw point forecast (see `reports/Forecasting_Report.md`).
+- **Safety buffer is a heuristic, not a statistical prediction interval** — it is derived from recent demand volatility and forecast horizon (`src/decision_support.py`), transparently documented, but not fitted to held-out residuals.
 - **Only 3 synthetic schools, ~2 years of history** — limited data for lag_14/rolling_14 features and cross-school generalization.
 - **Approximated Kenyan school calendar** in the synthetic generator, not sourced from an authoritative gazette.
+- **Uploaded-school forecasting is gated by history length** — a newly-uploaded school needs at least 14 daily records before lag/rolling features (and therefore any prediction) are possible, and 60+ before being marked forecast-ready; the model was trained on the synthetic schools' feature distribution, so predictions for a very different real school should be treated cautiously (see `src/data_validation.py::check_feature_compatibility`).
 
 ## Future Work
 
 - Swap in real school-level data and re-run baseline + tuning from scratch (hyperparameters found here were fit to synthetic noise and should not be reused as-is).
 - Add true weather/attendance forecast inputs instead of historical-average fallbacks.
-- Calibrate a safety-stock/buffer recommendation on top of the point forecast, using each model's measured residual spread.
+- Fit the safety buffer to each model's measured residual spread instead of the current volatility/horizon heuristic.
+- Add a controlled retraining workflow for uploaded school data (currently upload → validate → process → assess readiness, with no automatic retraining).
+- Consider SHAP for local (per-prediction) explainability if it doesn't destabilize the app — the current feature-importance chart is model-wide, not prediction-specific.
 - Move from CSV to the prepared PostgreSQL schema for multi-user, real-time updates.
 - Add authentication/role-based views for schools vs. county vs. NGO stakeholders.
 

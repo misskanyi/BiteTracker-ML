@@ -14,6 +14,7 @@ from src.forecasting import (
     _next_school_days,
     forecast_school_demand,
     get_school_history,
+    predict_specific_date,
 )
 
 
@@ -173,3 +174,49 @@ def test_next_school_days_skips_weekends():
     days = _next_school_days(date(2024, 1, 5), 3)  # Friday
     assert all(d.weekday() < 5 for d in days)
     assert days[0] == date(2024, 1, 8)  # next Monday
+
+
+def test_predict_specific_date_returns_expected_keys():
+    from datetime import timedelta
+
+    df = _fake_processed_df()
+    last_date = get_school_history(df, "SCH001")[settings.DATE_COLUMN].max().date()
+    target = last_date + timedelta(days=10)
+    while target.weekday() >= 5:
+        target += timedelta(days=1)
+
+    result = predict_specific_date(
+        df, "SCH001", target,
+        expected_attendance=350, expected_rainfall_mm=2.0, expected_temperature_c=23.0,
+        school_term="Term 2", is_holiday=False, is_exam_period=False,
+        model=_StubModel(),
+    )
+    assert result["predicted_meals_served"] >= 0
+    assert result["target_date"] == target
+    assert result["days_ahead"] > 0
+    assert set(FEATURE_COLUMNS).issubset(result["feature_row"].keys())
+
+
+def test_predict_specific_date_rejects_past_or_current_date():
+    df = _fake_processed_df()
+    last_date = get_school_history(df, "SCH001")[settings.DATE_COLUMN].max().date()
+    with pytest.raises(ValueError):
+        predict_specific_date(
+            df, "SCH001", last_date,
+            expected_attendance=350, expected_rainfall_mm=2.0, expected_temperature_c=23.0,
+            school_term="Term 2", is_holiday=False, is_exam_period=False,
+            model=_StubModel(),
+        )
+
+
+def test_predict_specific_date_invalid_school_raises():
+    df = _fake_processed_df()
+    from datetime import date
+
+    with pytest.raises(ValueError):
+        predict_specific_date(
+            df, "NOT_A_REAL_SCHOOL", date(2030, 1, 1),
+            expected_attendance=350, expected_rainfall_mm=2.0, expected_temperature_c=23.0,
+            school_term="Term 2", is_holiday=False, is_exam_period=False,
+            model=_StubModel(),
+        )

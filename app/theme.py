@@ -183,9 +183,14 @@ def configure_page(title: str, icon: str = "🍽️") -> None:
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
-def page_header(title: str, subtitle: str = "", icon: str = "", show_badge: bool = True) -> None:
-    """Render a consistent page title + subtitle + synthetic-data badge block."""
-    badge_html = '<span class="bite-badge">Synthetic Development Data</span>' if show_badge else ""
+def page_header(title: str, subtitle: str = "", icon: str = "", show_badge: bool = True, badge_text: str = "Synthetic Development Data") -> None:
+    """Render a consistent page title + subtitle + dataset-source badge block.
+
+    `badge_text` labels which dataset is active. Pages that can operate on
+    either the synthetic dataset or a user upload should pass "User-Uploaded
+    Data" once an upload is selected, so the two are never mixed silently.
+    """
+    badge_html = f'<span class="bite-badge">{badge_text}</span>' if show_badge else ""
     subtitle_html = f'<p class="bite-subtitle">{subtitle}</p>' if subtitle else ""
     st.markdown(
         f"""
@@ -209,6 +214,66 @@ def kpi_row(items: list[tuple[str, str, str | None]]) -> None:
     cols = st.columns(len(items))
     for col, (label, value, help_text) in zip(cols, items):
         col.metric(label, value, help=help_text)
+
+
+def quality_score_badge(score: int) -> str:
+    """Colour-coded label for a 0-100 data quality score."""
+    if score >= 80:
+        return f"🟢 {score}/100 — Good"
+    if score >= 50:
+        return f"🟡 {score}/100 — Fair"
+    return f"🔴 {score}/100 — Poor"
+
+
+def empty_state(message: str) -> None:
+    """Consistent placeholder for pages/sections with no data yet."""
+    st.markdown(f'<div class="bite-card" style="text-align:center;color:{INK};opacity:0.7;">{message}</div>', unsafe_allow_html=True)
+
+
+_RISK_COLORS = {"Low": GREEN, "Moderate": GOLD, "High": "#B3261E"}
+
+
+def decision_support_card(result) -> None:
+    """Render a `src.decision_support.DecisionSupportResult` as a consistent result block.
+
+    Shared by every page that produces a single-point prediction (Forecast,
+    Specific Date Prediction, Scenario Simulator) so the decision-support
+    framing — predicted vs recommended vs buffer vs risk — never diverges
+    between pages.
+    """
+    risk_color = _RISK_COLORS.get(result.risk_level, INK)
+    cols = st.columns(4)
+    cols[0].metric("Predicted Demand", f"{result.predicted_meals:.0f} meals")
+    cols[1].metric("Recommended Preparation", f"{result.recommended_meals:.0f} meals")
+    cols[2].metric("Safety Buffer", f"{result.buffer_meals:.0f} meals ({result.buffer_pct:.1f}%)")
+    cols[3].markdown(
+        f'<div style="padding-top:0.6rem;"><span style="color:{INK};opacity:0.7;font-size:0.8rem;">Risk Level</span>'
+        f'<br><span style="color:{risk_color};font-size:1.4rem;font-weight:700;">{result.risk_level}</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+<div class="bite-card">
+<b>Forecast horizon:</b> {result.horizon_label} &nbsp;·&nbsp; <b>Model:</b> {result.model_label}<br>
+<b>Uncertainty:</b> {result.uncertainty}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    if result.assumptions:
+        with st.expander("Assumptions used in this prediction"):
+            for a in result.assumptions:
+                st.markdown(f"- {a}")
+
+    for w in result.warnings:
+        st.warning(w)
+
+    st.caption(
+        "This is a decision-support estimate, not a guaranteed outcome. Use it to inform meal "
+        "preparation planning alongside local judgement."
+    )
 
 
 def style_chart(fig: go.Figure, title: str = "") -> go.Figure:

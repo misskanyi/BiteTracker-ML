@@ -20,12 +20,13 @@ DATA_DIR: Path = PROJECT_ROOT / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"
 PROCESSED_DATA_DIR: Path = DATA_DIR / "processed"
 SAMPLE_DATA_DIR: Path = DATA_DIR / "sample"
+UPLOADS_DIR: Path = DATA_DIR / "uploads"
 MODELS_DIR: Path = PROJECT_ROOT / "models"
 REPORTS_DIR: Path = PROJECT_ROOT / "reports"
 FIGURES_DIR: Path = REPORTS_DIR / "figures"
 METRICS_DIR: Path = REPORTS_DIR / "metrics"
 
-for _dir in (RAW_DATA_DIR, PROCESSED_DATA_DIR, SAMPLE_DATA_DIR, MODELS_DIR, FIGURES_DIR, METRICS_DIR):
+for _dir in (RAW_DATA_DIR, PROCESSED_DATA_DIR, SAMPLE_DATA_DIR, UPLOADS_DIR, MODELS_DIR, FIGURES_DIR, METRICS_DIR):
     _dir.mkdir(parents=True, exist_ok=True)
 
 # --- Dataset ----------------------------------------------------------------

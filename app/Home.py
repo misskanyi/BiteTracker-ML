@@ -83,8 +83,15 @@ per school. Explore the pages in the sidebar:
 
 - <b>Dashboard</b> — current state at a glance.
 - <b>Forecast</b> — generate a demand estimate for a chosen school and horizon.
-- <b>Model Performance</b> — how the four models compare, and why the winner was selected.
+- <b>Specific Date Prediction</b> — an estimate for one exact future date.
+- <b>Scenario Simulator</b> — compare a baseline forecast against a what-if scenario.
+- <b>Forecast Calendar</b> — a date-based planning table with per-day risk status.
+- <b>School Comparison</b> — compare demand, attendance, waste, and cost across schools.
+- <b>Resource Allocation</b> — forecast demand vs planned capacity, per school.
+- <b>Budget Planning</b> — translate demand forecasts into estimated procurement cost.
+- <b>Upload School Data</b> — bring your own historical dataset for validation.
 - <b>Data Explorer</b> — browse, filter, and download the underlying dataset.
+- <b>Model Performance</b> — how the four models compare, and why the winner was selected.
 - <b>About</b> — methodology, ethics, and limitations.
 </div>
 """,
