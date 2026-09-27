@@ -4,6 +4,9 @@ Separate from visualization.py (charts) so numeric/report logic can be
 tested and reused independently of Plotly.
 """
 
+# In simple terms: looks at the cleaned data and produces number summaries
+# (averages, missing values, etc.) to understand it before modelling.
+
 from __future__ import annotations
 
 import json

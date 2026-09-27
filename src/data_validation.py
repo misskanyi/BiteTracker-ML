@@ -10,6 +10,9 @@ minus any personally-identifying fields (none are part of the schema —
 records are school-level aggregates, never per-student).
 """
 
+# In simple terms: checks a file someone uploads (from a school/NGO) and
+# gives back a report card on how usable/clean it is.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

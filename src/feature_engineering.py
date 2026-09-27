@@ -16,6 +16,9 @@ All shift/rolling operations are grouped by `school_id` so one school's
 history never leaks into another's lag/rolling values.
 """
 
+# In simple terms: builds the "clues" (past meals, past attendance, etc.)
+# the model will use to guess tomorrow's meal count.
+
 from __future__ import annotations
 
 import pandas as pd

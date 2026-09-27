@@ -91,9 +91,8 @@ Explore the pages in the sidebar:
 
 - <b>Dashboard</b> — current state at a glance.
 - <b>Forecast</b> — generate a demand estimate for a chosen school and horizon.
-- <b>Specific Date Prediction</b> — an estimate for one exact future date.
-- <b>Scenario Simulator</b> — compare a baseline forecast against a what-if scenario.
-- <b>Forecast Calendar</b> — a date-based planning table with per-day risk status.
+- <b>Planning</b> — Predict & Compare a custom prediction against its auto-generated baseline
+  for any chosen date, or browse a Forecast Calendar with per-day risk status.
 - <b>School Comparison</b> — compare demand, attendance, waste, and cost across schools.
 - <b>Resource Allocation</b> — forecast demand vs planned capacity, per school.
 - <b>Budget Planning</b> — translate demand forecasts into estimated procurement cost.

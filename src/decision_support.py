@@ -26,6 +26,9 @@ is a heuristic, not a statistically fitted prediction interval — labelled as
 such everywhere it's shown.
 """
 
+# In simple terms: takes the model's raw prediction and adds a safety
+# cushion (extra meals) so schools don't run short if demand is shaky.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

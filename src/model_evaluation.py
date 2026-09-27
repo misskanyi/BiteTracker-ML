@@ -5,6 +5,9 @@ can depend on a single, simple definition of "how do we score a model" and
 "how do we split time-ordered data without leaking the future".
 """
 
+# In simple terms: measures how wrong the model's predictions are, and
+# splits data into "past" (train) and "future" (test) without cheating.
+
 from __future__ import annotations
 
 import pandas as pd

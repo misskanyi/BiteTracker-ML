@@ -6,6 +6,9 @@ Swapping the synthetic CSV for a real dataset later requires no code changes
 here as long as the column names match.
 """
 
+# In simple terms: opens the meals CSV file and checks it has the right
+# columns before anything else in the pipeline touches it.
+
 from __future__ import annotations
 
 from pathlib import Path

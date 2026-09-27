@@ -1,115 +1,289 @@
-# 🍽️ BiteTracker
+# BiteTracker
 
-**Proactive School Meal Planning: Integrating Time Series Forecasting to Provide Decision Support for Food Demand Prediction**
+**A Machine Learning-Based School Meal Demand Forecasting and Resource Allocation Decision Support System**
 
-A machine-learning decision-support platform that forecasts school meal demand, helping schools, county governments, NGOs, and donors reduce food waste, prevent shortages, and plan procurement and budgets proactively rather than reactively.
+Final-year project, BSc Informatics and Computer Science, Strathmore University.
 
-> ⚠️ **Synthetic data notice:** the dataset shipped with this repository is synthetically generated (`src/synthetic_data.py`) because a real-world dataset was not available during development. All metrics in this README and the app are genuine measurements *on that synthetic data* — they validate that the pipeline works correctly, not real-world model accuracy. See [Limitations](#limitations).
+> **Important: current dataset.** Every chart, model, metric and forecast in this version of the repository comes from a **synthetic (generated) development dataset**, `data/sample/synthetic_school_meals.csv`, created by `src/synthetic_data.py`. The anonymised Food4Education research dataset is **not** included in this repository, and this version of the code does not load it. See [Dataset](#dataset).
 
 ---
 
 ## Table of Contents
 
-- [Motivation](#motivation)
-- [Problem Statement](#problem-statement)
-- [Objectives](#objectives)
-- [Features](#features)
+- [Overview](#overview)
+- [Problem Being Addressed](#problem-being-addressed)
+- [Dataset](#dataset)
+- [Machine Learning](#machine-learning)
+- [Forecasting](#forecasting)
+- [Application Functionality](#application-functionality)
 - [Technology Stack](#technology-stack)
-- [System Architecture](#system-architecture)
 - [Project Structure](#project-structure)
-- [Installation](#installation)
-- [Running Locally](#running-locally)
-- [Running the Streamlit App](#running-the-streamlit-app)
-- [Decision-Support Features](#decision-support-features)
-- [ML Pipeline](#ml-pipeline)
-- [Models Compared](#models-compared)
-- [Evaluation Metrics](#evaluation-metrics)
-- [Screenshots](#screenshots)
-- [Ethical Considerations](#ethical-considerations)
+- [Installation and Local Setup](#installation-and-local-setup)
+- [Configuration](#configuration)
+- [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Privacy and Data Use](#privacy-and-data-use)
 - [Limitations](#limitations)
-- [Future Work](#future-work)
-- [License](#license)
+- [Future Improvements](#future-improvements)
 - [Author](#author)
+- [Acknowledgement](#acknowledgement)
+- [License / Academic Use](#license--academic-use)
 
 ---
 
-## Motivation
+## Overview
 
-School feeding programmes routinely swing between two costly failures: **food waste** (preparing more meals than attendance justifies) and **meal shortages** (under-preparing on days attendance spikes). Both stem from the same root cause — meal preparation decisions are made reactively, based on yesterday's numbers or intuition, not a forecast of tomorrow's actual demand. BiteTracker addresses this by turning historical attendance, weather, and calendar data into a next-day/next-week demand forecast that decision-makers can act on *before* the fact.
+BiteTracker is a machine-learning decision-support system that forecasts how many meals a school is likely to need, and helps with planning the resources those meals require.
 
-## Problem Statement
+It learns from historical school-day meal records and shows its forecasts in a Streamlit web application. The aim is to turn past meal-demand records into forward-looking information that helps staff plan meal preparation, capacity and budgets.
 
-Kitchen and procurement staff need to decide, every school day, how many meals to prepare — without knowing tomorrow's attendance in advance. Rainfall, school holidays, exam periods, and special events all shift attendance in ways that are hard to anticipate by eye. BiteTracker frames this as a supervised regression problem: predict next-day `meals_served` per school from lagged historical demand, attendance patterns, weather, and calendar features.
+BiteTracker only **supports** decisions. It does not make final meal-preparation or resource-allocation decisions automatically. Every forecast in the app is labelled as an estimate, and all allocation outputs are worded as suggestions for staff to review.
 
-## Objectives
+## Problem Being Addressed
 
-- Build a reusable, testable data pipeline (clean → engineer features → train → tune → forecast) that works identically on synthetic or real data.
-- Compare four regression approaches — Linear Regression, Decision Tree, Random Forest, XGBoost — on identical, leakage-safe, chronologically-split data.
-- Select the best model by **measured** test-set error (MAE primary, RMSE tiebreak, R² supporting evidence), never by assumption.
-- Provide multi-horizon forecasts (next day / 7 days / 30 days) with an honest accounting of what's assumed vs. measured.
-- Ship a working, professional Streamlit dashboard for non-technical stakeholders.
+The number of learners who eat a school meal changes from day to day, so it is hard to know in advance how many meals will be needed.
 
-## Features
+- **Underestimating** demand can lead to meal shortages.
+- **Overestimating** demand can waste food and money.
 
-- **Synthetic data generator** with believable domain relationships (rainfall depressing attendance, holidays halting service, exam-period effects) — clearly labelled, swappable for real data with zero code changes.
-- **Leakage-safe feature engineering**: per-school lag (1/7/14-day) and rolling (7/14-day) meal-count features, computed strictly from past data.
-- **Chronological 80/20 train-test split** — no shuffling, ever.
-- **Baseline → tuned model comparison** with `GridSearchCV`/`RandomizedSearchCV` + `TimeSeriesSplit`, and an explicit overfitting classifier applied consistently to both stages.
-- **Multi-horizon recursive forecasting** with transparent assumption labelling (user-provided vs. recent-average) for attendance/weather.
-- **13-page Streamlit decision-support platform**: Home, Dashboard, Forecast, Specific Date Prediction, Scenario Simulator, Forecast Calendar, School Comparison, Resource Allocation, Budget Planning, Upload School Data, Data Explorer, Model Performance, About.
-- **School data upload** with CSV/Excel support, transparent data-quality scoring, and forecast-readiness assessment — without retraining the model or overwriting the development dataset.
-- **What-if scenario simulation**, cross-school comparison, resource-allocation gap analysis, and cost/budget projections in KSh.
-- **128 automated tests** covering preprocessing, feature engineering, evaluation, model training, hyperparameter tuning, forecasting, decision-support logic, data validation, resource allocation, budgeting, and the Streamlit app itself (via `streamlit.testing.v1.AppTest`).
+BiteTracker tests whether historical realised meal-demand data can be used to forecast future demand and support better planning.
+
+## Dataset
+
+### What the code uses today
+
+The pipeline and app currently use a **synthetic dataset** that `src/synthetic_data.py` generates. It was built because a real dataset was not available during development. The committed file `data/sample/synthetic_school_meals.csv` contains:
+
+| Property | Value |
+|---|---|
+| Rows | 1,545 school-day records |
+| Schools | 3 fictional schools (`SCH001`, `SCH002`, `SCH003`) |
+| Date range | 2023-01-02 to 2024-12-20 (school days, Mon–Fri) |
+
+The generator creates the relationships between fields (for example, rainfall lowering attendance, or holidays stopping meal service) so that they look plausible. They are **not** fitted to real records. The generator also adds some data-quality problems on purpose (`_inject_data_quality_issues`) so that the cleaning steps have something to fix.
+
+### Raw schema
+
+`src/synthetic_data.py` defines the schema in `SCHEMA_COLUMNS`, and `src/data_loader.py` checks incoming data against it:
+
+| Field | Meaning |
+|---|---|
+| `date` | School day of the record |
+| `school_id`, `school_name` | School identifier and display name |
+| `county`, `sub_county` | Location labels |
+| `enrolled_students` | Enrolment for that school |
+| `students_present`, `students_absent` | Daily attendance counts |
+| `meals_prepared`, `meals_served`, `leftover_meals` | Daily meal counts |
+| `average_cost_per_meal` | Cost per meal (KSh) |
+| `rainfall_mm`, `temperature_c` | Daily weather values (stored in the dataset; no weather API is called) |
+| `is_holiday`, `is_exam_period`, `is_school_event` | Calendar flags (0/1) |
+| `school_term`, `day_of_week`, `month` | Calendar descriptors |
+
+**Realised meal demand** is `meals_served`. The **forecasting target** is `meals_served_next_day`, which is the next school day's `meals_served` for the same school (`config/settings.py` → `TARGET_COLUMN`).
+
+### How enrolment is used
+
+`enrolled_students` is **not** a direct model feature. It is used in two ways:
+
+- To calculate the `attendance_rate` feature (`students_present / enrolled_students`).
+- As reference information after forecasting: the Dashboard shows total enrolment, and the School Comparison page shows each school's attendance rate.
+
+The app does **not** compare predicted demand against enrolment to produce a "planning difference". See [Planning and Resource Analysis](#planning-and-resource-analysis).
+
+### Engineered features
+
+`src/feature_engineering.py` (`FEATURE_COLUMNS`) defines the 20 model inputs. It computes all of them per school, using only information from past days:
+
+| Group | Features |
+|---|---|
+| Lagged demand | `lag_1_meals`, `lag_7_meals`, `lag_14_meals` |
+| Rolling demand | `rolling_mean_7`, `rolling_mean_14`, `rolling_std_7` (calculated after `.shift(1)`, so the current day is excluded) |
+| Attendance | `attendance_rate`, `previous_attendance` |
+| Calendar | `month`, `is_holiday`, `is_exam_period`, `is_school_event` |
+| Encoded categories | `school_term_Term 2`, `school_term_Term 3`, `day_of_week_Tuesday` … `day_of_week_Friday` (one-hot, with Term 1 and Monday as the reference) |
+| Weather | `rainfall_mm`, `temperature_c` |
+
+Rows that do not have a full 14-day lag history, or a known next-day target, are dropped.
+
+### Food4Education research dataset
+
+The project was designed for use with anonymised historical school-feeding data that Food4Education provided for academic research. That dataset is **not committed to this repository**, and the current code does not load it or reference its field names. The pipeline expects the column schema above. To use a different dataset, set `BITETRACKER_DATA_PATH` to a CSV with the same columns (see [Configuration](#configuration)). A dataset with different column names would need code changes first.
+
+## Machine Learning
+
+BiteTracker treats forecasting as a supervised regression problem: predict tomorrow's meals served for a school, using today's and earlier information.
+
+### Models
+
+`src/model_training.py` and `src/model_tuning.py` implement all four candidate models:
+
+| Model | Library | Baseline | Tuned |
+|---|---|---|---|
+| Linear Regression | scikit-learn | Yes | No (kept as the reference) |
+| Decision Tree Regression | scikit-learn | Yes | `GridSearchCV` |
+| Random Forest Regression | scikit-learn | Yes | `RandomizedSearchCV` (25 iterations) |
+| XGBoost Regression | xgboost | Yes | `RandomizedSearchCV` (40 iterations) |
+
+### Chronological evaluation
+
+- **Train/test split:** chronological 80/20 split, with no shuffling (`TRAIN_TEST_SPLIT_RATIO = 0.8`). Earlier records are used for training and later records for testing.
+- **Tuning:** `TimeSeriesSplit` with 5 folds (`CV_N_SPLITS = 5`), run on the training set only. The test set is used once, after tuning.
+- **Metrics:** Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and Coefficient of Determination (R²), in `src/model_evaluation.py`.
+- **Selection rule** (`select_best_model`): lowest test MAE first, then RMSE, then R². The model is also checked for a train/test generalisation gap.
+
+### Selected model (synthetic data)
+
+In the most recent local run, `models/final_best_model_metadata.json` records **tuned XGBoost** as the selected model:
+
+| Metric (test set) | Value |
+|---|---|
+| MAE | 31.24 meals |
+| RMSE | 68.41 meals |
+| R² | 0.892 |
+
+Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-19 (300 rows).
+
+> These numbers come from the **synthetic** dataset. They show that the pipeline works end to end, not how accurate the model would be on real school data. `models/` and `reports/metrics/` are git-ignored, so a fresh clone has no trained model. You will get new results after running the pipeline yourself (see [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)).
+
+## Forecasting
+
+`src/forecasting.py` loads the saved model (`models/final_best_model.joblib`) and makes forecasts per school. It does not retrain anything.
+
+- **Horizons:** next school day, next 7 school days, and next 30 days (school days only).
+- **Multi-day method:** forecasts are recursive. Each predicted day is fed back in as if it had been observed, to build the next day's lag and rolling features. Error can therefore build up over longer horizons, and the app says so.
+- **Unknown future inputs:** future attendance, rainfall and temperature are not known. For day 1, the user can enter their own values. Otherwise, and for every later day, the forecast uses the school's recent 14-day averages. Each row of the results says which assumption was used.
+- **Calendar flags:** term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`.
+
+## Application Functionality
+
+The Streamlit app is started from `app/Home.py` and has the pages below, in the order they appear in the sidebar.
+
+| Page | File |
+|---|---|
+| Home | `app/Home.py` |
+| Dashboard | `app/pages/1_Dashboard.py` |
+| Forecast | `app/pages/2_Forecast.py` |
+| Planning | `app/pages/3_Planning.py` |
+| School Comparison | `app/pages/6_School_Comparison.py` |
+| Resource Allocation | `app/pages/7_Resource_Allocation.py` |
+| Budget Planning | `app/pages/8_Budget_Planning.py` |
+| Upload School Data | `app/pages/9_Upload_School_Data.py` |
+| Data Explorer | `app/pages/10_Data_Explorer.py` |
+| Model Performance | `app/pages/11_Model_Performance.py` |
+| About | `app/pages/12_About.py` |
+
+### Authentication and Role-Based Access
+
+**Not implemented.** The app has no login, user accounts or role-based permissions. Anyone who can open the app can use every page. The roles in the project design (School Manager, Resource Planning Stakeholder, System Administrator) do not appear in the code.
+
+### Home
+
+The Home page introduces the project, its stakeholders and its purpose. It also shows a **Pipeline Status** panel that checks whether the processed dataset, baseline metrics, tuned metrics, final model and model metadata exist. If any are missing, it lists the commands you need to run.
+
+### Historical Meal-Demand Dashboard
+
+The Dashboard page shows:
+
+- **Summary metrics:** total schools, total enrolment, average attendance rate, latest-day meals served, average leftover meals per school per day, and the leftover/prepared rate.
+- **Current model:** the name of the selected model with its test MAE and R².
+- **Charts** (Plotly, with a school multi-select filter): daily meals served per school, average meals served by school, and leftover meals over time.
+
+### Meal-Demand Forecasting
+
+On the **Forecast** page, the user:
+
+1. Selects a school and a horizon (next school day, next 7 school days, or next 30 days).
+2. Optionally enters expected attendance, rainfall and temperature for day 1. Otherwise the recent 14-day averages are used and shown.
+3. Clicks **Generate Forecast**.
+
+The page then shows:
+
+- A decision-support summary for day 1: predicted meals, a recommended preparation quantity with a safety buffer, a risk level, and the assumptions used.
+- The estimated daily, weekly and monthly cost.
+- A forecast table with the assumption used for each day.
+- A chart of recent actual demand against the forecast.
+
+**Safety buffer and risk** (`src/decision_support.py`): this is a documented rule of thumb, not a statistical prediction interval. The buffer grows with recent demand volatility (coefficient of variation) and with the forecast horizon, and is capped at 20% of predicted demand. Risk is Low if the buffer is under 5%, Moderate if under 12%, and High otherwise.
+
+### Planning and Resource Analysis
+
+**Planning page** (two tabs, for a selected school):
+
+- **Predict & Compare.** Choose a future date and set attendance, rainfall, temperature, term, holiday, exam-period and school-event values. The page compares your prediction with an automatic baseline forecast for the same date, and shows the difference, a decision-support card, the model's top-5 feature importances (for tree-based models), and recent demand next to the prediction.
+- **Forecast Calendar.** A 14- or 30-school-day table showing predicted demand, recommended preparation, risk level and estimated cost for each day. You can open any single day to see its full decision-support details.
+
+**Resource Allocation page:** for each selected school, the user enters the *available capacity* (meals). The page compares this with the next-day forecast and labels the gap as a **Shortage**, **Surplus** or **Balanced**. If some schools show a shortage and others a surplus, it suggests reviewing allocation between them, and states that this is not an automatic reallocation.
+
+**Budget Planning page:** multiplies the next-day forecast by an editable cost per meal (the default is the recent average). This gives daily, weekly (×5 days) and monthly (×22 days) estimates, and a chart of recent historical spending against the forecast spending.
+
+> **Note:** the app does not compare predicted demand with verified total school enrolment. Its planning comparisons are forecast vs. user-entered capacity (Resource Allocation) and forecast vs. cost (Budget Planning). "Surplus" on the Resource Allocation page means capacity above forecast demand. It is not a measurement of food waste. The "waste" figures on the Dashboard and School Comparison pages come from the synthetic `leftover_meals` field.
+
+### School Comparison
+
+The user selects two or more schools. For each school, the page shows a table with predicted next-day demand, the averages over the last 30 days (attendance, attendance rate, meals served, leftovers, estimated waste %, cost per meal), the expected daily cost and the forecast risk. Bar charts show predicted demand, expected daily cost, and attendance rate against estimated waste.
+
+### Data Submission and Verification
+
+The **Upload School Data** page supports:
+
+- **Uploading** a CSV or Excel (`.xlsx`/`.xls`) file. Required columns are `date`, `school_id`, `school_name` and `meals_served`; the other columns are optional.
+- **Automatic validation** (`src/data_validation.py`): record count, duplicates, missing values, date range, months of coverage, a data-quality score out of 100 (six weighted factors: completeness, duplicates, date validity, coverage, column richness, numeric validity), a forecast-readiness label (READY / LIMITED / NOT READY), and warnings where the file is not compatible with the trained model.
+- **Processing:** runs the same cleaning and feature-engineering steps and saves the upload to `data/uploads/` with a timestamp in the filename.
+
+Not implemented: uploading supporting documents, administrator review or approval, and adding uploaded data to the main dataset. Uploads do **not** replace the development dataset, do **not** retrain the model, and are not used by the other pages.
+
+### Data Explorer
+
+Filter the raw dataset by school and date range, preview rows, view summary statistics and missing-value counts, and download the filtered data as CSV.
+
+### Model Performance
+
+This page is available to all users (there are no roles). It shows:
+
+- The selected model with its test MAE, RMSE and R².
+- Tabs for baseline metrics, tuned metrics, and baseline vs. tuned improvement, each with tables and bar charts.
+- Embedded charts: actual vs. predicted and residuals for the final model, and feature importance for tuned Random Forest and XGBoost.
+
+### About
+
+Methodology, the models compared, ethical considerations, the synthetic-data disclosure, and limitations.
 
 ## Technology Stack
 
-| Layer | Tools |
-|---|---|
-| Data & ML | Python 3.9+, Pandas, NumPy, scikit-learn, XGBoost, statsmodels |
-| Visualization / App | Plotly, Streamlit |
-| Persistence | Joblib (models), CSV (data), PostgreSQL (prepared, not yet wired in) |
-| Testing | Pytest, `streamlit.testing.v1.AppTest` |
-| Config | `python-dotenv`, `pathlib`-based settings module |
+Versions below come from `requirements.txt`.
 
-## System Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌────────────────────┐
-│ synthetic_data.py│───▶│  data_loader.py   │───▶│  preprocessing.py   │
-│ (or real CSV)    │    │ (schema validate) │    │ (clean, impute, cap)│
-└─────────────────┘    └──────────────────┘    └──────────┬─────────┘
-                                                            ▼
-┌─────────────────┐    ┌──────────────────┐    ┌────────────────────┐
-│  forecasting.py  │◀───│  model_tuning.py  │◀───│feature_engineering.py│
-│ (recursive multi- │    │ (GridSearchCV /   │    │ (lag/rolling, target)│
-│  horizon predict) │    │  RandomizedSearchCV│    └──────────┬─────────┘
-└────────┬─────────┘    │  + TimeSeriesSplit)│               ▼
-         │              └──────────────────┘    ┌────────────────────┐
-         │                        ▲              │ model_training.py   │
-         │                        └──────────────│ (baseline 4 models) │
-         ▼                                       └────────────────────┘
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Streamlit App (app/Home.py + pages/)              │
-│  Home · Dashboard · Forecast · Model Performance · Data Explorer ·   │
-│  About — all reading from data/processed/ and models/                │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| Area | Technology | Version | Used for |
+|---|---|---|---|
+| Language | Python | ≥ 3.9 (`pyproject.toml`) | Everything |
+| Data | pandas | 2.3.3 | Data handling |
+| Data | NumPy | 2.0.2 | Numerical work, synthetic data |
+| ML | scikit-learn | 1.6.1 | Linear Regression, Decision Tree, Random Forest, CV, metrics |
+| ML | XGBoost | 2.1.4 | XGBoost regressor |
+| Statistics | statsmodels | 0.14.6 | OLS trendlines in EDA scatter charts (via Plotly) |
+| Visualisation | Plotly | 6.9.0 | All charts (Matplotlib is not used) |
+| Web app | Streamlit | 1.50.0 | User interface |
+| Persistence | joblib | 1.5.3 | Saving and loading models |
+| Config | python-dotenv | 1.2.1 | Loading `.env` |
+| Reporting | tabulate | 0.9.0 | Markdown tables in generated reports |
+| Uploads | openpyxl | 3.1.5 | Reading Excel uploads |
+| Testing | pytest | 8.4.2 | Test suite |
+| Not used yet | psycopg2-binary | 2.9.12 | Installed for possible future PostgreSQL use; the app uses CSV files |
+| Version control | Git, GitHub | — | Source control |
 
 ## Project Structure
 
-```
-BiteTracker/
-├── app/                          # Streamlit application
-│   ├── Home.py                   # Entry point — streamlit run app/Home.py
-│   ├── theme.py                  # Shared styling, page headers, chart theming
-│   ├── data_access.py            # Cached data/model loaders
-│   ├── assets/
+```text
+BiteTracker-ML/
+├── app/
+│   ├── Home.py                     # Streamlit entry point
+│   ├── data_access.py              # Cached loading of data, model, metrics; upload saving
+│   ├── theme.py                    # Page styling and shared UI components
+│   ├── assets/                     # (empty)
 │   └── pages/
 │       ├── 1_Dashboard.py
 │       ├── 2_Forecast.py
-│       ├── 3_Specific_Date_Prediction.py
-│       ├── 4_Scenario_Simulator.py
-│       ├── 5_Forecast_Calendar.py
+│       ├── 3_Planning.py
 │       ├── 6_School_Comparison.py
 │       ├── 7_Resource_Allocation.py
 │       ├── 8_Budget_Planning.py
@@ -118,218 +292,190 @@ BiteTracker/
 │       ├── 11_Model_Performance.py
 │       └── 12_About.py
 ├── config/
-│   └── settings.py               # Central pathlib-based config, seeds, schema
-├── data/
-│   ├── raw/                      # Real data goes here (gitignored)
-│   ├── processed/                # Pipeline output (gitignored)
-│   ├── uploads/                  # User-uploaded datasets (gitignored)
-│   └── sample/                   # Synthetic dataset (committed)
-├── models/                       # Trained models + metadata (gitignored)
-├── notebooks/                    # Exploratory notebooks (empty by default)
-├── reports/
-│   ├── figures/                  # Generated Plotly HTML charts (gitignored)
-│   ├── metrics/                  # Generated CSV/JSON metrics (gitignored)
-│   ├── EDA_Report.md
-│   ├── Baseline_Model_Training_Report.md
-│   ├── Hyperparameter_Tuning_Report.md
-│   ├── Forecasting_Report.md
-│   └── Final_Project_Report.md
+│   └── settings.py                 # Paths, target column, split ratio, seed, env vars
 ├── src/
-│   ├── synthetic_data.py         # Synthetic dataset generator
-│   ├── data_loader.py            # Schema validation + flexible loading
-│   ├── preprocessing.py          # Cleaning pipeline
-│   ├── feature_engineering.py    # Lag/rolling features, target construction
-│   ├── pipeline.py                # load → clean → engineer → save
-│   ├── model_training.py         # Baseline model training
-│   ├── model_tuning.py           # GridSearchCV/RandomizedSearchCV + TimeSeriesSplit
-│   ├── model_evaluation.py       # Metrics, chronological split, overfitting classifier
-│   ├── forecasting.py            # Multi-horizon recursive forecasting + specific-date prediction
-│   ├── decision_support.py       # Safety buffer, risk level, uncertainty labelling
-│   ├── data_validation.py        # Upload parsing, validation, quality score, forecast readiness
-│   ├── resource_allocation.py    # School comparison + demand-vs-capacity gap logic
-│   ├── budgeting.py               # Cost projection from predicted demand + cost-per-meal
-│   ├── visualization.py          # Reusable Plotly chart builders
-│   ├── eda.py                    # Statistical summaries, data-quality report
-│   └── utils.py                  # Logging, seeding
-├── tests/                        # 128 automated tests
-├── run_pipeline.py                # CLI: data pipeline
-├── run_eda.py                     # CLI: EDA charts + reports
-├── run_training.py                # CLI: baseline model training
-├── run_tuning.py                  # CLI: hyperparameter tuning
-├── .streamlit/
-│   ├── config.toml                # App theme
-│   └── secrets.toml.example       # Template — copy to secrets.toml, never commit real secrets
+│   ├── synthetic_data.py           # Synthetic dataset generator + calendar rules
+│   ├── data_loader.py              # Load dataset and validate schema
+│   ├── preprocessing.py            # Cleaning, imputation, outlier capping, encoding
+│   ├── feature_engineering.py      # Lag/rolling/attendance features and target
+│   ├── pipeline.py                 # load → preprocess → feature-engineer
+│   ├── eda.py, visualization.py    # EDA statistics and Plotly charts
+│   ├── model_training.py           # Baseline models, chronological split
+│   ├── model_tuning.py             # TimeSeriesSplit tuning, model selection
+│   ├── model_evaluation.py         # MAE / RMSE / R², generalisation gap
+│   ├── forecasting.py              # Multi-horizon and specific-date forecasts
+│   ├── decision_support.py         # Safety buffer, risk level, uncertainty labels
+│   ├── resource_allocation.py      # School summaries, capacity gap
+│   ├── budgeting.py                # Cost estimates
+│   ├── data_validation.py          # Upload validation and quality score
+│   └── utils.py                    # Logging, random seed
+├── data/
+│   ├── sample/synthetic_school_meals.csv   # Committed synthetic dataset
+│   ├── raw/                        # git-ignored
+│   ├── processed/                  # git-ignored (pipeline output)
+│   └── uploads/                    # git-ignored (user uploads)
+├── models/                         # git-ignored (trained models + metadata)
+├── reports/
+│   ├── *.md                        # EDA, training, tuning, forecasting, final reports
+│   ├── figures/                    # git-ignored (generated charts)
+│   └── metrics/                    # git-ignored (generated metrics)
+├── notebooks/                      # (empty)
+├── tests/                          # pytest suite
+├── run_pipeline.py                 # Step 1: build processed dataset
+├── run_eda.py                      # Optional: EDA charts and report
+├── run_training.py                 # Step 2: baseline models
+├── run_tuning.py                   # Step 3: tuning + final model selection
+├── .streamlit/config.toml          # Theme and server settings
+├── .streamlit/secrets.toml.example
+├── .env.example
 ├── requirements.txt
 ├── pyproject.toml
-└── .env.example
+├── LICENSE
+└── README.md
 ```
 
-## Installation
+- **`app/`** — the Streamlit interface. Pages only display results; the logic lives in `src/`.
+- **`src/`** — the data pipeline, ML code and decision-support logic, which both the scripts and the app use.
+- **`config/settings.py`** — the single place for paths and key settings.
+- **`run_*.py`** — command-line scripts that produce the processed data, models, metrics and reports.
+- **`reports/*.md`** — written reports produced by the scripts on the synthetic data.
+
+## Installation and Local Setup
+
+### 1. Clone the repository
 
 ```bash
-git clone <this-repo-url>
-cd BiteTracker
+git clone https://github.com/misskanyi/BiteTracker-ML.git
+cd BiteTracker-ML
+```
 
+### 2. Create a virtual environment
+
+macOS/Linux:
+
+```bash
 python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate
+```
 
+Windows (PowerShell):
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Running Locally
+### 4. Build the model (first run only)
 
-Run the pipeline stages in order (each is idempotent and safe to re-run):
+A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Run these once, in this order:
 
 ```bash
-python run_pipeline.py     # generate synthetic data (if missing) → clean → engineer features
-python run_eda.py          # EDA charts + reports/EDA_Report.md
-python run_training.py     # baseline models (Linear/Tree/Forest/XGBoost) → models/, reports/
-python run_tuning.py       # GridSearchCV/RandomizedSearchCV tuning → models/*_tuned.joblib
-python -m pytest -q        # run the full test suite (76 tests)
+python run_pipeline.py
+python run_training.py
+python run_tuning.py
 ```
 
-## Running the Streamlit App
+If you skip this step, the app still opens, but the Home page shows missing artifacts and most pages show an error with these same commands.
+
+### 5. Run BiteTracker
 
 ```bash
+source .venv/bin/activate
 streamlit run app/Home.py
 ```
 
-Open the printed local URL (typically `http://localhost:8501`) in your browser. See the **Troubleshooting** table below if it fails to start.
+Streamlit prints a local URL in the terminal, usually something like `http://localhost:8501`. If that port is already in use, it picks a different one, so use the URL it prints.
 
-| Symptom | Fix |
-|---|---|
-| `ModuleNotFoundError` for streamlit/pandas/etc. | venv not activated, or deps not installed — see [Installation](#installation). |
-| Pages show "Missing ❌" status | Run the pipeline scripts above in order first. |
-| `FileNotFoundError: final_best_model.joblib` | Run `python run_tuning.py`. |
-| Port 8501 already in use | `streamlit run app/Home.py --server.port 8502`. |
+## Configuration
 
-## Decision-Support Features
+You do not need any configuration to run the app locally with the synthetic dataset. The optional settings are:
 
-Beyond the raw ML pipeline, the app provides a set of practical planning tools built on top of
-the trained model — for schools, county governments, NGOs, and donors, not just ML practitioners:
+| Setting | Where | Purpose |
+|---|---|---|
+| `BITETRACKER_DATA_PATH` | environment / `.env` | Path to a different input CSV with the same schema. Defaults to `data/sample/synthetic_school_meals.csv`. |
+| `RANDOM_SEED` | environment / `.env` | Seed used for reproducibility (default `42`) |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | `.env` | Read by `config/settings.py` for future PostgreSQL use. **Not used** by the current app. |
+| `[postgres]` block | `.streamlit/secrets.toml` | Template only (`secrets.toml.example`). **Not read** by the current code. |
+| Theme / server | `.streamlit/config.toml` | Colours, headless mode, XSRF protection, telemetry turned off |
 
-- **Specific Date Prediction** (`app/pages/3_Specific_Date_Prediction.py`) — an estimate for one
-  exact future date and school, with explicit user-provided assumptions (attendance, rainfall,
-  temperature, term, holiday/exam/event status) clearly distinguished from auto-derived values
-  (day of week, month, lag/rolling history) — plus a decision-support summary (predicted demand,
-  recommended preparation, safety buffer, risk level) and a model-wide feature-importance chart.
-- **Scenario Simulator** (`app/pages/4_Scenario_Simulator.py`) — compares a baseline next-day
-  forecast against a user-defined what-if scenario (attendance change %, rainfall, temperature,
-  holiday/exam/event), with a plain-language explanation that stops short of claiming causality.
-- **Forecast Calendar** (`app/pages/5_Forecast_Calendar.py`) — a 14/30-school-day planning table
-  (predicted demand, recommended preparation, risk, estimated cost) with a day-selector for
-  full decision-support detail on any date.
-- **School Comparison** (`app/pages/6_School_Comparison.py`) — side-by-side demand, attendance,
-  waste, and cost metrics across selected schools, aimed at NGOs/donors/county governments.
-- **Resource Allocation** (`app/pages/7_Resource_Allocation.py`) — forecast demand vs
-  manually-entered planned capacity per school, surfacing shortage/surplus gaps as a
-  **decision-support recommendation** (never an automatic reallocation command).
-- **Budget Planning** (`app/pages/8_Budget_Planning.py`) — translates predicted demand and
-  average cost-per-meal into daily/weekly/monthly cost estimates (KSh), plus a
-  historical-vs-forecast expenditure chart.
-- **Upload School Data** (`app/pages/9_Upload_School_Data.py`) — lets a school/NGO bring its own
-  historical CSV/Excel dataset. Runs a full validation pass (schema, dates, duplicates, missing
-  values, numeric ranges, coverage) and a transparent 0–100 **Data Quality Score**, then a
-  **forecast readiness** verdict (READY / LIMITED / NOT READY, based on record count — see
-  `src/data_validation.py`). Uploads are stored under `data/uploads/` (git-ignored), never
-  overwrite the synthetic dataset, and never trigger automatic retraining.
+To create a local `.env`:
 
-### Forecast Assumptions
+```bash
+cp .env.example .env
+```
 
-Every prediction distinguishes three kinds of input, shown consistently across pages:
+Then replace the placeholder values with your own. Never commit `.env` or `.streamlit/secrets.toml`; both are already listed in `.gitignore`.
 
-- **Auto-derived** — day of week, month, and lag/rolling demand history (computed from the
-  school's own past records).
-- **User-provided** — attendance, rainfall, temperature, term, holiday/exam/event status.
-- **Assumed default** — when a page falls back to a recent historical average because the user
-  hasn't supplied a value (e.g. beyond day 1 of a multi-day forecast).
+The app does not use any weather API, external API or API keys. Weather values come from the dataset columns.
 
-The **safety buffer** and **recommended preparation quantity** (`src/decision_support.py`) are a
-transparent planning heuristic — *not* a statistical prediction interval — driven by the school's
-recent demand volatility (`rolling_std_7`) and the forecast horizon (later days in a recursive
-multi-day forecast carry more compounding error). Risk level (Low/Moderate/High) and uncertainty
-labels (Lower/Moderate/Higher) are derived from that same buffer logic; no confidence percentage
-is fabricated. See the module docstring for the exact formula.
+## Running the Machine-Learning Pipeline
 
-### Data Privacy
+Starting the Streamlit app does **not** retrain anything. The app loads the saved model from `models/final_best_model.joblib`. Rerun the scripts below only when the data or the modelling code changes.
 
-The upload workflow only accepts aggregated, school-level daily records — never student names,
-admission numbers, phone numbers, addresses, or other personally-identifying information. This is
-stated explicitly on the Upload School Data page.
+| Step | Command | What it does | Main outputs |
+|---|---|---|---|
+| Preprocess | `python run_pipeline.py` | Loads the dataset (and generates the synthetic one if it is missing), then cleans it and builds features | `data/processed/school_meals_processed.csv` |
+| EDA (optional) | `python run_eda.py` | Descriptive statistics, data-quality report, charts | `reports/metrics/*`, `reports/figures/*`, `reports/EDA_Report.md` |
+| Train baselines | `python run_training.py` | Chronological 80/20 split; trains the 4 models with default settings | `models/*.joblib`, `reports/metrics/baseline_*`, `reports/Baseline_Model_Training_Report.md` |
+| Tune and select | `python run_tuning.py` | Tunes Decision Tree, Random Forest and XGBoost with `TimeSeriesSplit`; selects the final model by test MAE | `models/final_best_model.joblib`, `models/final_best_model_metadata.json`, `reports/metrics/tuned_*`, `reports/Hyperparameter_Tuning_Report.md` |
+| Run app | `streamlit run app/Home.py` | Loads the processed data and the final model for prediction | — |
 
-### Synthetic vs. Real Data
+## Testing
 
-Every page shows a badge indicating whether it is looking at **Synthetic Development Data** or
-**User-Uploaded Data** (`app/theme.py::page_header`'s `badge_text` parameter) — the two are never
-mixed silently.
+```bash
+pytest
+```
 
-## ML Pipeline
+The `tests/` folder covers preprocessing, feature engineering, evaluation, training, tuning, forecasting, decision support, data validation, resource allocation, budgeting, and loading the Streamlit pages with `streamlit.testing.v1.AppTest`.
 
-1. **Data generation / loading** (`src/synthetic_data.py`, `src/data_loader.py`) — schema-validated CSV, synthetic by default, swappable for real data via `config.settings.ACTIVE_DATA_PATH`.
-2. **Preprocessing** (`src/preprocessing.py`) — date parsing, chronological sort, duplicate removal, per-school missing-value imputation, per-school IQR outlier capping, one-hot encoding (with `drop_first=True` to avoid the dummy-variable trap).
-3. **Feature engineering** (`src/feature_engineering.py`) — lag (1/7/14-day) and rolling (7/14-day mean, 7-day std) meal-count features computed per-school with `.shift(1)` before rolling, so today never sees itself; target is `meals_served.shift(-1)` per school.
-4. **Chronological split** — last 20% of time-ordered rows held out; never shuffled.
-5. **Baseline training** (`src/model_training.py`) — four regressors with library defaults, to establish an honest starting point.
-6. **Hyperparameter tuning** (`src/model_tuning.py`) — `TimeSeriesSplit` (5 folds) cross-validation on the training set only; the test set is never exposed during tuning. Decision Tree uses exhaustive `GridSearchCV`; Random Forest and XGBoost use `RandomizedSearchCV` (documented in `reports/Hyperparameter_Tuning_Report.md` — the full grids were too expensive for a development machine).
-7. **Forecasting** (`src/forecasting.py`) — recursive one-step-ahead prediction extended to multi-day horizons, with attendance/weather assumptions labelled `user-provided` or `recent 14-day average`.
+## Deployment
 
-## Models Compared
+The repository does not show a deployment. It has no deployment configuration and no live application URL. `.streamlit/config.toml` sets `headless = true`, which suits hosted environments, but that alone does not show that the app has been deployed anywhere.
 
-| Model | Role |
-|---|---|
-| Linear Regression | Baseline, unchanged/untuned reference |
-| Decision Tree Regressor | Captures non-linear splits (e.g. holiday thresholds) |
-| Random Forest Regressor | Ensemble, generally more robust than a single tree |
-| XGBoost Regressor | Gradient boosting, strong on tabular data with mixed feature types |
+## Privacy and Data Use
 
-**Final selected model (on synthetic data): XGBoost** — Test MAE 31.24, RMSE 68.41, R² 0.892, selected by lowest test MAE (not R² alone). See `reports/Hyperparameter_Tuning_Report.md` for the full baseline-vs-tuned comparison and overfitting analysis.
-
-## Evaluation Metrics
-
-- **MAE** (Mean Absolute Error) — primary metric; directly interpretable as "meals mispredicted on average".
-- **RMSE** (Root Mean Squared Error) — secondary tiebreak; penalizes large errors more.
-- **R²** — supporting evidence only; never used alone to select a model.
-- **Generalization gap classification** — a shared heuristic (`src/model_evaluation.classify_generalization_gap`) flags "Overfitting" / "Moderate Gap" / "Good Generalization" consistently across baseline and tuned reports.
-
-## Screenshots
-
-> _Add screenshots here after running the app locally:_
-> - `docs/screenshots/home.png`
-> - `docs/screenshots/dashboard.png`
-> - `docs/screenshots/forecast.png`
-> - `docs/screenshots/model_performance.png`
-> - `docs/screenshots/data_explorer.png`
-
-## Ethical Considerations
-
-- No student-level personally identifiable information is collected or required — no names, admission numbers, or phone numbers.
-- Data is aggregated at the school-day level (enrolment, attendance counts, meal totals).
-- Any future real dataset should use anonymized school identifiers, aggregated daily attendance/meal totals, secure storage, and comply with Kenya's **Data Protection Act, 2019**.
+- The project is designed around anonymised, school-level school-feeding data. It never needs individual learner identities; records are daily totals per school.
+- The Food4Education dataset was provided for academic research only, and it is not included in this repository.
+- The committed dataset is fully synthetic. Its school names and locations are made up.
+- The Upload page warns users not to include student names, admission numbers, phone numbers or addresses.
+- Raw, processed and uploaded data, trained models and generated metrics are git-ignored (`data/raw/*`, `data/processed/*`, `data/uploads/*`, `models/*`, `reports/figures/*`, `reports/metrics/*`). Keep restricted datasets out of version control.
 
 ## Limitations
 
-- **Synthetic data only** — no real-world accuracy claim is made; see the in-app "Synthetic Development Data" badge on every page.
-- **Compounding forecast error** over longer horizons (recursive multi-step forecasting).
-- **No true future weather/attendance forecast** — beyond day 1 of a forecast, attendance/weather always fall back to a recent historical average.
-- **Safety buffer is a heuristic, not a statistical prediction interval** — it is derived from recent demand volatility and forecast horizon (`src/decision_support.py`), transparently documented, but not fitted to held-out residuals.
-- **Only 3 synthetic schools, ~2 years of history** — limited data for lag_14/rolling_14 features and cross-school generalization.
-- **Approximated Kenyan school calendar** in the synthetic generator, not sourced from an authoritative gazette.
-- **Uploaded-school forecasting is gated by history length** — a newly-uploaded school needs at least 14 daily records before lag/rolling features (and therefore any prediction) are possible, and 60+ before being marked forecast-ready; the model was trained on the synthetic schools' feature distribution, so predictions for a very different real school should be treated cautiously (see `src/data_validation.py::check_feature_compatibility`).
+- **Synthetic data only.** The current results say nothing about real-world accuracy. The model needs to be retrained and re-evaluated on real data before anyone relies on it.
+- **Small dataset.** Three synthetic schools over about two school years. A real deployment needs more schools and a longer history.
+- **Data quality.** Forecast quality depends on how complete and accurate the historical records are.
+- **Unusual events** (strikes, disease outbreaks, sudden policy changes) may not appear in past patterns.
+- **Compounding error.** Multi-day forecasts are recursive, and days after day 1 use historical averages for attendance and weather.
+- **Heuristic uncertainty.** The safety buffer and risk levels are rules of thumb, not statistical confidence intervals.
+- **Estimates, not guarantees.** Every output is meant to support human decisions, not replace them.
+- **No authentication or roles**, and uploaded data is not reviewed or merged into the main dataset.
 
-## Future Work
+## Future Improvements
 
-- Swap in real school-level data and re-run baseline + tuning from scratch (hyperparameters found here were fit to synthetic noise and should not be reused as-is).
-- Add true weather/attendance forecast inputs instead of historical-average fallbacks.
-- Fit the safety buffer to each model's measured residual spread instead of the current volatility/horizon heuristic.
-- Add a controlled retraining workflow for uploaded school data (currently upload → validate → process → assess readiness, with no automatic retraining).
-- Consider SHAP for local (per-prediction) explainability if it doesn't destabilize the app — the current feature-importance chart is model-wide, not prediction-specific.
-- Move from CSV to the prepared PostgreSQL schema for multi-user, real-time updates.
-- Add authentication/role-based views for schools vs. county vs. NGO stakeholders.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+- Load and retrain on the anonymised Food4Education dataset, with a schema mapping for its field names.
+- Add authentication and role-based access (School Manager, Resource Planning Stakeholder, System Administrator).
+- Add an administrator review and approval step so that verified uploads can join the training data.
+- Compare forecasts with verified enrolment as a planning reference.
+- Move from CSV files to the planned PostgreSQL setup.
 
 ## Author
 
-**Sharon Kanyi** — Final-year project, BiteTracker: Proactive School Meal Planning.
+**Kanyi Sharon Wambui**
+Bachelor of Science in Informatics and Computer Science
+Strathmore University
+
+## Acknowledgement
+
+- **Madam Salome Chemiat**, for supervising this project.
+- **Food4Education**, for providing the anonymised historical school-feeding dataset for academic research. Food4Education did not develop BiteTracker and has not endorsed it.
+
+## License / Academic Use
+
+This is an academic final-year project. The repository contains a `LICENSE` file with the **MIT License** (Copyright (c) 2026 Sharon Kanyi), which `pyproject.toml` also declares. The Food4Education dataset is not covered by this license and is not distributed here.

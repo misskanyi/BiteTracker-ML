@@ -13,6 +13,9 @@ the same column schema as `SCHEMA_COLUMNS` below, nothing else needs to
 change.
 """
 
+# In simple terms: fakes a realistic school-meals dataset (since we don't
+# have real data yet) so the rest of the project has something to run on.
+
 from __future__ import annotations
 
 from datetime import date, timedelta

@@ -4,6 +4,9 @@ Pure functions over the processed dataset + trained model — no Streamlit
 imports — so pages just collect inputs and display these results.
 """
 
+# In simple terms: compares schools against each other so donors/officials
+# can see which ones need more resources than others.
+
 from __future__ import annotations
 
 import pandas as pd

@@ -1,5 +1,8 @@
 """Shared utilities: logging setup and reproducibility helpers."""
 
+# In simple terms: small helper functions (consistent logging, fixed random
+# seeds) that other files reuse instead of repeating themselves.
+
 from __future__ import annotations
 
 import logging

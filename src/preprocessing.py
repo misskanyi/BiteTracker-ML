@@ -6,6 +6,9 @@ them in the order that matters for correctness (e.g. dates must be parsed
 and sorted before outlier/duplicate logic that depends on order).
 """
 
+# In simple terms: cleans up messy raw data (fixes dates, removes
+# duplicates/outliers) so it's ready for feature-building and modelling.
+
 from __future__ import annotations
 
 import pandas as pd

@@ -28,6 +28,10 @@ RMSE and R² are computed separately after refitting the best estimator —
 they are not used to pick hyperparameters, only to describe the result.
 """
 
+# In simple terms: tries out many settings ("knobs") for the Decision Tree,
+# Random Forest, and XGBoost models to find the version of each that
+# predicts best.
+
 from __future__ import annotations
 
 import json

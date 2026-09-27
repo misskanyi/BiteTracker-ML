@@ -13,6 +13,9 @@ but means errors can compound over the horizon — documented in the
 Streamlit UI, not hidden.
 """
 
+# In simple terms: uses the trained model to predict meal demand for the
+# next day, next week, or next month for a chosen school.
+
 from __future__ import annotations
 
 from datetime import date, timedelta

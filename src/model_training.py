@@ -5,6 +5,10 @@ that's Phase 5) on a chronological 80/20 split, so their untuned behaviour
 establishes a baseline before any GridSearchCV work.
 """
 
+# In simple terms: teaches 4 different models (Linear Regression, Decision
+# Tree, Random Forest, XGBoost) to guess tomorrow's meal count, using
+# default settings, so we have a starting point to compare against later.
+
 from __future__ import annotations
 
 from pathlib import Path

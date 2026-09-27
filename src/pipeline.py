@@ -5,6 +5,9 @@ Streamlit app) should call to get a model-ready dataset, so cleaning and
 feature logic live in exactly one place.
 """
 
+# In simple terms: runs all the data-prep steps in order (load → clean →
+# add features → save) so everything else just uses one finished file.
+
 from __future__ import annotations
 
 from pathlib import Path

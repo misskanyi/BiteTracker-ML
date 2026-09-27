@@ -6,6 +6,9 @@ Streamlit so the same functions serve the EDA report (saved as HTML) and,
 later, the app pages (rendered live with `st.plotly_chart`).
 """
 
+# In simple terms: draws the charts/graphs (trends, comparisons) used in
+# the EDA report and the Streamlit app pages.
+
 from __future__ import annotations
 
 import pandas as pd

@@ -5,6 +5,9 @@ separate from `src.forecasting`/`src.decision_support` since cost is a
 downstream business calculation, not a model output.
 """
 
+# In simple terms: takes the predicted number of meals and multiplies by
+# cost-per-meal to tell schools how much money they'll need to spend.
+
 from __future__ import annotations
 
 import pandas as pd
