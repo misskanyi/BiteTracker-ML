@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# Cancel an older run on the same branch/PR when a newer commit arrives.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Pipeline + tests (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Uses the committed SYNTHETIC dataset (data/sample/synthetic_school_meals.csv).
+      # No real Food4Education data is used or needed. The full run, tuning
+      # included, takes well under a minute on this dataset.
+      - name: Run ML pipeline (synthetic data)
+        run: python scripts/train_models.py
+
+      - name: Check pipeline artifacts exist
+        run: |
+          for f in \
+            data/processed/school_meals_processed.csv \
+            models/final_best_model.joblib \
+            models/final_best_model_metadata.json \
+            reports/metrics/baseline_model_metrics.csv \
+            reports/metrics/tuned_model_metrics.csv; do
+            test -s "$f" || { echo "Missing or empty artifact: $f"; exit 1; }
+          done
+          echo "All pipeline artifacts present."
+
+      # Runs after the pipeline so the Streamlit page tests find the trained
+      # model and metrics (they skip when those artifacts are missing).
+      - name: Run tests
+        run: pytest -q

@@ -321,6 +321,7 @@ BiteTracker-ML/
 │   └── metrics/                    # git-ignored (generated metrics)
 ├── notebooks/                      # (empty)
 ├── tests/                          # pytest suite
+├── .github/workflows/ci.yml        # GitHub Actions CI: install → pipeline → tests
 ├── scripts/
 │   └── train_models.py             # One command: data → features → train → tune → select → save
 ├── run_pipeline.py                 # Step 1: build processed dataset
@@ -468,6 +469,18 @@ pytest
 ```
 
 The `tests/` folder covers preprocessing, feature engineering, evaluation, training, tuning, the one-command pipeline (on a small dataset with cheap tuning, writing to a temporary folder), forecasting, decision support, data validation, resource allocation, budgeting, and loading the Streamlit pages with `streamlit.testing.v1.AppTest`.
+
+## Continuous Integration
+
+GitHub Actions checks the project automatically (`.github/workflows/ci.yml`). It runs on every push to `main` or to a `feature/**` branch, and on every pull request into `main`.
+
+Each run, on Ubuntu with Python 3.11:
+
+1. Installs the dependencies from `requirements.txt` (pip downloads are cached between runs).
+2. Validates the ML pipeline by running `python scripts/train_models.py` end to end on the committed **synthetic** dataset, then checks that the processed data, final model, model metadata and metrics files were created. No real or restricted data is used, and no secrets are needed.
+3. Runs the test suite with `pytest -q`. Because the pipeline has just produced a trained model, the Streamlit page tests run instead of being skipped.
+
+The run fails if the dependencies cannot be installed, if any pipeline stage fails, or if any test fails. CI does not deploy anything.
 
 ## Deployment
 
