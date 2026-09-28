@@ -58,8 +58,8 @@ def split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         len(train_df), train_df[settings.DATE_COLUMN].min().date(), train_df[settings.DATE_COLUMN].max().date(),
         len(test_df), test_df[settings.DATE_COLUMN].min().date(), test_df[settings.DATE_COLUMN].max().date(),
     )
-    if train_df[settings.DATE_COLUMN].max() > test_df[settings.DATE_COLUMN].min():
-        raise ValueError("Train period must not extend past the start of the test period")
+    if train_df[settings.DATE_COLUMN].max() >= test_df[settings.DATE_COLUMN].min():
+        raise ValueError("Train period must end before the test period starts (no shared dates)")
     return train_df, test_df
 
 
@@ -246,7 +246,7 @@ def write_report(metrics_df: pd.DataFrame, split_metadata: dict) -> None:
         "(no GridSearchCV — that is Phase 5) to establish a baseline before any tuning effort:",
         "",
         "- **Linear Regression** — simple, interpretable baseline; assumes linear relationships "
-        "between lag/rolling/weather features and next-day demand.",
+        "between lag/rolling/weather features and a school day's demand.",
         "- **Decision Tree Regressor** — captures non-linear splits (e.g. holiday vs term-time "
         "thresholds) a linear model can't.",
         "- **Random Forest Regressor** — ensemble of trees, generally more robust and less prone "

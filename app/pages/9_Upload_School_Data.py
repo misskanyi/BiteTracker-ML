@@ -156,7 +156,7 @@ if st.button("Process Dataset", type="primary"):
         st.dataframe(engineered.head(20), use_container_width=True)
         st.caption(
             f"{len(engineered)} row(s) retained after feature engineering "
-            f"(rows lacking full 14-day lag history or a known next-day target are dropped)."
+            f"(rows lacking full 14-day lag history or a meals_served value are dropped)."
         )
     except Exception as exc:
         st.warning(

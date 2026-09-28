@@ -156,11 +156,13 @@ def test_planning_predict_has_school_date_and_condition_inputs():
     assert not at.exception
     assert at.selectbox[0].label == "School"
     assert at.date_input(key="pc_target_date") is not None
-    for key in ("pc_attendance", "pc_rainfall", "pc_temp"):
+    for key in ("pc_rainfall", "pc_temp"):
         assert at.number_input(key=key) is not None
     assert at.selectbox(key="pc_term").options == ["Term 1", "Term 2", "Term 3"]
     for key in ("pc_holiday", "pc_exam", "pc_event"):
         assert at.checkbox(key=key) is not None
+    # The forecast date's own attendance isn't known in advance, so it is not an input.
+    assert not any(n.key == "pc_attendance" for n in at.number_input)
 
 
 def test_planning_predict_generates_result():
@@ -181,7 +183,7 @@ def test_planning_compares_custom_conditions_against_baseline():
 
     The baseline-vs-scenario comparison now lives in Predict & Compare. The
     old attendance-% slider and "Reset Scenario" button no longer exist:
-    attendance is entered as an absolute headcount, and inputs are pre-filled
+    target-date attendance is not a model input, and inputs are pre-filled
     with the baseline's own values instead of being reset by a button.
     """
     at = AppTest.from_file(PLANNING_PAGE)
@@ -189,7 +191,8 @@ def test_planning_compares_custom_conditions_against_baseline():
     assert not at.exception
     assert any(m.label.startswith("Baseline Forecast") for m in at.metric)
 
-    at.number_input(key="pc_attendance").set_value(0.0)
+    at.number_input(key="pc_rainfall").set_value(40.0)
+    at.checkbox(key="pc_event").check()
     at.button(key="pc_generate").click().run()
     assert not at.exception
 

@@ -4,7 +4,7 @@
 
 ## Why Tuning Was Required
 
-Phase 4 baselines used library-default hyperparameters. The Decision Tree overfit severely (train R²=1.0 vs test R²=0.45) and XGBoost also overfit (train R²=0.999 vs test R²=0.768). Random Forest was the best baseline but still had a meaningful train/test gap. This phase tunes depth, leaf-size, regularization, and sampling parameters specifically to reduce that gap, not just to chase a lower training error.
+Phase 4 baselines used library-default hyperparameters, which lets tree-based models fit training noise. Measured baselines: Decision Tree: test R²=0.894 (Overfitting); Random Forest: test R²=0.961 (Overfitting); XGBoost: test R²=0.901 (Overfitting). This phase tunes depth, leaf-size, regularization, and sampling parameters to reduce the train/test gap, not just to chase a lower training error.
 
 ## Why TimeSeriesSplit
 
@@ -39,9 +39,9 @@ Meal demand is a time series — a school's future demand must never be predicte
 ```json
 {
   "max_depth": 5,
-  "max_features": "sqrt",
-  "min_samples_leaf": 2,
-  "min_samples_split": 5
+  "max_features": null,
+  "min_samples_leaf": 10,
+  "min_samples_split": 2
 }
 ```
 
@@ -49,11 +49,11 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 ```json
 {
-  "n_estimators": 200,
-  "min_samples_split": 10,
-  "min_samples_leaf": 2,
-  "max_features": 0.7,
-  "max_depth": null,
+  "n_estimators": 100,
+  "min_samples_split": 2,
+  "min_samples_leaf": 4,
+  "max_features": "sqrt",
+  "max_depth": 15,
   "bootstrap": true
 }
 ```
@@ -62,14 +62,14 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 ```json
 {
-  "subsample": 0.7,
+  "subsample": 0.85,
   "reg_lambda": 10,
   "reg_alpha": 0,
   "n_estimators": 200,
-  "min_child_weight": 1,
+  "min_child_weight": 3,
   "max_depth": 2,
   "learning_rate": 0.05,
-  "colsample_bytree": 1.0
+  "colsample_bytree": 0.85
 }
 ```
 
@@ -77,23 +77,23 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 | Model         |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 | Generalization Gap Status   |   Tuning Time (s) |   Prediction Time (s) |
 |:--------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|:----------------------------|------------------:|----------------------:|
-| Decision Tree |      30.969 |     32.810 |       69.324 |      77.096 |      0.866 |     0.863 | Good Generalization         |             2.079 |                 0.000 |
-| Random Forest |      21.599 |     33.947 |       53.369 |      74.623 |      0.921 |     0.872 | Overfitting                 |             4.477 |                 0.009 |
-| XGBoost       |      30.789 |     31.243 |       65.145 |      68.409 |      0.882 |     0.892 | Good Generalization         |             0.886 |                 0.002 |
+| Decision Tree |      17.650 |     15.103 |       36.429 |      39.268 |      0.963 |     0.965 | Good Generalization         |             4.653 |                 0.001 |
+| Random Forest |      16.243 |     19.370 |       38.510 |      47.072 |      0.958 |     0.949 | Moderate Gap                |             8.178 |                 0.008 |
+| XGBoost       |      17.542 |     15.656 |       35.600 |      39.675 |      0.964 |     0.964 | Good Generalization         |             1.744 |                 0.003 |
 
 ## Baseline vs Tuned Comparison
 
 | Model         |   Baseline Test MAE |   Tuned Test MAE |   MAE Improvement |   Baseline Test RMSE |   Tuned Test RMSE |   RMSE Improvement |   Baseline Test R2 |   Tuned Test R2 |   R2 Improvement | Baseline Overfitting Status   | Tuned Overfitting Status   |
 |:--------------|--------------------:|-----------------:|------------------:|---------------------:|------------------:|-------------------:|-------------------:|----------------:|-----------------:|:------------------------------|:---------------------------|
-| Decision Tree |              60.487 |           32.810 |            27.677 |              154.623 |            77.096 |             77.527 |              0.449 |           0.863 |            0.414 | Overfitting                   | Good Generalization        |
-| Random Forest |              36.915 |           33.947 |             2.968 |               81.385 |            74.623 |              6.762 |              0.847 |           0.872 |            0.024 | Overfitting                   | Overfitting                |
-| XGBoost       |              45.040 |           31.243 |            13.797 |              100.417 |            68.409 |             32.008 |              0.768 |           0.892 |            0.124 | Overfitting                   | Good Generalization        |
+| Decision Tree |              21.644 |           15.103 |             6.541 |               67.971 |            39.268 |             28.703 |              0.894 |           0.965 |            0.071 | Overfitting                   | Good Generalization        |
+| Random Forest |              15.336 |           19.370 |            -4.034 |               41.315 |            47.072 |             -5.757 |              0.961 |           0.949 |           -0.012 | Overfitting                   | Moderate Gap               |
+| XGBoost       |              19.196 |           15.656 |             3.541 |               65.763 |            39.675 |             26.088 |              0.901 |           0.964 |            0.063 | Overfitting                   | Good Generalization        |
 
 ## Did Tuning Reduce Overfitting?
 
-- **Decision Tree**: Test MAE improved by 27.68 meals (Overfitting → Good Generalization).
-- **Random Forest**: Test MAE improved by 2.97 meals (Overfitting → Overfitting).
-- **XGBoost**: Test MAE improved by 13.80 meals (Overfitting → Good Generalization).
+- **Decision Tree**: Test MAE improved by 6.54 meals (Overfitting → Good Generalization).
+- **Random Forest**: Test MAE did not improve (tuned model performed worse) by -4.03 meals (Overfitting → Moderate Gap).
+- **XGBoost**: Test MAE improved by 3.54 meals (Overfitting → Good Generalization).
 
 ## Final Model Selection
 
@@ -101,12 +101,12 @@ Selection order: (1) lowest test MAE, (2) lowest test RMSE as tiebreak, (3) high
 
 Ranking by test MAE (best to worst):
 
-1. XGBoost — Test MAE 31.24, Test RMSE 68.41, Test R² 0.892
-2. Decision Tree — Test MAE 32.81, Test RMSE 77.10, Test R² 0.863
-3. Random Forest — Test MAE 33.95, Test RMSE 74.62, Test R² 0.872
-4. Linear Regression — Test MAE 41.43, Test RMSE 82.49, Test R² 0.843
+1. Decision Tree — Test MAE 15.10, Test RMSE 39.27, Test R² 0.965
+2. XGBoost — Test MAE 15.66, Test RMSE 39.67, Test R² 0.964
+3. Linear Regression — Test MAE 17.17, Test RMSE 38.88, Test R² 0.965
+4. Random Forest — Test MAE 19.37, Test RMSE 47.07, Test R² 0.949
 
-**Selected final model: XGBoost** (Test MAE=31.24, Test RMSE=68.41, Test R²=0.892, generalization: Good Generalization).
+**Selected final model: Decision Tree** (Test MAE=15.10, Test RMSE=39.27, Test R²=0.965, generalization: Good Generalization).
 
 ## Limitations of Synthetic Data
 

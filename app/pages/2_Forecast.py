@@ -68,9 +68,9 @@ st.caption(
 
 col3, col4, col5 = st.columns(3)
 with col3:
-    use_custom_attendance = st.checkbox("Provide expected attendance", value=False)
+    use_custom_attendance = st.checkbox("Provide expected attendance for day 1", value=False)
     expected_attendance = (
-        st.number_input("Expected students present", min_value=0.0, value=float(round(recent_attendance)), step=1.0)
+        st.number_input("Expected students present on day 1", min_value=0.0, value=float(round(recent_attendance)), step=1.0)
         if use_custom_attendance else None
     )
 with col4:
@@ -86,8 +86,12 @@ with col5:
         if use_custom_temp else None
     )
 
-if not use_custom_attendance:
-    st.caption(f"Attendance assumption: recent 14-day average ≈ {recent_attendance:.0f} students present.")
+st.caption(
+    f"Attendance: a day's own attendance isn't known in advance, so the model uses the previous school "
+    f"day's attendance. Day 1 uses the last recorded day ({history['students_present'].iloc[-1]:.0f} students). "
+    "Expected day-1 attendance, if provided, only affects day 2; later days use the recent 14-day average "
+    f"(≈ {recent_attendance:.0f})."
+)
 if not use_custom_rainfall:
     st.caption(f"Rainfall assumption: recent 14-day average ≈ {recent_rainfall:.1f} mm.")
 if not use_custom_temp:

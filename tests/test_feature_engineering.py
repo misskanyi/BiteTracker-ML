@@ -7,6 +7,7 @@ import pandas as pd
 
 from config import settings
 from src.feature_engineering import (
+    FEATURE_COLUMNS,
     add_attendance_features,
     add_lag_features,
     add_rolling_features,
@@ -75,24 +76,39 @@ def test_rolling_mean_excludes_current_day():
     assert np.isclose(school_a.loc[7, "rolling_mean_7"], expected)
 
 
-def test_target_is_next_day_meals_served_per_school():
+def test_target_is_meals_served_on_the_rows_own_date():
     df = _multi_school_df()
-    result = add_target(df).sort_values(["school_id", "date"]).reset_index(drop=True)
-    school_a = result[result.school_id == "A"].reset_index(drop=True)
-    assert result[settings.TARGET_COLUMN].iloc[0] == school_a.loc[1, "meals_served"]
+    result = add_target(df)
+    assert (result[settings.TARGET_COLUMN] == result["meals_served"]).all()
 
 
-def test_target_is_nan_for_each_schools_last_row():
+def test_target_defined_for_each_schools_last_row():
     df = _multi_school_df()
     result = add_target(df)
     last_rows = result.groupby("school_id").tail(1)
-    assert last_rows[settings.TARGET_COLUMN].isna().all()
+    assert last_rows[settings.TARGET_COLUMN].notna().all()
 
 
 def test_attendance_rate_bounded_between_0_and_1():
     df = _multi_school_df()
     result = add_attendance_features(df)
     assert result["attendance_rate"].between(0, 1).all()
+    assert result["previous_attendance_rate"].dropna().between(0, 1).all()
+
+
+def test_attendance_features_use_previous_day_per_school():
+    df = _multi_school_df()
+    result = add_attendance_features(df).sort_values(["school_id", "date"]).reset_index(drop=True)
+    school_a = result[result.school_id == "A"].reset_index(drop=True)
+    assert school_a.loc[5, "previous_attendance"] == school_a.loc[4, "students_present"]
+    assert school_a.loc[5, "previous_attendance_rate"] == school_a.loc[4, "attendance_rate"]
+    # First row of each school has no previous day.
+    assert result.groupby("school_id")["previous_attendance_rate"].head(1).isna().all()
+
+
+def test_same_day_attendance_is_not_a_model_feature():
+    assert "attendance_rate" not in FEATURE_COLUMNS
+    assert "students_present" not in FEATURE_COLUMNS
 
 
 def test_drop_incomplete_rows_removes_insufficient_history_and_missing_target():

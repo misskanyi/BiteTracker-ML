@@ -80,31 +80,31 @@ The generator creates the relationships between fields (for example, rainfall lo
 | `is_holiday`, `is_exam_period`, `is_school_event` | Calendar flags (0/1) |
 | `school_term`, `day_of_week`, `month` | Calendar descriptors |
 
-**Realised meal demand** is `meals_served`. The **forecasting target** is `meals_served_next_day`, which is the next school day's `meals_served` for the same school (`config/settings.py` → `TARGET_COLUMN`).
+**Realised meal demand** is `meals_served`. Each processed row represents one school on one **target date**, and the **forecasting target** is `target_meals_served`: the `meals_served` recorded on that date (`config/settings.py` → `TARGET_COLUMN`). The features only use information available before that day's meals are served (see below).
 
 ### How enrolment is used
 
 `enrolled_students` is **not** a direct model feature. It is used in two ways:
 
-- To calculate the `attendance_rate` feature (`students_present / enrolled_students`).
+- To calculate the `previous_attendance_rate` feature (the previous school day's `students_present / enrolled_students`). The same-day `attendance_rate` is also computed for dashboards, but it is **not** a model feature.
 - As reference information after forecasting: the Dashboard shows total enrolment, and the School Comparison page shows each school's attendance rate.
 
 The app does **not** compare predicted demand against enrolment to produce a "planning difference". See [Planning and Resource Analysis](#planning-and-resource-analysis).
 
 ### Engineered features
 
-`src/feature_engineering.py` (`FEATURE_COLUMNS`) defines the 20 model inputs. It computes all of them per school, using only information from past days:
+`src/feature_engineering.py` (`FEATURE_COLUMNS`) defines the 20 model inputs, computed per school. For a target date T, `src/forecasting.py` builds exactly the same features at prediction time, and `tests/test_feature_alignment.py` checks that the two match:
 
 | Group | Features |
 |---|---|
-| Lagged demand | `lag_1_meals`, `lag_7_meals`, `lag_14_meals` |
-| Rolling demand | `rolling_mean_7`, `rolling_mean_14`, `rolling_std_7` (calculated after `.shift(1)`, so the current day is excluded) |
-| Attendance | `attendance_rate`, `previous_attendance` |
-| Calendar | `month`, `is_holiday`, `is_exam_period`, `is_school_event` |
-| Encoded categories | `school_term_Term 2`, `school_term_Term 3`, `day_of_week_Tuesday` … `day_of_week_Friday` (one-hot, with Term 1 and Monday as the reference) |
-| Weather | `rainfall_mm`, `temperature_c` |
+| Lagged demand | `lag_1_meals`, `lag_7_meals`, `lag_14_meals`: meals served 1, 7 and 14 school days before T |
+| Rolling demand | `rolling_mean_7`, `rolling_mean_14`, `rolling_std_7`: over the school days before T (calculated after `.shift(1)`) |
+| Attendance | `previous_attendance`, `previous_attendance_rate`: the school day before T. T's own attendance is excluded, because it isn't known in advance |
+| Calendar (of T) | `month`, `is_holiday`, `is_exam_period`, `is_school_event`: known in advance from the school calendar |
+| Encoded categories (of T) | `school_term_Term 2`, `school_term_Term 3`, `day_of_week_Tuesday` … `day_of_week_Friday` (one-hot, with Term 1 and Monday as the reference) |
+| Weather (of T) | `rainfall_mm`, `temperature_c`: training uses the observed values as a stand-in for a weather forecast (an optimistic assumption); at prediction time these are user-entered or recent averages |
 
-Rows that do not have a full 14-day lag history, or a known next-day target, are dropped.
+Each school's first 14 rows (without a full lag history) are dropped.
 
 ### Food4Education research dataset
 
@@ -112,7 +112,7 @@ The project was designed for use with anonymised historical school-feeding data 
 
 ## Machine Learning
 
-BiteTracker treats forecasting as a supervised regression problem: predict tomorrow's meals served for a school, using today's and earlier information.
+BiteTracker treats forecasting as a supervised regression problem: predict the meals served by a school on a target school day, using that day's calendar and information from earlier days.
 
 ### Models
 
@@ -134,15 +134,15 @@ BiteTracker treats forecasting as a supervised regression problem: predict tomor
 
 ### Selected model (synthetic data)
 
-In the most recent local run, `models/final_best_model_metadata.json` records **tuned XGBoost** as the selected model:
+In the most recent local run, `models/final_best_model_metadata.json` records **tuned Decision Tree** as the selected model:
 
 | Metric (test set) | Value |
 |---|---|
-| MAE | 31.24 meals |
-| RMSE | 68.41 meals |
-| R² | 0.892 |
+| MAE | 15.10 meals |
+| RMSE | 39.27 meals |
+| R² | 0.965 |
 
-Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-19 (300 rows).
+Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-20 (303 rows). The split never puts the same date in both periods.
 
 > These numbers come from the **synthetic** dataset. They show that the pipeline works end to end, not how accurate the model would be on real school data. `models/` and `reports/metrics/` are git-ignored, so a fresh clone has no trained model. You will get new results after running the pipeline yourself (see [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)).
 
@@ -152,7 +152,7 @@ Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 
 
 - **Horizons:** next school day, next 7 school days, and next 30 days (school days only).
 - **Multi-day method:** forecasts are recursive. Each predicted day is fed back in as if it had been observed, to build the next day's lag and rolling features. Error can therefore build up over longer horizons, and the app says so.
-- **Unknown future inputs:** future attendance, rainfall and temperature are not known. For day 1, the user can enter their own values. Otherwise, and for every later day, the forecast uses the school's recent 14-day averages. Each row of the results says which assumption was used.
+- **Unknown future inputs:** future attendance, rainfall and temperature are not known. A forecast day's own attendance is never a model input: the attendance features use the previous school day (the last recorded day for day 1, then an assumed value). For weather, the user can enter expected values; otherwise the school's recent 14-day averages are used. Each row of the results says which assumption was used.
 - **Calendar flags:** term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`.
 
 ## Application Functionality
@@ -194,7 +194,7 @@ The Dashboard page shows:
 On the **Forecast** page, the user:
 
 1. Selects a school and a horizon (next school day, next 7 school days, or next 30 days).
-2. Optionally enters expected attendance, rainfall and temperature for day 1. Otherwise the recent 14-day averages are used and shown.
+2. Optionally enters expected rainfall and temperature, and expected attendance for day 1. Otherwise the recent 14-day averages are used and shown. Day 1's attendance features always use the last recorded day, so expected day-1 attendance only affects day 2.
 3. Clicks **Generate Forecast**.
 
 The page then shows:
@@ -210,7 +210,7 @@ The page then shows:
 
 **Planning page** (two tabs, for a selected school):
 
-- **Predict & Compare.** Choose a future date and set attendance, rainfall, temperature, term, holiday, exam-period and school-event values. The page compares your prediction with an automatic baseline forecast for the same date, and shows the difference, a decision-support card, the model's top-5 feature importances (for tree-based models), and recent demand next to the prediction.
+- **Predict & Compare.** Choose a future date and set rainfall, temperature, term, holiday, exam-period and school-event values (attendance comes from the last recorded day). The page compares your prediction with an automatic baseline forecast for the same date, and shows the difference, a decision-support card, the model's top-5 feature importances (for tree-based models), and recent demand next to the prediction.
 - **Forecast Calendar.** A 14- or 30-school-day table showing predicted demand, recommended preparation, risk level and estimated cost for each day. You can open any single day to see its full decision-support details.
 
 **Resource Allocation page:** for each selected school, the user enters the *available capacity* (meals). The page compares this with the next-day forecast and labels the gap as a **Shortage**, **Surplus** or **Balanced**. If some schools show a shortage and others a surplus, it suggests reviewing allocation between them, and states that this is not an automatic reallocation.

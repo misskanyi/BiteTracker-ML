@@ -79,7 +79,7 @@ with tab_predict:
 
     days_ahead = (target_date - last_date).days
 
-    recent_attendance = history["students_present"].tail(14).mean()
+    last_attendance = history["students_present"].iloc[-1]
     recent_rainfall = history["rainfall_mm"].tail(14).mean()
     recent_temp = history["temperature_c"].tail(14).mean()
 
@@ -97,12 +97,7 @@ with tab_predict:
     st.markdown("##### Your Conditions")
     st.caption("🟢 auto-derived from history/date · 🔵 you provide · pre-filled with the baseline's own values")
 
-    col3, col4, col5 = st.columns(3)
-    with col3:
-        expected_attendance = st.number_input(
-            "🔵 Expected attendance (students present)", min_value=0.0,
-            value=float(round(recent_attendance)), step=1.0, key="pc_attendance",
-        )
+    col4, col5 = st.columns(2)
     with col4:
         expected_rainfall = st.number_input(
             "🔵 Expected rainfall (mm)", min_value=0.0, value=float(round(recent_rainfall, 1)), step=0.5, key="pc_rainfall",
@@ -125,14 +120,15 @@ with tab_predict:
 
     st.caption(
         f"🟢 Auto-derived: day of week = **{target_date.strftime('%A')}**, month = **{target_date.strftime('%B')}**, "
-        f"and lag/rolling demand history computed from this school's own past records."
+        f"lag/rolling demand history from this school's own past records, and attendance from the last "
+        f"recorded day ({last_attendance:.0f} students). Attendance on the forecast date itself is not an "
+        f"input, because it isn't known in advance."
     )
 
     if st.button("Generate Prediction", type="primary", key="pc_generate"):
         try:
             result = predict_specific_date(
                 df, school_id, target_date,
-                expected_attendance=expected_attendance,
                 expected_rainfall_mm=expected_rainfall,
                 expected_temperature_c=expected_temp,
                 school_term=school_term,
@@ -178,7 +174,7 @@ with tab_predict:
             horizon_days=result["days_ahead"],
             horizon_label=horizon_label,
             assumptions=[
-                f"Attendance: {expected_attendance:.0f} students (user-provided)",
+                f"Attendance basis: last recorded day ({last_attendance:.0f} students, observed)",
                 f"Rainfall: {expected_rainfall:.1f} mm (user-provided)",
                 f"Temperature: {expected_temp:.1f} °C (user-provided)",
                 f"School term: {school_term}, Holiday: {is_holiday}, Exam period: {is_exam_period and not is_holiday}, "

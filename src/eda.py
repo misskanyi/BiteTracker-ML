@@ -96,8 +96,8 @@ def build_data_quality_report(raw_df: pd.DataFrame, processed_df: pd.DataFrame) 
             "per-school IQR outlier capping",
             "one-hot encoding of school_term and day_of_week",
             "lag/rolling feature engineering (leakage-safe, per school)",
-            "next-day target construction",
-            "incomplete-row removal (insufficient history / no target)",
+            "target-date target construction (meals_served on the row's date)",
+            "incomplete-row removal (insufficient lag history / missing target)",
         ],
     }
 

@@ -11,6 +11,10 @@ meals_served is fed back in as if it were observed, to compute the next
 day's lag/rolling features. This is standard for autoregressive forecasting
 but means errors can compound over the horizon — documented in the
 Streamlit UI, not hidden.
+
+A forecast day's own attendance is never a model input (it isn't known in
+advance). Attendance features use the previous school day: the last recorded
+day for day 1, and an assumed attendance for each later day.
 """
 
 # In simple terms: uses the trained model to predict meal demand for the
@@ -65,10 +69,13 @@ def _build_feature_row(
 ) -> dict:
     """Build one row of model features for `forecast_date` from running history lists.
 
-    `meals_history`/`students_present_history` must already include all days
-    up to (but not including) `forecast_date`, most recent last — lag/rolling
-    values are computed the same way as `src.feature_engineering` (past-only,
-    excluding the day being forecast).
+    `meals_history`/`students_present_history` must contain school days
+    strictly before `forecast_date`, most recent last. Every feature then has
+    the same meaning as in `src.feature_engineering` for a row dated
+    `forecast_date`: lags/rolling stats and attendance come from earlier
+    days, calendar values and (expected) weather describe `forecast_date`.
+    `enrolled_students` should be the enrolment of the most recent history
+    day, matching `previous_attendance_rate` in training.
 
     `term_override`/`holiday_override`/`exam_override` let a caller (e.g. the
     Specific Date Prediction page, where the user states these explicitly)
@@ -94,9 +101,10 @@ def _build_feature_row(
         m = sum(window) / len(window)
         return (sum((x - m) ** 2 for x in window) / (len(window) - 1)) ** 0.5
 
-    present_today = students_present_history[-1] if students_present_history else enrolled_students * 0.9
-    attendance_rate = min(max(present_today / enrolled_students, 0.0), 1.0) if enrolled_students else 0.0
     previous_attendance = students_present_history[-1] if students_present_history else enrolled_students * 0.9
+    previous_attendance_rate = (
+        min(max(previous_attendance / enrolled_students, 0.0), 1.0) if enrolled_students else 0.0
+    )
 
     row = {
         "lag_1_meals": lag(1),
@@ -105,7 +113,7 @@ def _build_feature_row(
         "rolling_mean_7": rolling_mean(7),
         "rolling_mean_14": rolling_mean(14),
         "rolling_std_7": rolling_std(7),
-        "attendance_rate": attendance_rate,
+        "previous_attendance_rate": previous_attendance_rate,
         "previous_attendance": previous_attendance,
         "month": forecast_date.month,
         "rainfall_mm": rainfall_mm,
@@ -146,10 +154,17 @@ def forecast_school_demand(
 ) -> pd.DataFrame:
     """Forecast the next `horizon_days` school days of meal demand for one school.
 
-    `expected_attendance`/`expected_rainfall_mm`/`expected_temperature_c`: if
-    None, the school's trailing 14-day historical average is used instead —
-    the returned DataFrame marks which assumption was used for each row via
-    the `assumption_source` column so the UI can label it honestly.
+    `expected_rainfall_mm`/`expected_temperature_c`: expected weather on the
+    forecast days; if None, the school's trailing 14-day average is used.
+
+    `expected_attendance`: expected students present on day 1 of the horizon.
+    A day's own attendance is not a model input, so this only affects day 2
+    onwards (through their previous-day attendance features). Day 1 uses the
+    last recorded day's actual attendance; days after day 2 use the 14-day
+    average.
+
+    The `*_assumption` columns say which basis each row used, so the UI can
+    label it honestly.
     """
     model = model or load_forecasting_model()
     history = get_school_history(df, school_id)
@@ -171,21 +186,27 @@ def forecast_school_demand(
 
     rainfall = expected_rainfall_mm if not rainfall_assumed else _recent_average(history, "rainfall_mm")
     temperature = expected_temperature_c if not temperature_assumed else _recent_average(history, "temperature_c")
-    attendance = expected_attendance if not attendance_assumed else _recent_average(history, "students_present")
+    recent_attendance = _recent_average(history, "students_present")
+    day1_attendance = expected_attendance if not attendance_assumed else recent_attendance
 
     forecast_dates = _next_school_days(last_date, horizon_days)
     results = []
 
-    for forecast_date in forecast_dates:
-        # Attendance is only supplied by the user for the first day of the
-        # horizon in the Streamlit UI; subsequent days fall back to the
-        # recent-average assumption since we cannot know future attendance.
-        present_today = attendance if forecast_date == forecast_dates[0] else _recent_average(history, "students_present")
+    for i, forecast_date in enumerate(forecast_dates):
+        # Attendance features describe the previous school day: the last
+        # recorded day for day 1, then the attendance assumed for the
+        # previous forecast day.
+        if i == 0:
+            attendance_basis = "last recorded day (observed)"
+        elif i == 1 and not attendance_assumed:
+            attendance_basis = "user-provided (day 1)"
+        else:
+            attendance_basis = "recent 14-day average"
 
         feature_row = _build_feature_row(
             forecast_date=forecast_date,
             meals_history=meals_hist,
-            students_present_history=present_hist + [present_today],
+            students_present_history=present_hist,
             enrolled_students=enrolled,
             rainfall_mm=rainfall,
             temperature_c=temperature,
@@ -200,7 +221,7 @@ def forecast_school_demand(
                 "date": forecast_date,
                 "school_id": school_id,
                 "predicted_meals_served": predicted_meals,
-                "attendance_assumption": "user-provided" if (not attendance_assumed and forecast_date == forecast_dates[0]) else "recent 14-day average",
+                "attendance_assumption": attendance_basis,
                 "rainfall_assumption": "user-provided" if not rainfall_assumed else "recent 14-day average",
                 "temperature_assumption": "user-provided" if not temperature_assumed else "recent 14-day average",
             }
@@ -208,9 +229,9 @@ def forecast_school_demand(
 
         # Feed the prediction back in as if observed, so the next day's
         # lag/rolling features reflect it (compounding uncertainty — see
-        # module docstring).
+        # module docstring). This day's attendance is an assumption too.
         meals_hist = meals_hist + [predicted_meals]
-        present_hist = present_hist + [present_today]
+        present_hist = present_hist + [day1_attendance if i == 0 else recent_attendance]
 
     return pd.DataFrame(results)
 
@@ -219,7 +240,6 @@ def predict_specific_date(
     df: pd.DataFrame,
     school_id: str,
     target_date: date,
-    expected_attendance: float,
     expected_rainfall_mm: float,
     expected_temperature_c: float,
     school_term: str,
@@ -231,11 +251,15 @@ def predict_specific_date(
     """Predict meal demand for one specific, user-chosen future date.
 
     Unlike `forecast_school_demand` (which derives term/holiday/exam from the
-    calendar and lets attendance/weather default to a recent average), every
-    calendar/context input here is explicitly supplied by the user on the
-    Specific Date Prediction page — this function only auto-derives what's
-    genuinely derivable: day-of-week/month (from `target_date` itself) and
-    lag/rolling history (from the school's actual past records).
+    calendar and lets weather default to a recent average), the weather and
+    calendar inputs here are supplied by the user on the Planning page. The
+    function auto-derives day-of-week/month (from `target_date` itself) and
+    lag/rolling/attendance history from the school's actual past records.
+
+    Attendance on `target_date` is not an input: it isn't known in advance.
+    The attendance features use the last recorded day, and lag features use
+    the most recent recorded days even when `target_date` is further ahead
+    (an approximation that grows with `days_ahead`).
 
     Raises `ValueError` if `target_date` is not strictly after the school's
     last recorded date — the model has no lag history to predict backward
@@ -261,7 +285,7 @@ def predict_specific_date(
     feature_row = _build_feature_row(
         forecast_date=target_date,
         meals_history=meals_hist,
-        students_present_history=present_hist + [expected_attendance],
+        students_present_history=present_hist,
         enrolled_students=enrolled,
         rainfall_mm=expected_rainfall_mm,
         temperature_c=expected_temperature_c,

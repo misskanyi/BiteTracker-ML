@@ -448,6 +448,10 @@ def generate_final_best_model_charts(final_best: dict, X_test: pd.DataFrame, y_t
 
 
 def write_report(tuned_metrics_df, comparison_df, best_params_all, fold_info, final_best, ranked, n_train_rows) -> None:
+    baseline_summary = "; ".join(
+        f"{row['Model']}: test R²={row['Baseline Test R2']:.3f} ({row['Baseline Overfitting Status']})"
+        for _, row in comparison_df.iterrows()
+    )
     lines = [
         "# BiteTracker — Hyperparameter Tuning Report (Phase 5)",
         "",
@@ -456,12 +460,10 @@ def write_report(tuned_metrics_df, comparison_df, best_params_all, fold_info, fi
         "",
         "## Why Tuning Was Required",
         "",
-        "Phase 4 baselines used library-default hyperparameters. The Decision Tree "
-        "overfit severely (train R²=1.0 vs test R²=0.45) and XGBoost also overfit "
-        "(train R²=0.999 vs test R²=0.768). Random Forest was the best baseline but "
-        "still had a meaningful train/test gap. This phase tunes depth, leaf-size, "
-        "regularization, and sampling parameters specifically to reduce that gap, not "
-        "just to chase a lower training error.",
+        "Phase 4 baselines used library-default hyperparameters, which lets tree-based "
+        f"models fit training noise. Measured baselines: {baseline_summary}. "
+        "This phase tunes depth, leaf-size, regularization, and sampling parameters "
+        "to reduce the train/test gap, not just to chase a lower training error.",
         "",
         "## Why TimeSeriesSplit",
         "",
