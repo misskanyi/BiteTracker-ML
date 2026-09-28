@@ -125,41 +125,112 @@ def test_about_page_mentions_synthetic_disclosure():
     assert "synthetic" in full_text.lower()
 
 
-def test_specific_date_prediction_generates_result():
-    at = AppTest.from_file("app/pages/3_Specific_Date_Prediction.py")
+# --- Planning page -----------------------------------------------------------
+# 3_Planning.py consolidates three earlier pages: Specific Date Prediction and
+# Scenario Simulator became the "Predict & Compare" tab, and Forecast Calendar
+# became the "Forecast Calendar" tab. The tests below cover the same behaviour
+# on the consolidated page.
+
+PLANNING_PAGE = "app/pages/3_Planning.py"
+
+
+def _metric_meals(at, label: str) -> float:
+    """Parse the numeric part of a '<n> meals' metric by its label."""
+    metric = next(m for m in at.metric if m.label == label)
+    return float(str(metric.value).replace("meals", "").strip())
+
+
+def test_planning_page_has_predict_and_calendar_tabs():
+    at = AppTest.from_file(PLANNING_PAGE)
     at.run()
     assert not at.exception
-    assert len(at.button) > 0
+    labels = [t.label for t in at.tabs]
+    assert any("Predict & Compare" in label for label in labels)
+    assert any("Forecast Calendar" in label for label in labels)
 
-    at.button[0].click().run()
-    assert not at.exception
 
-
-def test_specific_date_prediction_has_school_and_date_inputs():
-    at = AppTest.from_file("app/pages/3_Specific_Date_Prediction.py")
+def test_planning_predict_has_school_date_and_condition_inputs():
+    """Replaces test_specific_date_prediction_has_school_and_date_inputs."""
+    at = AppTest.from_file(PLANNING_PAGE)
     at.run()
     assert not at.exception
-    assert len(at.selectbox) >= 2
-    assert len(at.date_input) >= 1
+    assert at.selectbox[0].label == "School"
+    assert at.date_input(key="pc_target_date") is not None
+    for key in ("pc_attendance", "pc_rainfall", "pc_temp"):
+        assert at.number_input(key=key) is not None
+    assert at.selectbox(key="pc_term").options == ["Term 1", "Term 2", "Term 3"]
+    for key in ("pc_holiday", "pc_exam", "pc_event"):
+        assert at.checkbox(key=key) is not None
 
 
-def test_scenario_simulator_runs_scenario():
-    at = AppTest.from_file("app/pages/4_Scenario_Simulator.py")
+def test_planning_predict_generates_result():
+    """Replaces test_specific_date_prediction_generates_result."""
+    at = AppTest.from_file(PLANNING_PAGE)
     at.run()
     assert not at.exception
-    assert len(at.button) >= 2  # Run Scenario + Reset Scenario
 
-    at.button[0].click().run()
+    at.button(key="pc_generate").click().run()
     assert not at.exception
-    assert len(at.metric) > 0
+    metric_labels = {m.label for m in at.metric}
+    assert {"Baseline Forecast", "Your Prediction", "Difference"} <= metric_labels
+    assert _metric_meals(at, "Your Prediction") >= 0
 
 
-def test_forecast_calendar_shows_table_and_day_detail():
-    at = AppTest.from_file("app/pages/5_Forecast_Calendar.py")
+def test_planning_compares_custom_conditions_against_baseline():
+    """Replaces test_scenario_simulator_runs_scenario.
+
+    The baseline-vs-scenario comparison now lives in Predict & Compare. The
+    old attendance-% slider and "Reset Scenario" button no longer exist:
+    attendance is entered as an absolute headcount, and inputs are pre-filled
+    with the baseline's own values instead of being reset by a button.
+    """
+    at = AppTest.from_file(PLANNING_PAGE)
     at.run()
     assert not at.exception
-    assert len(at.dataframe) >= 1
-    assert len(at.selectbox) >= 3  # school, horizon, date-inspector
+    assert any(m.label.startswith("Baseline Forecast") for m in at.metric)
+
+    at.number_input(key="pc_attendance").set_value(0.0)
+    at.button(key="pc_generate").click().run()
+    assert not at.exception
+
+    baseline = _metric_meals(at, "Baseline Forecast")
+    predicted = _metric_meals(at, "Your Prediction")
+    difference = float(next(m for m in at.metric if m.label == "Difference").value.replace("meals", ""))
+    # Metrics are rounded independently for display, so allow 1 meal of slack.
+    assert abs(difference - (predicted - baseline)) <= 1
+    info_text = " ".join(i.value for i in at.info)
+    assert "compared to the baseline forecast" in info_text
+
+
+def test_planning_holiday_disables_exam_checkbox():
+    at = AppTest.from_file(PLANNING_PAGE)
+    at.run()
+    assert not at.exception
+
+    at.checkbox(key="pc_holiday").check().run()
+    assert not at.exception
+    assert at.checkbox(key="pc_exam").disabled
+
+
+def test_planning_forecast_calendar_shows_table_and_day_detail():
+    """Replaces test_forecast_calendar_shows_table_and_day_detail."""
+    at = AppTest.from_file(PLANNING_PAGE)
+    at.run()
+    assert not at.exception
+
+    calendar = at.dataframe[0].value
+    assert len(calendar) == 14  # default horizon
+    assert {"Date", "Predicted Demand", "Recommended Preparation", "Risk", "Estimated Cost (KSh)"} <= set(calendar.columns)
+    assert len(at.selectbox(key="cal_selected_date").options) == 14
+
+
+def test_planning_forecast_calendar_30_day_horizon():
+    at = AppTest.from_file(PLANNING_PAGE)
+    at.run()
+    at.selectbox(key="cal_horizon").set_value(30).run()
+    assert not at.exception
+    assert len(at.dataframe[0].value) == 30
+    assert len(at.selectbox(key="cal_selected_date").options) == 30
 
 
 def test_school_comparison_default_shows_two_schools():
