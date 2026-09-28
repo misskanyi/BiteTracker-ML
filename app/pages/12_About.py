@@ -40,12 +40,13 @@ reacting to shortages or waste after the fact.
 5. **Hyperparameter tuning** — `GridSearchCV`/`RandomizedSearchCV` with `TimeSeriesSplit`
    (5 folds, chronological) on the training set only; the test set was never exposed
    during tuning.
-6. **Model selection** — lowest test MAE as the primary criterion, RMSE as tiebreak, R² as
-   supporting evidence, plus a generalization-gap check — not simply "highest R²".
+6. **Model selection** — lowest TimeSeriesSplit validation MAE on the training period
+   (validation RMSE as tiebreak); the held-out test period is used only to assess the
+   selected model, and two naive baselines (persistence, 7-day mean) are reported alongside.
 
 ### Models Compared
 
-- Linear Regression (baseline)
+- Linear Regression
 - Decision Tree Regressor
 - Random Forest Regressor
 - XGBoost Regressor

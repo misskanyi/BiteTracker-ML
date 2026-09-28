@@ -35,7 +35,9 @@ for _dir in (RAW_DATA_DIR, PROCESSED_DATA_DIR, SAMPLE_DATA_DIR, UPLOADS_DIR, MOD
 SYNTHETIC_DATA_PATH: Path = SAMPLE_DATA_DIR / "synthetic_school_meals.csv"
 ACTIVE_DATA_PATH: Path = Path(os.getenv("BITETRACKER_DATA_PATH", str(SYNTHETIC_DATA_PATH)))
 
-TARGET_COLUMN: str = "meals_served_next_day"
+# Meals served on the target date; each processed row is that target date
+# (see src/feature_engineering.py).
+TARGET_COLUMN: str = "target_meals_served"
 DATE_COLUMN: str = "date"
 SCHOOL_ID_COLUMN: str = "school_id"
 

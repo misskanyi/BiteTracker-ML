@@ -57,9 +57,16 @@ def chronological_split(
     20% of *rows* form the test set regardless of how many schools report on
     any given day. Both approaches avoid shuffling and future leakage; this
     one is used here because it's what "last 20% of observations" means row-wise.
+
+    If the cut falls in the middle of a date (some schools' rows for that date
+    before it, some after), it moves back to the start of that date, so a
+    date is never in both train and test.
     """
     df = df.sort_values(settings.DATE_COLUMN).reset_index(drop=True)
     split_idx = int(len(df) * train_ratio)
+    dates = df[settings.DATE_COLUMN]
+    while 0 < split_idx < len(df) and dates.iloc[split_idx] == dates.iloc[split_idx - 1]:
+        split_idx -= 1
     train = df.iloc[:split_idx].copy()
     test = df.iloc[split_idx:].copy()
     return train, test

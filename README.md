@@ -80,31 +80,31 @@ The generator creates the relationships between fields (for example, rainfall lo
 | `is_holiday`, `is_exam_period`, `is_school_event` | Calendar flags (0/1) |
 | `school_term`, `day_of_week`, `month` | Calendar descriptors |
 
-**Realised meal demand** is `meals_served`. The **forecasting target** is `meals_served_next_day`, which is the next school day's `meals_served` for the same school (`config/settings.py` → `TARGET_COLUMN`).
+**Realised meal demand** is `meals_served`. Each processed row represents one school on one **target date**, and the **forecasting target** is `target_meals_served`: the `meals_served` recorded on that date (`config/settings.py` → `TARGET_COLUMN`). The features only use information available before that day's meals are served (see below).
 
 ### How enrolment is used
 
 `enrolled_students` is **not** a direct model feature. It is used in two ways:
 
-- To calculate the `attendance_rate` feature (`students_present / enrolled_students`).
+- To calculate the `previous_attendance_rate` feature (the previous school day's `students_present / enrolled_students`). The same-day `attendance_rate` is also computed for dashboards, but it is **not** a model feature.
 - As reference information after forecasting: the Dashboard shows total enrolment, and the School Comparison page shows each school's attendance rate.
 
 The app does **not** compare predicted demand against enrolment to produce a "planning difference". See [Planning and Resource Analysis](#planning-and-resource-analysis).
 
 ### Engineered features
 
-`src/feature_engineering.py` (`FEATURE_COLUMNS`) defines the 20 model inputs. It computes all of them per school, using only information from past days:
+`src/feature_engineering.py` (`FEATURE_COLUMNS`) defines the 20 model inputs, computed per school. For a target date T, `src/forecasting.py` builds exactly the same features at prediction time, and `tests/test_feature_alignment.py` checks that the two match:
 
 | Group | Features |
 |---|---|
-| Lagged demand | `lag_1_meals`, `lag_7_meals`, `lag_14_meals` |
-| Rolling demand | `rolling_mean_7`, `rolling_mean_14`, `rolling_std_7` (calculated after `.shift(1)`, so the current day is excluded) |
-| Attendance | `attendance_rate`, `previous_attendance` |
-| Calendar | `month`, `is_holiday`, `is_exam_period`, `is_school_event` |
-| Encoded categories | `school_term_Term 2`, `school_term_Term 3`, `day_of_week_Tuesday` … `day_of_week_Friday` (one-hot, with Term 1 and Monday as the reference) |
-| Weather | `rainfall_mm`, `temperature_c` |
+| Lagged demand | `lag_1_meals`, `lag_7_meals`, `lag_14_meals`: meals served 1, 7 and 14 school days before T |
+| Rolling demand | `rolling_mean_7`, `rolling_mean_14`, `rolling_std_7`: over the school days before T (calculated after `.shift(1)`) |
+| Attendance | `previous_attendance`, `previous_attendance_rate`: the school day before T. T's own attendance is excluded, because it isn't known in advance |
+| Calendar (of T) | `month`, `is_holiday`, `is_exam_period`, `is_school_event`: known in advance from the school calendar |
+| Encoded categories (of T) | `school_term_Term 2`, `school_term_Term 3`, `day_of_week_Tuesday` … `day_of_week_Friday` (one-hot, with Term 1 and Monday as the reference) |
+| Weather (of T) | `rainfall_mm`, `temperature_c`: training uses the observed values as a stand-in for a weather forecast (an optimistic assumption); at prediction time these are user-entered or recent averages |
 
-Rows that do not have a full 14-day lag history, or a known next-day target, are dropped.
+Each school's first 14 rows (without a full lag history) are dropped.
 
 ### Food4Education research dataset
 
@@ -112,37 +112,60 @@ The project was designed for use with anonymised historical school-feeding data 
 
 ## Machine Learning
 
-BiteTracker treats forecasting as a supervised regression problem: predict tomorrow's meals served for a school, using today's and earlier information.
+BiteTracker treats forecasting as a supervised regression problem: predict the meals served by a school on a target school day, using that day's calendar and information from earlier days.
 
 ### Models
 
-`src/model_training.py` and `src/model_tuning.py` implement all four candidate models:
+`src/model_training.py` and `src/model_tuning.py` implement all four candidate ML models:
 
-| Model | Library | Baseline | Tuned |
+| Model | Library | Default-hyperparameter fit | Tuned |
 |---|---|---|---|
-| Linear Regression | scikit-learn | Yes | No (kept as the reference) |
+| Linear Regression | scikit-learn | Yes | No tuning grid; cross-validated on the same `TimeSeriesSplit` folds |
 | Decision Tree Regression | scikit-learn | Yes | `GridSearchCV` |
 | Random Forest Regression | scikit-learn | Yes | `RandomizedSearchCV` (25 iterations) |
 | XGBoost Regression | xgboost | Yes | `RandomizedSearchCV` (40 iterations) |
 
+Linear Regression is a candidate ML model. It is **not** the naive forecasting baseline; see [Naive forecasting baselines](#naive-forecasting-baselines).
+
 ### Chronological evaluation
 
 - **Train/test split:** chronological 80/20 split, with no shuffling (`TRAIN_TEST_SPLIT_RATIO = 0.8`). Earlier records are used for training and later records for testing.
-- **Tuning:** `TimeSeriesSplit` with 5 folds (`CV_N_SPLITS = 5`), run on the training set only. The test set is used once, after tuning.
+- **Tuning and validation:** `TimeSeriesSplit` with 5 folds (`CV_N_SPLITS = 5`), run on the training period only. Every search scores MAE and RMSE on each validation fold and picks hyperparameters by MAE. Linear Regression is cross-validated on the same folds with the same scorers, so all four candidates get a comparable validation score.
+- **Model selection** (`src/model_selection.py::select_model_by_validation`, called by `run_tuning.py::select_final_model`): the lowest **TimeSeriesSplit validation MAE** wins, with validation RMSE as the tiebreak. The selector only accepts `ValidationScore` records, which have no test-metric fields, so the test period cannot influence the choice.
+- **Final assessment:** only after selection is the chosen model evaluated once on the held-out test period (MAE, RMSE, R²). Test metrics for the other models are still reported, for research comparison only.
 - **Metrics:** Mean Absolute Error (MAE), Root Mean Squared Error (RMSE), and Coefficient of Determination (R²), in `src/model_evaluation.py`.
-- **Selection rule** (`select_best_model`): lowest test MAE first, then RMSE, then R². The model is also checked for a train/test generalisation gap.
 
-### Selected model (synthetic data)
+### Naive forecasting baselines
 
-In the most recent local run, `models/final_best_model_metadata.json` records **tuned XGBoost** as the selected model:
+`src/naive_baselines.py` implements two simple rules that answer "is ML better than a simple forecasting rule?". Both use only each school's own realised meal demand from earlier observations (grouped by school, sorted by date, shifted by one day before any window), are not tuned, and are scored on the same test period as the ML models:
 
-| Metric (test set) | Value |
-|---|---|
-| MAE | 31.24 meals |
-| RMSE | 68.41 meals |
-| R² | 0.892 |
+- **Persistence / Last Observation:** prediction for date T = meals served on the school's most recent available observation before T.
+- **7-Day Historical Mean:** prediction for date T = mean meals served over the school's previous 7 available observations (T excluded).
 
-Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-19 (300 rows).
+`projected_students` is not used as a baseline. The naive baselines are not evaluated on the validation folds, so their validation MAE is reported as empty rather than estimated.
+
+### Selected model (SYNTHETIC DEVELOPMENT RESULTS)
+
+In the most recent local run, the validation ranking was (TimeSeriesSplit, training period only):
+
+| Model | Validation MAE | Selection rank |
+|---|---|---|
+| Random Forest (tuned) | 55.43 | 1 |
+| Linear Regression | 60.54 | 2 |
+| XGBoost (tuned) | 71.31 | 3 |
+| Decision Tree (tuned) | 90.89 | 4 |
+
+`models/final_best_model_metadata.json` therefore records **tuned Random Forest** as the selected model. Its single evaluation on the test period, next to the naive baselines:
+
+| Method | Type | Test MAE | Test RMSE | Test R² |
+|---|---|---|---|---|
+| Persistence / Last Observation | Naive baseline | 31.43 | 81.19 | 0.849 |
+| 7-Day Historical Mean | Naive baseline | 58.91 | 122.92 | 0.653 |
+| Random Forest (selected) | ML model | 19.37 | 47.07 | 0.949 |
+
+On this synthetic test period the selected model's MAE is 12.06 meals (38.4%) lower than persistence and 39.54 meals (67.1%) lower than the 7-day mean. The other ML candidates had lower test MAE than Random Forest (see `reports/metrics/model_comparison.csv`), but test results were not used to choose the model. Validation MAE varies strongly between folds (the first fold, trained on only ~3 months, is much worse than the rest), so the ranking is fragile.
+
+Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-20 (303 rows). The split never puts the same date in both periods.
 
 > These numbers come from the **synthetic** dataset. They show that the pipeline works end to end, not how accurate the model would be on real school data. `models/` and `reports/metrics/` are git-ignored, so a fresh clone has no trained model. You will get new results after running the pipeline yourself (see [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)).
 
@@ -152,7 +175,7 @@ Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 
 
 - **Horizons:** next school day, next 7 school days, and next 30 days (school days only).
 - **Multi-day method:** forecasts are recursive. Each predicted day is fed back in as if it had been observed, to build the next day's lag and rolling features. Error can therefore build up over longer horizons, and the app says so.
-- **Unknown future inputs:** future attendance, rainfall and temperature are not known. For day 1, the user can enter their own values. Otherwise, and for every later day, the forecast uses the school's recent 14-day averages. Each row of the results says which assumption was used.
+- **Unknown future inputs:** future attendance, rainfall and temperature are not known. A forecast day's own attendance is never a model input: the attendance features use the previous school day (the last recorded day for day 1, then an assumed value). For weather, the user can enter expected values; otherwise the school's recent 14-day averages are used. Each row of the results says which assumption was used.
 - **Calendar flags:** term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`.
 
 ## Application Functionality
@@ -194,7 +217,7 @@ The Dashboard page shows:
 On the **Forecast** page, the user:
 
 1. Selects a school and a horizon (next school day, next 7 school days, or next 30 days).
-2. Optionally enters expected attendance, rainfall and temperature for day 1. Otherwise the recent 14-day averages are used and shown.
+2. Optionally enters expected rainfall and temperature, and expected attendance for day 1. Otherwise the recent 14-day averages are used and shown. Day 1's attendance features always use the last recorded day, so expected day-1 attendance only affects day 2.
 3. Clicks **Generate Forecast**.
 
 The page then shows:
@@ -210,7 +233,7 @@ The page then shows:
 
 **Planning page** (two tabs, for a selected school):
 
-- **Predict & Compare.** Choose a future date and set attendance, rainfall, temperature, term, holiday, exam-period and school-event values. The page compares your prediction with an automatic baseline forecast for the same date, and shows the difference, a decision-support card, the model's top-5 feature importances (for tree-based models), and recent demand next to the prediction.
+- **Predict & Compare.** Choose a future date and set rainfall, temperature, term, holiday, exam-period and school-event values (attendance comes from the last recorded day). The page compares your prediction with an automatic baseline forecast for the same date, and shows the difference, a decision-support card, the model's top-5 feature importances (for tree-based models), and recent demand next to the prediction.
 - **Forecast Calendar.** A 14- or 30-school-day table showing predicted demand, recommended preparation, risk level and estimated cost for each day. You can open any single day to see its full decision-support details.
 
 **Resource Allocation page:** for each selected school, the user enters the *available capacity* (meals). The page compares this with the next-day forecast and labels the gap as a **Shortage**, **Surplus** or **Balanced**. If some schools show a shortage and others a surplus, it suggests reviewing allocation between them, and states that this is not an automatic reallocation.
@@ -242,7 +265,7 @@ Filter the raw dataset by school and date range, preview rows, view summary stat
 This page is available to all users (there are no roles). It shows:
 
 - The selected model with its test MAE, RMSE and R².
-- Tabs for baseline metrics, tuned metrics, and baseline vs. tuned improvement, each with tables and bar charts.
+- Tabs for default-hyperparameter metrics, tuned metrics, and default vs. tuned improvement, each with tables and bar charts.
 - Embedded charts: actual vs. predicted and residuals for the final model, and feature importance for tuned Random Forest and XGBoost.
 
 ### About
@@ -300,8 +323,10 @@ BiteTracker-ML/
 │   ├── feature_engineering.py      # Lag/rolling/attendance features and target
 │   ├── pipeline.py                 # load → preprocess → feature-engineer
 │   ├── eda.py, visualization.py    # EDA statistics and Plotly charts
-│   ├── model_training.py           # Baseline models, chronological split
-│   ├── model_tuning.py             # TimeSeriesSplit tuning, model selection
+│   ├── model_training.py           # Default-hyperparameter ML models, chronological split
+│   ├── model_tuning.py             # TimeSeriesSplit tuning (MAE + RMSE scoring)
+│   ├── model_selection.py          # Final model selection from validation scores only
+│   ├── naive_baselines.py          # Persistence and 7-day-mean forecasting baselines
 │   ├── model_evaluation.py         # MAE / RMSE / R², generalisation gap
 │   ├── forecasting.py              # Multi-horizon and specific-date forecasts
 │   ├── decision_support.py         # Safety buffer, risk level, uncertainty labels
@@ -326,7 +351,7 @@ BiteTracker-ML/
 │   └── train_models.py             # One command: data → features → train → tune → select → save
 ├── run_pipeline.py                 # Step 1: build processed dataset
 ├── run_eda.py                      # Optional: EDA charts and report
-├── run_training.py                 # Step 2: baseline models
+├── run_training.py                 # Step 2: default-hyperparameter ML models
 ├── run_tuning.py                   # Step 3: tuning + final model selection
 ├── .streamlit/config.toml          # Theme and server settings
 ├── .streamlit/secrets.toml.example
@@ -432,13 +457,15 @@ This runs the whole training process in one go, on the **synthetic** development
 
 | Stage | What happens | Code reused |
 |---|---|---|
-| `[1/7]` Preparing data | Load the dataset and check its schema, then clean it | `src/data_loader.py::load_dataset`, `src/preprocessing.py::run_preprocessing` |
-| `[2/7]` Engineering features | Build lag, rolling, attendance and calendar features and the next-day target, save the processed CSV, then split 80/20 **chronologically** (no shuffling) | `src/feature_engineering.py::engineer_features`, `src/pipeline.py::save_processed_dataset`, `run_training.py::split_train_test` |
-| `[3/7]` Training models | Train Linear Regression, Decision Tree, Random Forest and XGBoost with default settings | `run_training.py::train_and_evaluate_baselines` |
-| `[4/7]` Tuning models | Tune Decision Tree, Random Forest and XGBoost with `TimeSeriesSplit` (5 folds) on the training period only | `run_tuning.py::tune_models` |
-| `[5/7]` Evaluating models | Score the tuned models on the held-out test period (MAE, RMSE, R²) | `run_tuning.py::evaluate_tuned_models` |
-| `[6/7]` Selecting model | Pick the lowest test MAE (then RMSE, then R²) among the tuned models and the Linear Regression baseline | `run_tuning.py::select_final_model` |
-| `[7/7]` Saving artifacts | Save all models, `final_best_model.joblib`, metadata, metrics, charts and reports | `run_training.py::save_baseline_outputs`, `run_tuning.py::save_tuning_outputs` |
+| `[1/9]` Loading data | Load the dataset and check its schema | `src/data_loader.py::load_dataset` |
+| `[2/9]` Preprocessing | Clean the dataset | `src/preprocessing.py::run_preprocessing` |
+| `[3/9]` Engineering features | Build lag, rolling, attendance and calendar features and the target, save the processed CSV | `src/feature_engineering.py::engineer_features`, `src/pipeline.py::save_processed_dataset` |
+| `[4/9]` Chronological split | Split 80/20 **chronologically** (no shuffling, no shared dates) | `run_training.py::split_train_test` |
+| `[5/9]` Naive baselines | Score Persistence and 7-Day Historical Mean on the test period | `src/naive_baselines.py::evaluate_naive_baselines` |
+| `[6/9]` Training ML candidates | Default-hyperparameter fits of all four models; tune Decision Tree, Random Forest and XGBoost and cross-validate Linear Regression with `TimeSeriesSplit` (5 folds) on the training period only | `run_training.py::train_and_evaluate_baselines`, `run_tuning.py::tune_models`, `run_tuning.py::collect_validation_scores` |
+| `[7/9]` Selecting model | Pick the lowest TimeSeriesSplit validation MAE (validation RMSE tiebreak); no test data involved | `run_tuning.py::select_final_model` |
+| `[8/9]` Final test evaluation | Evaluate the selected model once on the held-out test period (MAE, RMSE, R²); other models are scored afterwards for the research comparison tables | `run_tuning.py::evaluate_selected_model`, `run_tuning.py::evaluate_tuned_models` |
+| `[9/9]` Saving artifacts | Save all models, `final_best_model.joblib`, metadata, metrics (incl. `validation_model_selection.csv`, `naive_baseline_metrics.csv`, `model_comparison.csv`, `selected_model_vs_naive_baselines.csv`), charts and reports | `run_training.py::save_baseline_outputs`, `run_tuning.py::save_tuning_outputs` |
 
 It uses the same functions as the step scripts, so the results are identical. To train on a different CSV with the same schema:
 
@@ -458,8 +485,8 @@ The individual scripts are still available:
 |---|---|---|---|
 | Preprocess | `python run_pipeline.py` | Loads the dataset (and generates the synthetic one if it is missing), then cleans it and builds features | `data/processed/school_meals_processed.csv` |
 | EDA (optional) | `python run_eda.py` | Descriptive statistics, data-quality report, charts | `reports/metrics/*`, `reports/figures/*`, `reports/EDA_Report.md` |
-| Train baselines | `python run_training.py` | Chronological 80/20 split; trains the 4 models with default settings | `models/*.joblib`, `reports/metrics/baseline_*`, `reports/Baseline_Model_Training_Report.md` |
-| Tune and select | `python run_tuning.py` | Tunes Decision Tree, Random Forest and XGBoost with `TimeSeriesSplit`; selects the final model by test MAE | `models/final_best_model.joblib`, `models/final_best_model_metadata.json`, `reports/metrics/tuned_*`, `reports/Hyperparameter_Tuning_Report.md` |
+| Train default models | `python run_training.py` | Chronological 80/20 split; trains the 4 ML models with default settings (not the naive baselines) | `models/*.joblib`, `reports/metrics/baseline_*`, `reports/Baseline_Model_Training_Report.md` |
+| Tune and select | `python run_tuning.py` | Tunes Decision Tree, Random Forest and XGBoost and cross-validates Linear Regression with `TimeSeriesSplit`; selects the final model by validation MAE; evaluates it once on the test period; scores the naive baselines | `models/final_best_model.joblib`, `models/final_best_model_metadata.json`, `reports/metrics/tuned_*`, `reports/metrics/naive_baseline_*`, `reports/metrics/model_comparison.csv`, `reports/Hyperparameter_Tuning_Report.md` |
 | Run app | `streamlit run app/Home.py` | Loads the processed data and the final model for prediction | — |
 
 ## Testing
@@ -496,7 +523,7 @@ The repository does not show a deployment. It has no deployment configuration an
 
 ## Limitations
 
-- **Synthetic data only.** The current results say nothing about real-world accuracy. The model needs to be retrained and re-evaluated on real data before anyone relies on it.
+- **Synthetic data only.** The current results are SYNTHETIC DEVELOPMENT RESULTS and say nothing about real-world or Food4Education accuracy. The model needs to be retrained and re-evaluated on real data before anyone relies on it.
 - **Small dataset.** Three synthetic schools over about two school years. A real deployment needs more schools and a longer history.
 - **Data quality.** Forecast quality depends on how complete and accurate the historical records are.
 - **Unusual events** (strikes, disease outbreaks, sudden policy changes) may not appear in past patterns.

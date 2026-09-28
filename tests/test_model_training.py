@@ -56,6 +56,16 @@ def test_chronological_split_last_20_percent_is_test():
     assert len(test) == n - int(n * 0.8)
 
 
+def test_chronological_split_never_splits_a_date_across_train_and_test():
+    # 3 schools x 11 days = 33 rows: int(33 * 0.8) = 26 lands inside day 9.
+    df = pd.concat([_fake_processed_df(n_days=11).assign(**{settings.SCHOOL_ID_COLUMN: s}) for s in "ABC"])
+    df = df.drop_duplicates([settings.SCHOOL_ID_COLUMN, settings.DATE_COLUMN])
+    train, test = chronological_split(df, train_ratio=0.8)
+    assert train[settings.DATE_COLUMN].max() < test[settings.DATE_COLUMN].min()
+    assert len(train) + len(test) == len(df)
+    assert len(train) == 24  # moved back to the start of day 9 (8 full days x 3 schools)
+
+
 def test_chronological_split_no_overlap_between_periods():
     df = _fake_processed_df()
     train, test = chronological_split(df)

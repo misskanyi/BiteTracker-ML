@@ -105,24 +105,43 @@ def test_recursive_feature_updates_use_predicted_values_as_history():
 
 def test_missing_optional_inputs_falls_back_to_recent_average():
     df = _fake_processed_df()
-    result = forecast_school_demand(df, "SCH001", horizon_days=1, model=_StubModel())
-    row = result.iloc[0]
-    assert row["attendance_assumption"] == "recent 14-day average"
-    assert row["rainfall_assumption"] == "recent 14-day average"
-    assert row["temperature_assumption"] == "recent 14-day average"
+    result = forecast_school_demand(df, "SCH001", horizon_days=3, model=_StubModel())
+    # Day 1's attendance features come from the last recorded (observed) day.
+    assert result.iloc[0]["attendance_assumption"] == "last recorded day (observed)"
+    assert (result.iloc[1:]["attendance_assumption"] == "recent 14-day average").all()
+    assert (result["rainfall_assumption"] == "recent 14-day average").all()
+    assert (result["temperature_assumption"] == "recent 14-day average").all()
 
 
 def test_user_provided_inputs_are_labelled_as_such():
     df = _fake_processed_df()
     result = forecast_school_demand(
-        df, "SCH001", horizon_days=1,
+        df, "SCH001", horizon_days=3,
         expected_attendance=350, expected_rainfall_mm=10.0, expected_temperature_c=25.0,
         model=_StubModel(),
     )
-    row = result.iloc[0]
-    assert row["attendance_assumption"] == "user-provided"
-    assert row["rainfall_assumption"] == "user-provided"
-    assert row["temperature_assumption"] == "user-provided"
+    # Expected day-1 attendance can only feed day 2 (as its previous-day attendance).
+    assert list(result["attendance_assumption"]) == [
+        "last recorded day (observed)", "user-provided (day 1)", "recent 14-day average",
+    ]
+    assert (result["rainfall_assumption"] == "user-provided").all()
+    assert (result["temperature_assumption"] == "user-provided").all()
+
+
+def test_day1_forecast_ignores_expected_attendance():
+    """A day's own attendance is not a model input, so day 1 can't depend on it."""
+
+    class _AttendanceEcho:
+        def predict(self, X):
+            return X["previous_attendance"].to_numpy()
+
+    df = _fake_processed_df()
+    last_present = get_school_history(df, "SCH001")["students_present"].iloc[-1]
+    low = forecast_school_demand(df, "SCH001", horizon_days=2, expected_attendance=10, model=_AttendanceEcho())
+    high = forecast_school_demand(df, "SCH001", horizon_days=2, expected_attendance=999, model=_AttendanceEcho())
+    assert low.iloc[0]["predicted_meals_served"] == high.iloc[0]["predicted_meals_served"] == last_present
+    assert low.iloc[1]["predicted_meals_served"] == 10
+    assert high.iloc[1]["predicted_meals_served"] == 999
 
 
 def test_predictions_never_negative():
@@ -187,7 +206,7 @@ def test_predict_specific_date_returns_expected_keys():
 
     result = predict_specific_date(
         df, "SCH001", target,
-        expected_attendance=350, expected_rainfall_mm=2.0, expected_temperature_c=23.0,
+        expected_rainfall_mm=2.0, expected_temperature_c=23.0,
         school_term="Term 2", is_holiday=False, is_exam_period=False,
         model=_StubModel(),
     )
@@ -203,7 +222,7 @@ def test_predict_specific_date_rejects_past_or_current_date():
     with pytest.raises(ValueError):
         predict_specific_date(
             df, "SCH001", last_date,
-            expected_attendance=350, expected_rainfall_mm=2.0, expected_temperature_c=23.0,
+            expected_rainfall_mm=2.0, expected_temperature_c=23.0,
             school_term="Term 2", is_holiday=False, is_exam_period=False,
             model=_StubModel(),
         )
@@ -216,7 +235,7 @@ def test_predict_specific_date_invalid_school_raises():
     with pytest.raises(ValueError):
         predict_specific_date(
             df, "NOT_A_REAL_SCHOOL", date(2030, 1, 1),
-            expected_attendance=350, expected_rainfall_mm=2.0, expected_temperature_c=23.0,
+            expected_rainfall_mm=2.0, expected_temperature_c=23.0,
             school_term="Term 2", is_holiday=False, is_exam_period=False,
             model=_StubModel(),
         )

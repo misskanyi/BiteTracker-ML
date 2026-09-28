@@ -1,23 +1,30 @@
-"""Feature engineering for next-school-day meal-demand forecasting.
+"""Feature engineering for school-day meal-demand forecasting.
 
-Target: `meals_served_next_day` = tomorrow's meals_served for that school.
-All predictive features are built from information available *as of* the
-current row's date (today), so a model trained on them never sees the
-future. Concretely:
+Each row represents the TARGET DATE T for one school, and
+`target_meals_served` is the meals_served recorded on T. Features describe T
+using only information that is known before T's meals are served, which is
+exactly what `src.forecasting._build_feature_row` builds at prediction time:
 
-- lag / rolling features use `.shift(1)` before rolling, so "today" is
-  excluded from its own rolling window — only strictly-past days feed in.
-- `attendance_rate` / `previous_attendance` use today's (or earlier) values,
-  which are known before tomorrow's meal count is decided.
-- The target is `meals_served.shift(-1)`, computed per-school so a school's
-  last recorded day (no known "tomorrow") gets a NaN target and is dropped.
+- lag / rolling features: `.shift(1)` first, so they cover school days
+  strictly before T (lag_1 = the previous school day).
+- attendance: `previous_attendance` / `previous_attendance_rate` come from
+  the previous school day. T's own attendance is NOT a feature, because it
+  is not known until T happens and moves almost one-for-one with meals.
+- calendar (weekday, month, term, holiday, exam period, school event):
+  T's own values, which the school calendar publishes in advance.
+- weather (rainfall_mm, temperature_c): T's values, standing in for a
+  weather forecast. Training uses observed weather, so it assumes a
+  perfect forecast; at prediction time the user supplies expected values.
+
+`attendance_rate` (T's own attendance / enrolment) is still computed for
+dashboards and EDA, but it is deliberately excluded from FEATURE_COLUMNS.
 
 All shift/rolling operations are grouped by `school_id` so one school's
 history never leaks into another's lag/rolling values.
 """
 
-# In simple terms: builds the "clues" (past meals, past attendance, etc.)
-# the model will use to guess tomorrow's meal count.
+# In simple terms: builds the "clues" (past meals, past attendance, the
+# day's calendar) the model uses to guess a school day's meal count.
 
 from __future__ import annotations
 
@@ -36,7 +43,7 @@ FEATURE_COLUMNS = [
     "rolling_mean_7",
     "rolling_mean_14",
     "rolling_std_7",
-    "attendance_rate",
+    "previous_attendance_rate",
     "previous_attendance",
     "month",
     "rainfall_mm",
@@ -86,17 +93,25 @@ def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_attendance_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add attendance_rate (today) and previous_attendance (yesterday's headcount)."""
+    """Add previous-school-day attendance features, per school.
+
+    - previous_attendance: students present on the previous school day.
+    - previous_attendance_rate: previous school day's present / enrolled.
+    - attendance_rate: the row day's own rate, for dashboards/EDA only
+      (not a model feature — it is unknown before that day's meals).
+    """
     df = df.copy()
     df["attendance_rate"] = (df["students_present"] / df["enrolled_students"]).clip(0, 1)
-    df["previous_attendance"] = df.groupby(settings.SCHOOL_ID_COLUMN)["students_present"].shift(1)
+    grouped = df.groupby(settings.SCHOOL_ID_COLUMN)
+    df["previous_attendance"] = grouped["students_present"].shift(1)
+    df["previous_attendance_rate"] = grouped["attendance_rate"].shift(1)
     return df
 
 
 def add_target(df: pd.DataFrame) -> pd.DataFrame:
-    """Add the forecasting target: next school day's meals_served, per school."""
+    """Add the forecasting target: meals_served on the row's own date (the target date)."""
     df = df.copy()
-    df[settings.TARGET_COLUMN] = df.groupby(settings.SCHOOL_ID_COLUMN)["meals_served"].shift(-1)
+    df[settings.TARGET_COLUMN] = df["meals_served"]
     return df
 
 
@@ -104,7 +119,7 @@ def drop_incomplete_rows(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows that can't have a complete feature set or a known target.
 
     This removes each school's first 14 rows (insufficient lag history) and
-    each school's last row (no known "next day" to form the target).
+    any row whose meals_served (the target) is missing.
     """
     df = df.copy()
     before = len(df)

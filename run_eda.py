@@ -199,13 +199,13 @@ def write_eda_markdown_report(processed_df) -> None:
             "Signals volatility — schools with erratic attendance need bigger safety buffers.",
             "Undefined/NaN with too few observations; sensitive to one large recent outlier.",
         ),
-        "attendance_rate": (
-            "students_present / enrolled_students for the current day.",
-            "Direct, interpretable driver — meals needed track who actually shows up.",
-            "Today's rate must be forecast/estimated by the user for real future predictions.",
+        "previous_attendance_rate": (
+            "students_present / enrolled_students on the previous school day.",
+            "Interpretable attendance signal that is known before the target day's meals.",
+            "Lags reality by a day; the target day's own attendance is excluded to avoid leakage.",
         ),
         "previous_attendance": (
-            "Yesterday's raw headcount of students present.",
+            "Previous school day's raw headcount of students present.",
             "Adds absolute-scale momentum information the rate alone doesn't carry.",
             "Conflates enrolment size with attendance behaviour across schools.",
         ),

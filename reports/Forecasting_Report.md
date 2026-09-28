@@ -89,19 +89,21 @@ BiteTracker's Phase 6/7 scope stops at producing a point forecast (`predicted_me
 per day — it does **not** yet compute a recommended preparation quantity or safety-stock
 buffer on top of that number. This is intentionally left as a **future improvement**: a
 sensible buffer would need to be sized using each model's *measured* residual spread (e.g.
-`reports/figures/final_best_model_residuals.html` shows the tuned XGBoost model's residual
+`reports/figures/final_best_model_residuals.html` shows the selected model's residual
 distribution), not an arbitrary percentage, and that calibration work has not been done.
 Any current use of these forecasts for procurement should add a manual safety margin based
-on the reported Test MAE for the selected model (currently ≈31 meals for XGBoost — see
-`models/final_best_model_metadata.json`) rather than treating the point forecast as exact.
+on the reported final Test MAE for the selected model (see `final_test_mae` in
+`models/final_best_model_metadata.json`; synthetic development result) rather than treating
+the point forecast as exact.
 
 ## Model Metadata
 
 The forecasting function loads whichever model is saved at
 `models/final_best_model.joblib`. Its metadata (`models/final_best_model_metadata.json`)
-records the selected model name, its hyperparameters, the train/test date ranges, the
+records the selected model name, the selection criterion (lowest TimeSeriesSplit validation
+MAE) and its validation MAE, its hyperparameters, the train/test date ranges, the
 exact feature list (`src.feature_engineering.FEATURE_COLUMNS`), the target variable name,
-measured Test MAE/RMSE/R², a synthetic-data warning, a timestamp, and the software
+measured final Test MAE/RMSE/R², the naive-baseline comparison, a synthetic-data warning, a timestamp, and the software
 versions (Python/pandas/NumPy/scikit-learn/XGBoost) used to produce it — so any forecast
 can be traced back to exactly which model, trained on exactly which data split, produced it.
 

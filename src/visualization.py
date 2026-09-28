@@ -41,7 +41,7 @@ NUMERIC_COLUMNS_FOR_CORRELATION = [
     "rolling_mean_7",
     "rolling_mean_14",
     "rolling_std_7",
-    "meals_served_next_day",
+    "target_meals_served",
 ]
 
 

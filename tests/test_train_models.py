@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeRegressor
@@ -101,12 +102,81 @@ def test_full_pipeline_runs_all_stages_and_saves_artifacts(isolated_outputs, sma
     assert (models_dir / "final_best_model.joblib").exists()
     assert (metrics_dir / "baseline_model_metrics.csv").exists()
     assert (metrics_dir / "tuned_model_metrics.csv").exists()
+    for name in (
+        "naive_baseline_metrics.csv",
+        "naive_baseline_test_predictions.csv",
+        "validation_model_selection.csv",
+        "model_comparison.csv",
+        "selected_model_vs_naive_baselines.csv",
+    ):
+        assert (metrics_dir / name).exists(), name
 
     metadata = json.loads((models_dir / "final_best_model_metadata.json").read_text())
     assert metadata["selected_model"] in {"Linear Regression", "Decision Tree", "Random Forest", "XGBoost"}
     assert metadata["target_variable"] == settings.TARGET_COLUMN
+    assert metadata["selection_criterion"] == "lowest TimeSeriesSplit validation MAE"
+    assert metadata["cv_n_folds"] == settings.CV_N_SPLITS
+    assert "TimeSeriesSplit" in metadata["cv_strategy"]
+    for key in ("validation_mae", "final_test_mae", "final_test_rmse", "final_test_r2", "features_used"):
+        assert metadata[key] is not None, key
+    assert "SYNTHETIC" in metadata["results_label"]
     # Chronological split: training must end before testing starts.
     assert metadata["train_date_range"]["end"] < metadata["test_date_range"]["start"]
+
+    # The selected model is the validation winner, and all four candidates were validated.
+    validation = pd.read_csv(metrics_dir / "validation_model_selection.csv")
+    assert set(validation["Model"]) == {"Linear Regression", "Decision Tree", "Random Forest", "XGBoost"}
+    assert validation.loc[validation["Validation MAE"].idxmin(), "Model"] == metadata["selected_model"]
+    assert metadata["validation_mae"] == pytest.approx(validation["Validation MAE"].min())
+
+    comparison = pd.read_csv(metrics_dir / "model_comparison.csv")
+    naive_rows = comparison[comparison["Type"] == "Naive baseline"]
+    assert set(naive_rows["Method"]) == {"Persistence / Last Observation", "7-Day Historical Mean"}
+    assert naive_rows["Validation MAE"].isna().all()  # not fabricated
+    assert "projected_students" not in " ".join(comparison["Method"])
+
+
+def test_selection_happens_before_test_evaluation_and_never_sees_test_rows(
+    isolated_outputs, small_dataset, monkeypatch
+):
+    calls = []
+    real_tune, real_collect = run_tuning.tune_models, run_tuning.collect_validation_scores
+    real_select, real_eval = run_tuning.select_final_model, run_tuning.evaluate_selected_model
+    real_eval_all = run_tuning.evaluate_tuned_models
+
+    def spy_tune(X_train, y_train, n_splits=5):
+        calls.append(("tune", X_train.index))
+        return real_tune(X_train, y_train, n_splits)
+
+    def spy_collect(searches, X_train, y_train, n_splits=5):
+        calls.append(("collect", X_train.index))
+        return real_collect(searches, X_train, y_train, n_splits)
+
+    def spy_select(validation_scores):
+        calls.append(("select", None))
+        return real_select(validation_scores)
+
+    def spy_eval(selected, model, kind, X_train, y_train, X_test, y_test):
+        calls.append(("evaluate_selected", X_test.index))
+        return real_eval(selected, model, kind, X_train, y_train, X_test, y_test)
+
+    def spy_eval_all(searches, X_train, y_train, X_test, *args):
+        calls.append(("evaluate_all", X_test.index))
+        return real_eval_all(searches, X_train, y_train, X_test, *args)
+
+    monkeypatch.setattr(run_tuning, "tune_models", spy_tune)
+    monkeypatch.setattr(run_tuning, "collect_validation_scores", spy_collect)
+    monkeypatch.setattr(run_tuning, "select_final_model", spy_select)
+    monkeypatch.setattr(run_tuning, "evaluate_selected_model", spy_eval)
+    monkeypatch.setattr(run_tuning, "evaluate_tuned_models", spy_eval_all)
+
+    assert train_models.main(["--data-path", str(small_dataset)]) == 0
+
+    order = [name for name, _ in calls]
+    assert order == ["tune", "collect", "select", "evaluate_selected", "evaluate_all"]
+    test_index = dict(calls)["evaluate_selected"]
+    for stage in ("tune", "collect"):
+        assert dict(calls)[stage].intersection(test_index).empty, f"{stage} saw test rows"
 
 
 def test_stage_failure_propagates_and_names_the_stage(isolated_outputs, small_dataset, monkeypatch, capsys):
@@ -116,7 +186,7 @@ def test_stage_failure_propagates_and_names_the_stage(isolated_outputs, small_da
     monkeypatch.setattr(train_models, "engineer_features", broken_engineer_features)
     with pytest.raises(RuntimeError, match="feature engineering exploded"):
         train_models.main(["--data-path", str(small_dataset)])
-    assert "PIPELINE FAILED during [2/7]" in capsys.readouterr().err
+    assert "PIPELINE FAILED during [3/9]" in capsys.readouterr().err
     assert not (isolated_outputs["MODELS_DIR"] / "final_best_model.joblib").exists()
 
 
@@ -130,5 +200,5 @@ def test_cli_exits_non_zero_when_dataset_missing(tmp_path):
         timeout=120,
     )
     assert result.returncode != 0
-    assert "PIPELINE FAILED during [1/7]" in result.stderr
+    assert "PIPELINE FAILED during [1/9]" in result.stderr
     assert "FileNotFoundError" in result.stderr

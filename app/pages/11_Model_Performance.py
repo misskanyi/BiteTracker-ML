@@ -39,7 +39,8 @@ if status["final_model_metadata"]:
     st.success(
         f"**Selected model: {meta['selected_model']}** — "
         f"Test MAE={meta['final_test_mae']:.2f}, Test RMSE={meta['final_test_rmse']:.2f}, "
-        f"Test R²={meta['final_test_r2']:.3f}. Selected by lowest test MAE, not R² alone."
+        f"Test R²={meta['final_test_r2']:.3f}. Selected by lowest TimeSeriesSplit validation MAE "
+        "(training period); the test period was used only for this final assessment."
     )
 
 tab1, tab2, tab3 = st.tabs(["Baseline Models", "Tuned Models", "Baseline vs Tuned"])
@@ -61,7 +62,10 @@ with tab2:
     st.plotly_chart(fig, use_container_width=True)
 
     best_row = tuned_df.loc[tuned_df["Test MAE"].idxmin()]
-    st.info(f"Best tuned model by Test MAE: **{best_row['Model']}** ({best_row['Test MAE']:.2f})")
+    st.info(
+        f"Lowest tuned Test MAE: **{best_row['Model']}** ({best_row['Test MAE']:.2f}) — "
+        "research comparison only; the final model is chosen by validation MAE."
+    )
 
 with tab3:
     st.markdown("#### Did Tuning Help?")
