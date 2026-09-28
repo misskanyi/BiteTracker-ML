@@ -1,7 +1,8 @@
 """Hyperparameter tuning for Decision Tree, Random Forest, and XGBoost.
 
-Linear Regression is intentionally NOT tuned — it's kept as an unchanged
-baseline reference (per project scope).
+Linear Regression is intentionally NOT tuned (no hyperparameters meaningfully
+affect ordinary least squares here); it is still a candidate model and gets a
+TimeSeriesSplit validation score on the same folds — see src/model_selection.py.
 
 Cross-validation strategy: `TimeSeriesSplit` over the Phase 4 *training*
 portion only. The final 20% test set from Phase 4 is never touched by
@@ -22,10 +23,11 @@ Search method per model:
   practical while still exploring depth/learning-rate/regularization
   combinations meant to curb the overfitting seen in the Phase 4 baseline.
 
-Scoring: negative MAE is the primary GridSearchCV/RandomizedSearchCV scoring
-metric (operationally, minimizing average meals mispredicted matters most).
-RMSE and R² are computed separately after refitting the best estimator —
-they are not used to pick hyperparameters, only to describe the result.
+Scoring: every search scores both MAE and RMSE on each validation fold
+(CV_SCORING) and picks hyperparameters by MAE (refit="mae"; operationally,
+minimizing average meals mispredicted matters most). The validation RMSE is
+kept only as the tiebreak for final model selection. Test-set metrics are
+computed after selection and never feed back into tuning or selection.
 """
 
 # In simple terms: tries out many settings ("knobs") for the Decision Tree,
@@ -45,6 +47,7 @@ from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
 
 from config import settings
+from src.model_selection import CV_REFIT_METRIC, CV_SCORING
 from src.utils import get_logger
 
 logger = get_logger(__name__)
@@ -119,7 +122,8 @@ def tune_decision_tree(X_train: pd.DataFrame, y_train: pd.Series, cv: TimeSeries
     search = GridSearchCV(
         DecisionTreeRegressor(random_state=settings.RANDOM_SEED),
         DECISION_TREE_PARAM_GRID,
-        scoring="neg_mean_absolute_error",
+        scoring=CV_SCORING,
+        refit=CV_REFIT_METRIC,
         cv=cv,
         n_jobs=-1,
     )
@@ -135,7 +139,8 @@ def tune_random_forest(
         RandomForestRegressor(random_state=settings.RANDOM_SEED, n_jobs=1),
         RANDOM_FOREST_PARAM_DIST,
         n_iter=n_iter,
-        scoring="neg_mean_absolute_error",
+        scoring=CV_SCORING,
+        refit=CV_REFIT_METRIC,
         cv=cv,
         random_state=settings.RANDOM_SEED,
         n_jobs=-1,
@@ -152,7 +157,8 @@ def tune_xgboost(
         XGBRegressor(random_state=settings.RANDOM_SEED, n_jobs=1, verbosity=0),
         XGBOOST_PARAM_DIST,
         n_iter=n_iter,
-        scoring="neg_mean_absolute_error",
+        scoring=CV_SCORING,
+        refit=CV_REFIT_METRIC,
         cv=cv,
         random_state=settings.RANDOM_SEED,
         n_jobs=-1,
@@ -236,18 +242,3 @@ def compare_baseline_vs_tuned(model_name: str, baseline_row: dict, tuned_row: di
         "Baseline Overfitting Status": baseline_status,
         "Tuned Overfitting Status": tuned_status,
     }
-
-
-def select_best_model(tuned_metrics: list[dict], max_acceptable_gap_status: str = "Overfitting") -> dict:
-    """Select the final model: lowest test MAE, tie-broken by RMSE then R²,
-    with a note if the top pick still shows an unacceptable generalization gap.
-
-    Does not select purely on R² — MAE is the primary criterion, matching
-    the project's operational goal (minimizing average meal-count error).
-    """
-    ranked = sorted(tuned_metrics, key=lambda r: (r["Test MAE"], r["Test RMSE"], -r["Test R2"]))
-    best = ranked[0]
-    best = dict(best)
-    best["selection_rank"] = ranked
-    best["flagged_overfitting"] = best.get("Overfitting Status") == max_acceptable_gap_status
-    return best

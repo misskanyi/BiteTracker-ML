@@ -236,16 +236,20 @@ def write_report(metrics_df: pd.DataFrame, split_metadata: dict) -> None:
     lines = [
         "# BiteTracker — Baseline Model Training Report",
         "",
-        "> Results below are from **synthetic development data** "
-        "(`data/sample/synthetic_school_meals.csv`) and are measured, not fabricated — "
+        "> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** "
+        "(`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, not fabricated — "
         "they will change once a real dataset is used.",
         "",
         "## Training Process",
         "",
-        "Four regressors were trained with untuned, library-default hyperparameters "
-        "(no GridSearchCV — that is Phase 5) to establish a baseline before any tuning effort:",
+        "Four ML regressors were trained with untuned, library-default hyperparameters "
+        "(no GridSearchCV — that is Phase 5) as a reference point before any tuning effort. "
+        "These are default-hyperparameter ML models, not naive forecasting baselines: the "
+        "naive baselines (Persistence and 7-Day Historical Mean) are reported in "
+        "`Hyperparameter_Tuning_Report.md`. Test-set results here are descriptive only; the "
+        "final model is selected in Phase 5 by TimeSeriesSplit validation MAE.",
         "",
-        "- **Linear Regression** — simple, interpretable baseline; assumes linear relationships "
+        "- **Linear Regression** — simple, interpretable ML candidate; assumes linear relationships "
         "between lag/rolling/weather features and a school day's demand.",
         "- **Decision Tree Regressor** — captures non-linear splits (e.g. holiday vs term-time "
         "thresholds) a linear model can't.",

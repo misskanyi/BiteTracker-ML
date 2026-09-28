@@ -11,7 +11,8 @@
 BiteTracker is a machine-learning decision-support platform that forecasts school meal
 demand, so schools, county governments, NGOs, and donors can plan procurement and budgets
 proactively instead of reactively. It compares four regression models (Linear Regression,
-Decision Tree, Random Forest, XGBoost), selects the best one by measured test-set error,
+Decision Tree, Random Forest, XGBoost), selects one by TimeSeriesSplit validation MAE on the
+training period, checks it against two naive forecasting baselines on the held-out test period,
 and exposes next-day/7-day/30-day forecasts through a Streamlit dashboard.
 
 ## Final Architecture
@@ -28,7 +29,9 @@ preprocessing.py (clean, impute, cap outliers, encode)
         ▼
 feature_engineering.py (lag/rolling features, target)
         │
-        ├──▶ model_training.py (4 baseline models)
+        ├──▶ naive_baselines.py (persistence, 7-day mean)
+        │
+        ├──▶ model_training.py (4 default-hyperparameter ML models)
         │
         ├──▶ model_tuning.py (GridSearchCV/RandomizedSearchCV + TimeSeriesSplit)
         │            │
@@ -56,34 +59,38 @@ re-run independently and its output inspected before moving to the next.
    previous_attendance, calendar/holiday/exam/event flags — all computed per school with
    `.shift(1)` before any rolling window, so no feature ever sees its own day's target.
 4. Split chronologically 80/20 — no shuffling.
-5. Train four baseline models with library defaults.
-6. Tune Decision Tree/Random Forest/XGBoost with `TimeSeriesSplit` (5 folds) cross-validated
-   `GridSearchCV`/`RandomizedSearchCV` on the training set only; evaluate once on the
-   untouched test set.
-7. Select the final model by lowest test MAE (RMSE tiebreak, R² supporting evidence).
+5. Score two naive forecasting baselines (Persistence / Last Observation, 7-Day Historical
+   Mean) on the test period.
+6. Train the four ML models with library defaults (reference only).
+7. Tune Decision Tree/Random Forest/XGBoost with `TimeSeriesSplit` (5 folds) cross-validated
+   `GridSearchCV`/`RandomizedSearchCV` on the training set only, and cross-validate Linear
+   Regression on the same folds.
+8. Select the final model by lowest TimeSeriesSplit validation MAE (validation RMSE
+   tiebreak). The test period plays no part in selection.
+9. Evaluate the selected model once on the untouched test period.
 
 ## Final Selected Model
 
-**XGBoost** (tuned) — selected by lowest test MAE among all baseline and tuned candidates.
+> SYNTHETIC DEVELOPMENT RESULTS — not Food4Education or other real school data.
 
-Best hyperparameters: `max_depth=2, n_estimators=200, learning_rate=0.05, subsample=0.7,
-colsample_bytree=1.0, min_child_weight=1, reg_alpha=0, reg_lambda=10` (see
-`models/best_hyperparameters.json`).
+**Random Forest** (tuned) — selected by lowest TimeSeriesSplit validation MAE (55.43) among
+the four candidates. The current validation ranking, hyperparameters and all metrics are
+regenerated on every run in `reports/Hyperparameter_Tuning_Report.md`,
+`reports/metrics/validation_model_selection.csv` and `models/final_best_model_metadata.json`;
+treat those files as the source of truth.
 
 ## Performance Metrics
 
-Tuned models (test set, synthetic data):
+Selected model vs naive baselines (test period, synthetic data):
 
-| Model | Test MAE | Test RMSE | Test R² | Generalization |
+| Method | Type | Test MAE | Test RMSE | Test R² |
 |---|---|---|---|---|
-| Decision Tree | 32.81 | 77.10 | 0.863 | Good Generalization |
-| Random Forest | 33.95 | 74.62 | 0.872 | Overfitting (MAE gap) |
-| **XGBoost** | **31.24** | **68.41** | **0.892** | Good Generalization |
-| Linear Regression (untuned) | 41.43 | 82.49 | 0.843 | — |
+| Persistence / Last Observation | Naive baseline | 31.43 | 81.19 | 0.849 |
+| 7-Day Historical Mean | Naive baseline | 58.91 | 122.92 | 0.653 |
+| **Random Forest (selected)** | ML model | **19.37** | **47.07** | **0.949** |
 
-Baseline → tuned improvement (Test MAE): Decision Tree −27.68, Random Forest −2.97,
-XGBoost −13.80 — every tuned model beat its baseline; no result was reported as improved
-when it wasn't (see `reports/metrics/baseline_vs_tuned_comparison.csv`).
+The other ML candidates' test metrics are in `reports/metrics/model_comparison.csv` for
+research comparison; they were not used to select the model.
 
 ## Forecasting Workflow
 

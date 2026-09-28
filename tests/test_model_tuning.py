@@ -18,7 +18,6 @@ from src.model_tuning import (
     load_tuned_model,
     save_best_hyperparameters,
     save_tuned_model,
-    select_best_model,
     tune_decision_tree,
     tune_random_forest,
     tune_xgboost,
@@ -142,22 +141,14 @@ def test_classify_generalization_gap_labels():
     assert classify_generalization_gap(10, 13, 0.9, 0.83) == "Moderate Gap"
 
 
-def test_select_best_model_uses_mae_not_only_r2():
-    candidates = [
-        {"Model": "A", "Test MAE": 40, "Test RMSE": 80, "Test R2": 0.95},
-        {"Model": "B", "Test MAE": 30, "Test RMSE": 90, "Test R2": 0.80},
-    ]
-    best = select_best_model(candidates)
-    assert best["Model"] == "B"  # lower MAE wins despite lower R2
-
-
-def test_select_best_model_tiebreaks_on_rmse():
-    candidates = [
-        {"Model": "A", "Test MAE": 30, "Test RMSE": 90, "Test R2": 0.80},
-        {"Model": "B", "Test MAE": 30, "Test RMSE": 70, "Test R2": 0.80},
-    ]
-    best = select_best_model(candidates)
-    assert best["Model"] == "B"
+def test_searches_score_mae_and_rmse_and_refit_on_mae():
+    X, y = _fake_training_data(150)
+    cv = get_time_series_cv(n_splits=3)
+    search = tune_decision_tree(X, y, cv)
+    assert search.refit == "mae"
+    assert "mean_test_mae" in search.cv_results_
+    assert "mean_test_rmse" in search.cv_results_
+    assert search.best_score_ == search.cv_results_["mean_test_mae"][search.best_index_]
 
 
 def test_tuning_reproducible_with_fixed_seed():

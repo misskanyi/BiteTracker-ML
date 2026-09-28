@@ -1,12 +1,12 @@
 # BiteTracker — Baseline Model Training Report
 
-> Results below are from **synthetic development data** (`data/sample/synthetic_school_meals.csv`) and are measured, not fabricated — they will change once a real dataset is used.
+> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** (`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, not fabricated — they will change once a real dataset is used.
 
 ## Training Process
 
-Four regressors were trained with untuned, library-default hyperparameters (no GridSearchCV — that is Phase 5) to establish a baseline before any tuning effort:
+Four ML regressors were trained with untuned, library-default hyperparameters (no GridSearchCV — that is Phase 5) as a reference point before any tuning effort. These are default-hyperparameter ML models, not naive forecasting baselines: the naive baselines (Persistence and 7-Day Historical Mean) are reported in `Hyperparameter_Tuning_Report.md`. Test-set results here are descriptive only; the final model is selected in Phase 5 by TimeSeriesSplit validation MAE.
 
-- **Linear Regression** — simple, interpretable baseline; assumes linear relationships between lag/rolling/weather features and a school day's demand.
+- **Linear Regression** — simple, interpretable ML candidate; assumes linear relationships between lag/rolling/weather features and a school day's demand.
 - **Decision Tree Regressor** — captures non-linear splits (e.g. holiday vs term-time thresholds) a linear model can't.
 - **Random Forest Regressor** — ensemble of trees, generally more robust and less prone to overfitting than a single tree.
 - **XGBoost Regressor** — gradient-boosted trees, often strong on tabular data with mixed categorical/numeric/lag features like this dataset.
@@ -22,10 +22,10 @@ Four regressors were trained with untuned, library-default hyperparameters (no G
 
 | Model             |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 |   Training Time (s) |
 |:------------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|--------------------:|
-| Linear Regression |      19.317 |     17.171 |       39.428 |      38.881 |      0.956 |     0.965 |               0.002 |
+| Linear Regression |      19.317 |     17.171 |       39.428 |      38.881 |      0.956 |     0.965 |               0.001 |
 | Decision Tree     |       0.000 |     21.644 |        0.000 |      67.971 |      1.000 |     0.894 |               0.016 |
 | Random Forest     |       6.626 |     15.336 |       15.155 |      41.315 |      0.994 |     0.961 |               0.164 |
-| XGBoost           |       1.257 |     19.196 |        1.776 |      65.763 |      1.000 |     0.901 |               0.181 |
+| XGBoost           |       1.257 |     19.196 |        1.776 |      65.763 |      1.000 |     0.901 |               0.182 |
 
 - Best by Test MAE: **Random Forest**
 - Best by Test RMSE: **Linear Regression**
