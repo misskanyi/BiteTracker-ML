@@ -39,12 +39,18 @@ def run_data_pipeline(
     processed_df = engineer_features(clean_df)
 
     if save:
-        out_path = output_path or (settings.PROCESSED_DATA_DIR / "school_meals_processed.csv")
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        processed_df.to_csv(out_path, index=False)
-        logger.info("Processed dataset saved to %s (%d rows)", out_path, len(processed_df))
+        save_processed_dataset(processed_df, output_path)
 
     return processed_df
+
+
+def save_processed_dataset(processed_df: pd.DataFrame, output_path: Path | None = None) -> Path:
+    """Write the feature-engineered dataset to data/processed/ (where the app reads it)."""
+    out_path = output_path or (settings.PROCESSED_DATA_DIR / "school_meals_processed.csv")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    processed_df.to_csv(out_path, index=False)
+    logger.info("Processed dataset saved to %s (%d rows)", out_path, len(processed_df))
+    return out_path
 
 
 if __name__ == "__main__":

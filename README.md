@@ -321,6 +321,9 @@ BiteTracker-ML/
 │   └── metrics/                    # git-ignored (generated metrics)
 ├── notebooks/                      # (empty)
 ├── tests/                          # pytest suite
+├── .github/workflows/ci.yml        # GitHub Actions CI: install → pipeline → tests
+├── scripts/
+│   └── train_models.py             # One command: data → features → train → tune → select → save
 ├── run_pipeline.py                 # Step 1: build processed dataset
 ├── run_eda.py                      # Optional: EDA charts and report
 ├── run_training.py                 # Step 2: baseline models
@@ -337,7 +340,8 @@ BiteTracker-ML/
 - **`app/`** — the Streamlit interface. Pages only display results; the logic lives in `src/`.
 - **`src/`** — the data pipeline, ML code and decision-support logic, which both the scripts and the app use.
 - **`config/settings.py`** — the single place for paths and key settings.
-- **`run_*.py`** — command-line scripts that produce the processed data, models, metrics and reports.
+- **`scripts/train_models.py`** — runs the full ML pipeline with one command.
+- **`run_*.py`** — the individual step scripts that produce the processed data, models, metrics and reports.
 - **`reports/*.md`** — written reports produced by the scripts on the synthetic data.
 
 ## Installation and Local Setup
@@ -373,13 +377,13 @@ pip install -r requirements.txt
 
 ### 4. Build the model (first run only)
 
-A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Run these once, in this order:
+A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Build everything with one command (see [One-Command ML Pipeline](#one-command-ml-pipeline)):
 
 ```bash
-python run_pipeline.py
-python run_training.py
-python run_tuning.py
+python scripts/train_models.py
 ```
+
+Running the three step scripts in order (`python run_pipeline.py`, `python run_training.py`, `python run_tuning.py`) produces the same result.
 
 If you skip this step, the app still opens, but the Home page shows missing artifacts and most pages show an error with these same commands.
 
@@ -416,7 +420,39 @@ The app does not use any weather API, external API or API keys. Weather values c
 
 ## Running the Machine-Learning Pipeline
 
-Starting the Streamlit app does **not** retrain anything. The app loads the saved model from `models/final_best_model.joblib`. Rerun the scripts below only when the data or the modelling code changes.
+Starting the Streamlit app does **not** retrain anything. The app loads the saved model from `models/final_best_model.joblib`. Rerun the pipeline only when the data or the modelling code changes.
+
+### One-Command ML Pipeline
+
+```bash
+python scripts/train_models.py
+```
+
+This runs the whole training process in one go, on the **synthetic** development dataset by default:
+
+| Stage | What happens | Code reused |
+|---|---|---|
+| `[1/7]` Preparing data | Load the dataset and check its schema, then clean it | `src/data_loader.py::load_dataset`, `src/preprocessing.py::run_preprocessing` |
+| `[2/7]` Engineering features | Build lag, rolling, attendance and calendar features and the next-day target, save the processed CSV, then split 80/20 **chronologically** (no shuffling) | `src/feature_engineering.py::engineer_features`, `src/pipeline.py::save_processed_dataset`, `run_training.py::split_train_test` |
+| `[3/7]` Training models | Train Linear Regression, Decision Tree, Random Forest and XGBoost with default settings | `run_training.py::train_and_evaluate_baselines` |
+| `[4/7]` Tuning models | Tune Decision Tree, Random Forest and XGBoost with `TimeSeriesSplit` (5 folds) on the training period only | `run_tuning.py::tune_models` |
+| `[5/7]` Evaluating models | Score the tuned models on the held-out test period (MAE, RMSE, R²) | `run_tuning.py::evaluate_tuned_models` |
+| `[6/7]` Selecting model | Pick the lowest test MAE (then RMSE, then R²) among the tuned models and the Linear Regression baseline | `run_tuning.py::select_final_model` |
+| `[7/7]` Saving artifacts | Save all models, `final_best_model.joblib`, metadata, metrics, charts and reports | `run_training.py::save_baseline_outputs`, `run_tuning.py::save_tuning_outputs` |
+
+It uses the same functions as the step scripts, so the results are identical. To train on a different CSV with the same schema:
+
+```bash
+python scripts/train_models.py --data-path path/to/dataset.csv
+```
+
+Without `--data-path`, the script uses `BITETRACKER_DATA_PATH` if it is set, otherwise `data/sample/synthetic_school_meals.csv`. When you use a non-default dataset the script prints a warning, because the generated reports, model metadata and app badges still describe the data as synthetic.
+
+If any stage fails, the script says which stage failed, prints the full error and exits with a non-zero status, so CI can detect the failure. On the synthetic dataset the full run takes about 20 seconds.
+
+### Step-by-step scripts
+
+The individual scripts are still available:
 
 | Step | Command | What it does | Main outputs |
 |---|---|---|---|
@@ -432,7 +468,19 @@ Starting the Streamlit app does **not** retrain anything. The app loads the save
 pytest
 ```
 
-The `tests/` folder covers preprocessing, feature engineering, evaluation, training, tuning, forecasting, decision support, data validation, resource allocation, budgeting, and loading the Streamlit pages with `streamlit.testing.v1.AppTest`.
+The `tests/` folder covers preprocessing, feature engineering, evaluation, training, tuning, the one-command pipeline (on a small dataset with cheap tuning, writing to a temporary folder), forecasting, decision support, data validation, resource allocation, budgeting, and loading the Streamlit pages with `streamlit.testing.v1.AppTest`.
+
+## Continuous Integration
+
+GitHub Actions checks the project automatically (`.github/workflows/ci.yml`). It runs on every push to `main` or to a `feature/**` branch, and on every pull request into `main`.
+
+Each run, on Ubuntu with Python 3.11:
+
+1. Installs the dependencies from `requirements.txt` (pip downloads are cached between runs).
+2. Validates the ML pipeline by running `python scripts/train_models.py` end to end on the committed **synthetic** dataset, then checks that the processed data, final model, model metadata and metrics files were created. No real or restricted data is used, and no secrets are needed.
+3. Runs the test suite with `pytest -q`. Because the pipeline has just produced a trained model, the Streamlit page tests run instead of being skipped.
+
+The run fails if the dependencies cannot be installed, if any pipeline stage fails, or if any test fails. CI does not deploy anything.
 
 ## Deployment
 
