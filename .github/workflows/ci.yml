@@ -1,5 +1,15 @@
+# What this workflow does, in short:
+# Every time code is pushed (or a pull request is opened to main), GitHub
+# starts a fresh Linux machine, installs Python and the project's packages,
+# trains the models on the fake (synthetic) sample data, checks that the
+# expected output files were created, and then runs the test suite.
+# If any step fails, the run is marked red so the problem is caught early.
+# It does not deploy anything or use any real data.
+
 name: CI
 
+# When to run: on pushes to main or any feature/... branch,
+# and on pull requests that target main.
 on:
   push:
     branches:
@@ -9,6 +19,7 @@ on:
     branches:
       - main
 
+# The workflow may only read the code, not change it.
 permissions:
   contents: read
 
@@ -24,9 +35,11 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      # Download the project's code onto the machine.
       - name: Check out repository
         uses: actions/checkout@v4
 
+      # Install Python 3.11. Downloaded packages are cached to speed up later runs.
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -34,6 +47,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      # Install the packages listed in requirements.txt.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -45,6 +59,8 @@ jobs:
       - name: Run ML pipeline (synthetic data)
         run: python scripts/train_models.py
 
+      # Make sure training produced every expected file and none is empty.
+      # Fails the run if any file is missing.
       - name: Check pipeline artifacts exist
         run: |
           for f in \

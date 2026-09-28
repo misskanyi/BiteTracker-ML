@@ -485,8 +485,7 @@ def band(content_html: str, variant: str = "dark", eyebrow: str = "") -> None:
     since Streamlit widgets can't be nested inside an injected HTML div.
     """
     eyebrow_html = f'<span class="bite-band-eyebrow">{eyebrow}</span>' if eyebrow else ""
-    st.markdown(
-        f"""
+    markup = f"""
         <div class="bite-band bite-band-{variant}">
             <div class="bite-blob" style="width:160px;height:160px;top:-40px;right:6%;"></div>
             <div class="bite-blob" style="width:110px;height:110px;bottom:-30px;left:4%;"></div>
@@ -495,9 +494,13 @@ def band(content_html: str, variant: str = "dark", eyebrow: str = "") -> None:
                 {content_html}
             </div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    # st.markdown parses Markdown first: a blank line ends the HTML block, and
+    # any line after it indented 4+ spaces renders as a code block (the stray
+    # "</div>" boxes). Unindent every line and drop blank ones so the whole
+    # band stays a single HTML block.
+    markup = "\n".join(line.strip() for line in markup.splitlines() if line.strip())
+    st.markdown(markup, unsafe_allow_html=True)
 
 
 def stat_strip(items: list[tuple[str, str]]) -> None:
