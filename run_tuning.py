@@ -65,15 +65,11 @@ def load_baseline_metrics() -> pd.DataFrame:
     return pd.read_csv(BASELINE_METRICS_PATH)
 
 
-def main() -> None:
-    df = load_processed_dataset()
-    train_df, test_df = chronological_split(df)  # identical split to Phase 4
-    baseline_df = load_baseline_metrics().set_index("Model")
+def tune_models(X_train: pd.DataFrame, y_train: pd.Series, n_splits: int = 5) -> tuple[dict, list[dict]]:
+    """Run every tuner in TUNERS with TimeSeriesSplit on the training data only.
 
-    X_train, y_train = prepare_features_and_target(train_df)
-    X_test, y_test = prepare_features_and_target(test_df)
-
-    n_splits = 5
+    Returns ({name: (fitted_search, tuning_seconds)}, cv_fold_info).
+    """
     cv = get_time_series_cv(n_splits)
     fold_info = describe_cv_folds(len(X_train), n_splits)
     logger.info("TimeSeriesSplit folds (training data only, %d rows):", len(X_train))
@@ -83,10 +79,37 @@ def main() -> None:
             fold["fold"], fold["train_rows"], fold["train_range"], fold["val_rows"], fold["val_range"],
         )
 
+    searches = {}
+    for name, tuner in TUNERS.items():
+        pretty = PRETTY_NAMES[name]
+        logger.info("Tuning %s ...", pretty)
+        start = time.perf_counter()
+        search = tuner(X_train, y_train, cv)
+        tuning_seconds = time.perf_counter() - start
+        logger.info("%s tuning finished in %.1fs — best CV MAE: %.3f", pretty, tuning_seconds, -search.best_score_)
+        searches[name] = (search, tuning_seconds)
+    return searches, fold_info
+
+
+def evaluate_tuned_models(
+    searches: dict,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    test_df: pd.DataFrame,
+    baseline_df: pd.DataFrame,
+) -> dict:
+    """Score each tuned model's best estimator on train and the held-out test set.
+
+    `baseline_df` is the baseline metrics table indexed by pretty model name.
+    Nothing is written to disk.
+    """
     tuned_metrics_rows = []
     comparison_rows = []
     best_params_all = {}
-    tuning_metadata = {"n_splits": n_splits, "cv_folds": fold_info, "models": {}}
+    model_metadata = {}
+    best_models = {}
     predictions = pd.DataFrame(
         {
             "date": test_df[settings.DATE_COLUMN].values,
@@ -95,15 +118,10 @@ def main() -> None:
         }
     )
 
-    for name, tuner in TUNERS.items():
+    for name, (search, tuning_seconds) in searches.items():
         pretty = PRETTY_NAMES[name]
-        logger.info("Tuning %s ...", pretty)
-        start = time.perf_counter()
-        search = tuner(X_train, y_train, cv)
-        tuning_seconds = time.perf_counter() - start
-        logger.info("%s tuning finished in %.1fs — best CV MAE: %.3f", pretty, tuning_seconds, -search.best_score_)
-
         best_model = search.best_estimator_
+        best_models[name] = best_model
         best_params_all[name] = search.best_params_
 
         pred_start = time.perf_counter()
@@ -138,33 +156,30 @@ def main() -> None:
         )
 
         predictions[f"{name}_tuned_prediction"] = test_pred
-        save_tuned_model(best_model, name)
 
-        tuning_metadata["models"][name] = {
+        model_metadata[name] = {
             "search_type": type(search).__name__,
             "n_candidates_evaluated": len(search.cv_results_["params"]),
             "tuning_seconds": tuning_seconds,
             "best_cv_mae": -search.best_score_,
         }
 
-    tuned_metrics_df = pd.DataFrame(tuned_metrics_rows)
-    tuned_metrics_path = settings.METRICS_DIR / "tuned_model_metrics.csv"
-    tuned_metrics_df.to_csv(tuned_metrics_path, index=False)
-    logger.info("Saved tuned metrics to %s", tuned_metrics_path)
+    return {
+        "tuned_metrics_rows": tuned_metrics_rows,
+        "comparison_rows": comparison_rows,
+        "predictions": predictions,
+        "best_params": best_params_all,
+        "model_metadata": model_metadata,
+        "best_models": best_models,
+    }
 
-    comparison_df = pd.DataFrame(comparison_rows)
-    comparison_path = settings.METRICS_DIR / "baseline_vs_tuned_comparison.csv"
-    comparison_df.to_csv(comparison_path, index=False)
-    logger.info("Saved baseline-vs-tuned comparison to %s", comparison_path)
 
-    predictions_path = settings.METRICS_DIR / "tuned_test_predictions.csv"
-    predictions.to_csv(predictions_path, index=False)
+def select_final_model(tuned_metrics_rows: list[dict], baseline_df: pd.DataFrame) -> tuple[dict, list[dict]]:
+    """Final model selection: lowest Test MAE first, RMSE tiebreak, R² as supporting evidence.
 
-    save_best_hyperparameters(best_params_all)
-    with open(settings.MODELS_DIR / "tuning_metadata.json", "w") as f:
-        json.dump(tuning_metadata, f, indent=2, default=str)
-
-    # --- Final model selection: lowest Test MAE first, RMSE tiebreak, R² as supporting evidence.
+    Candidates are the tuned models plus the untuned Linear Regression baseline.
+    Returns (final_best_row, ranked_rows).
+    """
     all_candidates = tuned_metrics_rows + [
         {
             "Model": "Linear Regression",
@@ -188,11 +203,71 @@ def main() -> None:
     final_best = ranked[0]
     logger.info("Final model ranking by Test MAE: %s", [r["Model"] for r in ranked])
     logger.info("Selected final model: %s (Test MAE=%.2f)", final_best["Model"], final_best["Test MAE"])
+    return final_best, ranked
+
+
+def save_tuning_outputs(
+    evaluation: dict,
+    fold_info: list[dict],
+    final_best: dict,
+    ranked: list[dict],
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    n_splits: int = 5,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Save tuned models, metrics, hyperparameters, the final model + metadata, charts and report.
+
+    Baseline models must already be saved: if Linear Regression wins, the
+    final model is copied from its saved baseline file.
+    """
+    for name, model in evaluation["best_models"].items():
+        save_tuned_model(model, name)
+
+    tuned_metrics_df = pd.DataFrame(evaluation["tuned_metrics_rows"])
+    tuned_metrics_path = settings.METRICS_DIR / "tuned_model_metrics.csv"
+    tuned_metrics_df.to_csv(tuned_metrics_path, index=False)
+    logger.info("Saved tuned metrics to %s", tuned_metrics_path)
+
+    comparison_df = pd.DataFrame(evaluation["comparison_rows"])
+    comparison_path = settings.METRICS_DIR / "baseline_vs_tuned_comparison.csv"
+    comparison_df.to_csv(comparison_path, index=False)
+    logger.info("Saved baseline-vs-tuned comparison to %s", comparison_path)
+
+    predictions_path = settings.METRICS_DIR / "tuned_test_predictions.csv"
+    evaluation["predictions"].to_csv(predictions_path, index=False)
+
+    save_best_hyperparameters(evaluation["best_params"])
+    tuning_metadata = {"n_splits": n_splits, "cv_folds": fold_info, "models": evaluation["model_metadata"]}
+    with open(settings.MODELS_DIR / "tuning_metadata.json", "w") as f:
+        json.dump(tuning_metadata, f, indent=2, default=str)
 
     save_final_best_model(final_best, train_df, test_df)
-    generate_charts(tuned_metrics_df, comparison_df, predictions, fold_info)
+    generate_charts(tuned_metrics_df, comparison_df, evaluation["predictions"], fold_info)
     generate_final_best_model_charts(final_best, X_test, y_test)
-    write_report(tuned_metrics_df, comparison_df, best_params_all, fold_info, final_best, ranked, len(X_train))
+    write_report(
+        tuned_metrics_df, comparison_df, evaluation["best_params"], fold_info, final_best, ranked,
+        n_train_rows=len(train_df),
+    )
+    return tuned_metrics_df, comparison_df
+
+
+def main() -> None:
+    df = load_processed_dataset()
+    train_df, test_df = chronological_split(df)  # identical split to Phase 4
+    baseline_df = load_baseline_metrics().set_index("Model")
+
+    X_train, y_train = prepare_features_and_target(train_df)
+    X_test, y_test = prepare_features_and_target(test_df)
+
+    n_splits = 5
+    searches, fold_info = tune_models(X_train, y_train, n_splits)
+    evaluation = evaluate_tuned_models(searches, X_train, y_train, X_test, y_test, test_df, baseline_df)
+    final_best, ranked = select_final_model(evaluation["tuned_metrics_rows"], baseline_df)
+    tuned_metrics_df, comparison_df = save_tuning_outputs(
+        evaluation, fold_info, final_best, ranked, train_df, test_df, X_test, y_test, n_splits
+    )
 
     print("\n=== Tuned Metrics ===")
     print(tuned_metrics_df.to_string(index=False))

@@ -49,8 +49,8 @@ def load_processed_dataset() -> pd.DataFrame:
     return df
 
 
-def main() -> None:
-    df = load_processed_dataset()
+def split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Chronological 80/20 split, with a check that train never overlaps the test period."""
     train_df, test_df = chronological_split(df)
 
     logger.info(
@@ -58,10 +58,18 @@ def main() -> None:
         len(train_df), train_df[settings.DATE_COLUMN].min().date(), train_df[settings.DATE_COLUMN].max().date(),
         len(test_df), test_df[settings.DATE_COLUMN].min().date(), test_df[settings.DATE_COLUMN].max().date(),
     )
-    assert train_df[settings.DATE_COLUMN].max() <= test_df[settings.DATE_COLUMN].min(), (
-        "Train period must not extend past the start of the test period"
-    )
+    if train_df[settings.DATE_COLUMN].max() > test_df[settings.DATE_COLUMN].min():
+        raise ValueError("Train period must not extend past the start of the test period")
+    return train_df, test_df
 
+
+def train_and_evaluate_baselines(
+    train_df: pd.DataFrame, test_df: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """Fit every model in TRAINERS with default settings and score it on train and test.
+
+    Returns (metrics_df, test_predictions, trained_models). Nothing is written to disk.
+    """
     X_train, y_train = prepare_features_and_target(train_df)
     X_test, y_test = prepare_features_and_target(test_df)
 
@@ -102,9 +110,21 @@ def main() -> None:
 
         predictions[f"{name}_prediction"] = test_pred
         trained_models[name] = model
+
+    return pd.DataFrame(results), predictions, trained_models
+
+
+def save_baseline_outputs(
+    metrics_df: pd.DataFrame,
+    predictions: pd.DataFrame,
+    trained_models: dict,
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+) -> dict:
+    """Save baseline models, metrics, predictions, split metadata, charts and report."""
+    for name, model in trained_models.items():
         save_model(model, name)
 
-    metrics_df = pd.DataFrame(results)
     metrics_path = settings.METRICS_DIR / "baseline_model_metrics.csv"
     metrics_df.to_csv(metrics_path, index=False)
     logger.info("Saved baseline metrics to %s", metrics_path)
@@ -137,6 +157,14 @@ def main() -> None:
 
     generate_charts(metrics_df, predictions)
     write_report(metrics_df, split_metadata)
+    return split_metadata
+
+
+def main() -> None:
+    df = load_processed_dataset()
+    train_df, test_df = split_train_test(df)
+    metrics_df, predictions, trained_models = train_and_evaluate_baselines(train_df, test_df)
+    save_baseline_outputs(metrics_df, predictions, trained_models, train_df, test_df)
 
     logger.info("Baseline training complete.")
     print(metrics_df.to_string(index=False))
