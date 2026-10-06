@@ -78,9 +78,9 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 | Model         |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 | Generalization Gap Status   |   Tuning Time (s) |   Prediction Time (s) |   Best CV RMSE |
 |:--------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|:----------------------------|------------------:|----------------------:|---------------:|
-| Decision Tree |      17.650 |     15.103 |       36.429 |      39.268 |      0.963 |     0.965 | Good Generalization         |             5.158 |                 0.001 |        113.662 |
-| Random Forest |      16.243 |     19.370 |       38.510 |      47.072 |      0.958 |     0.949 | Moderate Gap                |             8.249 |                 0.007 |         82.405 |
-| XGBoost       |      17.542 |     15.656 |       35.600 |      39.675 |      0.964 |     0.964 | Good Generalization         |             2.050 |                 0.003 |         92.294 |
+| Decision Tree |      17.650 |     15.103 |       36.429 |      39.268 |      0.963 |     0.965 | Good Generalization         |             2.302 |                 0.000 |        113.662 |
+| Random Forest |      16.243 |     19.370 |       38.510 |      47.072 |      0.958 |     0.949 | Moderate Gap                |             3.696 |                 0.004 |         82.405 |
+| XGBoost       |      17.542 |     15.656 |       35.600 |      39.675 |      0.964 |     0.964 | Good Generalization         |             0.895 |                 0.002 |         92.294 |
 
 ## Default-Hyperparameter vs Tuned Comparison (test set, research only)
 

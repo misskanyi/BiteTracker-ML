@@ -23,9 +23,9 @@ Four ML regressors were trained with untuned, library-default hyperparameters (n
 | Model             |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 |   Training Time (s) |
 |:------------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|--------------------:|
 | Linear Regression |      19.317 |     17.171 |       39.428 |      38.881 |      0.956 |     0.965 |               0.001 |
-| Decision Tree     |       0.000 |     21.644 |        0.000 |      67.971 |      1.000 |     0.894 |               0.016 |
-| Random Forest     |       6.626 |     15.336 |       15.155 |      41.315 |      0.994 |     0.961 |               0.164 |
-| XGBoost           |       1.257 |     19.196 |        1.776 |      65.763 |      1.000 |     0.901 |               0.182 |
+| Decision Tree     |       0.000 |     21.644 |        0.000 |      67.971 |      1.000 |     0.894 |               0.008 |
+| Random Forest     |       6.626 |     15.336 |       15.155 |      41.315 |      0.994 |     0.961 |               0.121 |
+| XGBoost           |       1.257 |     19.196 |        1.776 |      65.763 |      1.000 |     0.901 |               0.129 |
 
 - Best by Test MAE: **Random Forest**
 - Best by Test RMSE: **Linear Regression**
