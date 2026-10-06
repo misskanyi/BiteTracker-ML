@@ -1,7 +1,7 @@
 """End-to-end data pipeline: load -> clean -> engineer features -> save.
 
 This is the single entry point the rest of the project (model training,
-Streamlit app) should call to get a model-ready dataset, so cleaning and
+web application) should call to get a model-ready dataset, so cleaning and
 feature logic live in exactly one place.
 """
 

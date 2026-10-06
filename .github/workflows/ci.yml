@@ -73,7 +73,16 @@ jobs:
           done
           echo "All pipeline artifacts present."
 
-      # Runs after the pipeline so the Streamlit page tests find the trained
-      # model and metrics (they skip when those artifacts are missing).
+      # Checks the Django project configuration (settings, URLs, apps) loads
+      # without errors before the tests run.
+      - name: Django system check
+        run: python manage.py check
+
+      # Fails if a model change has no matching migration file.
+      - name: Django migration consistency check
+        run: python manage.py makemigrations --check --dry-run
+
+      # Runs after the pipeline so tests that use the saved development model
+      # and metrics find them (they skip when those artifacts are missing).
       - name: Run tests
         run: pytest -q

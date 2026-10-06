@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Dashboard" icon="bi-speedometer2" subtitle="Meal-demand overview, forecasting model status and recent planning activity." %}
+
+{% if data_error %}
+  <div class="alert alert-warning" role="alert" data-testid="data-error"><i class="bi bi-exclamation-triangle me-1"></i>{{ data_error }}</div>
+{% else %}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card h-100"><div class="card-body">
+        <div class="kpi-label">Active dataset</div>
+        <div class="kpi-value kpi-value--sm">
+          <span class="badge rounded-pill status-pill status-pill--{{ DATA_STATUS.kind }}">{{ DATA_STATUS.kind|title }}</span>
+        </div>
+        <div class="kpi-note">{{ DATA_STATUS.dataset_name }}</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card h-100"><div class="card-body">
+        <div class="kpi-label">Schools</div>
+        <div class="kpi-value">{{ schools|length }}</div>
+        <div class="kpi-note">in the active dataset</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card h-100"><div class="card-body">
+        <div class="kpi-label">Latest recorded day</div>
+        <div class="kpi-value kpi-value--sm">{{ date_range.end|date:"j M Y" }}</div>
+        <div class="kpi-note">{{ latest_day_total|intcomma }} meals served (all schools)</div>
+      </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card h-100"><div class="card-body">
+        <div class="kpi-label">Recent daily demand</div>
+        <div class="kpi-value">{{ recent_daily_total|intcomma }}</div>
+        <div class="kpi-note">meals/day, all schools (mean of last 14 records each)</div>
+      </div></div>
+    </div>
+  </div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card h-100"><div class="card-body">
+      {% if history_chart %}
+        {% include "partials/_chart.html" with chart=history_chart chart_id="dashboard-history-chart" %}
+        <p class="small text-muted mb-0">Dataset covers {{ date_range.start|date:"j M Y" }} – {{ date_range.end|date:"j M Y" }}. <a href="{% url 'core:history' %}">Explore historical demand</a>.</p>
+      {% else %}
+        <div class="empty-state"><i class="bi bi-graph-up"></i><p>No historical data to chart yet.</p></div>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3"><div class="card-body">
+      <h2 class="h6 card-title"><i class="bi bi-cpu me-1"></i>Forecasting model</h2>
+      {% if model_metadata %}
+        <p class="mb-1 fs-5 fw-semibold" data-testid="model-name">{{ model_metadata.selected_model }}</p>
+        <p class="small text-muted mb-2">{{ model_metadata.results_label }}</p>
+        <dl class="row small mb-2">
+          <dt class="col-7 fw-normal text-muted">Validation MAE</dt><dd class="col-5 text-end mb-1">{{ model_metadata.validation_mae|floatformat:1 }} meals</dd>
+          <dt class="col-7 fw-normal text-muted">Held-out test MAE</dt><dd class="col-5 text-end mb-1">{{ model_metadata.final_test_mae|floatformat:1 }} meals</dd>
+        </dl>
+        <a href="{% url 'core:performance' %}" class="small">Full model performance</a>
+      {% else %}
+        <div class="alert alert-warning small mb-0" role="alert">{{ model_error }}</div>
+      {% endif %}
+    </div></div>
+    {% if quick_form %}
+    <div class="card"><div class="card-body">
+      <h2 class="h6 card-title"><i class="bi bi-lightning-charge me-1"></i>Quick forecast</h2>
+      <form method="get" action="{% url 'core:forecast' %}">
+        <div class="mb-2">
+          <label class="form-label small" for="quick-school">School</label>
+          <select name="school" id="quick-school" class="form-select form-select-sm">
+            {% for value, label in quick_form.fields.school.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small" for="quick-horizon">Horizon</label>
+          <select name="horizon" id="quick-horizon" class="form-select form-select-sm">
+            {% for value, label in quick_form.fields.horizon.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-success btn-sm w-100">Set up forecast <i class="bi bi-arrow-right"></i></button>
+      </form>
+    </div></div>
+    {% endif %}
+  </div>
+</div>
+
+{% if schools %}
+<div class="card mb-4">
+  <div class="card-header bg-white"><h2 class="h6 mb-0"><i class="bi bi-building me-1"></i>Schools and recent demand</h2></div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>School</th><th>Location</th><th class="text-end">Enrolled (dataset)</th><th>Latest record</th><th class="text-end">Meals (latest)</th><th class="text-end">Mean meals (last 14)</th><th class="text-end">Range (last 14)</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in schools %}
+        <tr>
+          <td><span class="fw-semibold">{{ s.school_name }}</span><br><span class="small text-muted">{{ s.school_id }}</span></td>
+          <td class="small">{{ s.sub_county|default:"—" }}, {{ s.county|default:"—" }}</td>
+          <td class="text-end">{{ s.enrolled_students|default:"—"|intcomma }}</td>
+          <td>{{ s.latest_date|date:"j M Y" }}</td>
+          <td class="text-end">{{ s.latest_meals_served|intcomma }}</td>
+          <td class="text-end">{{ s.recent_mean_meals|floatformat:1 }}</td>
+          <td class="text-end small">{{ s.recent_min_meals }}–{{ s.recent_max_meals }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:history' %}?school={{ s.school_id }}">History</a>
+            <a class="btn btn-success btn-sm" href="{% url 'core:forecast' %}?school={{ s.school_id }}">Forecast</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white small text-muted">Enrolment shown is the figure recorded in the active dataset, not verified school enrolment.</div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <h2 class="h6 mb-0"><i class="bi bi-clock-history me-1"></i>Recent forecast runs</h2>
+    <a href="{% url 'core:forecast_history' %}" class="small">View all</a>
+  </div>
+  {% if recent_runs %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light"><tr><th>Generated</th><th>School</th><th>Horizon</th><th class="text-end">Day 1 predicted</th><th class="text-end">Day 1 recommended</th><th>Risk</th><th>By</th></tr></thead>
+      <tbody>
+        {% for run in recent_runs %}
+        <tr>
+          <td><a href="{% url 'core:forecast_run' run.pk %}">{{ run.created_at|date:"j M Y H:i" }}</a></td>
+          <td>{{ run.school_name|default:run.school_code }}</td>
+          <td>{{ run.get_horizon_days_display }}</td>
+          <td class="text-end">{{ run.day1_predicted_meals }}</td>
+          <td class="text-end">{{ run.day1_recommended_meals }}</td>
+          <td><span class="badge risk-badge risk-{{ run.day1_risk_level|lower }}">{{ run.day1_risk_level }}</span></td>
+          <td class="small">{{ run.user.get_username|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="card-body"><div class="empty-state"><i class="bi bi-calendar2-plus"></i><p>No forecasts yet. <a href="{% url 'core:forecast' %}">Generate the first one</a>.</p></div></div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}{% include "partials/_plotly_js.html" %}{% endblock %}

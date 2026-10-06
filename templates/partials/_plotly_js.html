@@ -1,0 +1,7 @@
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.7.0/plotly.min.js"></script>
+<script>
+  document.querySelectorAll("[data-chart]").forEach(function (el) {
+    var spec = JSON.parse(document.getElementById(el.dataset.chart).textContent);
+    Plotly.newPlot(el, spec.data, spec.layout, {responsive: true, displaylogo: false});
+  });
+</script>

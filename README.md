@@ -16,12 +16,14 @@ Final-year project, BSc Informatics and Computer Science, Strathmore University.
 - [Machine Learning](#machine-learning)
 - [Forecasting](#forecasting)
 - [Application Functionality](#application-functionality)
+- [Architecture](#architecture)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Installation and Local Setup](#installation-and-local-setup)
 - [Configuration](#configuration)
 - [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)
 - [Testing](#testing)
+- [Continuous Integration](#continuous-integration)
 - [Deployment](#deployment)
 - [Privacy and Data Use](#privacy-and-data-use)
 - [Limitations](#limitations)
@@ -36,7 +38,7 @@ Final-year project, BSc Informatics and Computer Science, Strathmore University.
 
 BiteTracker is a machine-learning decision-support system that forecasts how many meals a school is likely to need, and helps with planning the resources those meals require.
 
-It learns from historical school-day meal records and shows its forecasts in a Streamlit web application. The aim is to turn past meal-demand records into forward-looking information that helps staff plan meal preparation, capacity and budgets.
+It learns from historical school-day meal records and shows its forecasts in a Django web application. The aim is to turn past meal-demand records into forward-looking information that helps staff plan meal preparation, capacity and budgets.
 
 BiteTracker only **supports** decisions. It does not make final meal-preparation or resource-allocation decisions automatically. Every forecast in the app is labelled as an estimate, and all allocation outputs are worded as suggestions for staff to review.
 
@@ -87,9 +89,9 @@ The generator creates the relationships between fields (for example, rainfall lo
 `enrolled_students` is **not** a direct model feature. It is used in two ways:
 
 - To calculate the `previous_attendance_rate` feature (the previous school day's `students_present / enrolled_students`). The same-day `attendance_rate` is also computed for dashboards, but it is **not** a model feature.
-- As reference information after forecasting: the Dashboard shows total enrolment, and the School Comparison page shows each school's attendance rate.
+- As reference information: the Dashboard lists each school's enrolment as recorded in the dataset (labelled as dataset enrolment, not verified enrolment).
 
-The app does **not** compare predicted demand against enrolment to produce a "planning difference". See [Planning and Resource Analysis](#planning-and-resource-analysis).
+The app does **not** compare predicted demand against enrolment to produce a "planning difference". `School.verified_enrolment` exists in the database for verified figures entered by an administrator, but it is not yet used in any calculation and is never used as a model feature.
 
 ### Engineered features
 
@@ -109,6 +111,8 @@ Each school's first 14 rows (without a full lag history) are dropped.
 ### Food4Education research dataset
 
 The project was designed for use with anonymised historical school-feeding data that Food4Education provided for academic research. That dataset is **not committed to this repository**, and the current code does not load it or reference its field names. The pipeline expects the column schema above. To use a different dataset, set `BITETRACKER_DATA_PATH` to a CSV with the same columns (see [Configuration](#configuration)). A dataset with different column names would need code changes first.
+
+**Integration status:** no Food4Education workbook has been placed in `data/raw/` yet, so it has not been audited or used. `data/raw/*` is git-ignored. The web application's data label is derived from the active model metadata and dataset path (`services/status_service.py`), so pages switch from **SYNTHETIC DEVELOPMENT DATA** only when a model trained on non-synthetic data is active. A 2025 Kenyan primary-school calendar (terms, half-terms, holidays) is prepared in `services/calendar_service.py` for the real-data pipeline; it is not used by the current synthetic model.
 
 ## Machine Learning
 
@@ -173,104 +177,81 @@ Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 
 
 `src/forecasting.py` loads the saved model (`models/final_best_model.joblib`) and makes forecasts per school. It does not retrain anything.
 
-- **Horizons:** next school day, next 7 school days, and next 30 days (school days only).
+- **Horizons:** next school day, next 7 school days, and next 30 school days (Monday–Friday).
 - **Multi-day method:** forecasts are recursive. Each predicted day is fed back in as if it had been observed, to build the next day's lag and rolling features. Error can therefore build up over longer horizons, and the app says so.
 - **Unknown future inputs:** future attendance, rainfall and temperature are not known. A forecast day's own attendance is never a model input: the attendance features use the previous school day (the last recorded day for day 1, then an assumed value). For weather, the user can enter expected values; otherwise the school's recent 14-day averages are used. Each row of the results says which assumption was used.
-- **Calendar flags:** term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`.
+- **Calendar flags:** term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`, the same rules the synthetic model was trained with.
+- **Forecast origin:** forecasts start from the last recorded date in the dataset (20 December 2024 for the synthetic data), not from today. The web pages state this on every forecast. Because the synthetic calendar treats late December as a school holiday, short-horizon forecasts from this origin are low.
 
 ## Application Functionality
 
-The Streamlit app is started from `app/Home.py` and has the pages below, in the order they appear in the sidebar.
+BiteTracker is a Django web application. Every page except the login page requires a signed-in user.
 
-| Page | File |
-|---|---|
-| Home | `app/Home.py` |
-| Dashboard | `app/pages/1_Dashboard.py` |
-| Forecast | `app/pages/2_Forecast.py` |
-| Planning | `app/pages/3_Planning.py` |
-| School Comparison | `app/pages/6_School_Comparison.py` |
-| Resource Allocation | `app/pages/7_Resource_Allocation.py` |
-| Budget Planning | `app/pages/8_Budget_Planning.py` |
-| Upload School Data | `app/pages/9_Upload_School_Data.py` |
-| Data Explorer | `app/pages/10_Data_Explorer.py` |
-| Model Performance | `app/pages/11_Model_Performance.py` |
-| About | `app/pages/12_About.py` |
+| Page | URL | What it does |
+|---|---|---|
+| Login / logout | `/accounts/login/` | Django authentication. Logout is a POST form (CSRF-protected). |
+| Dashboard | `/` | Data status (synthetic/real), number of schools, latest recorded day, recent demand per school, the selected model (read from its metadata), a quick-forecast form, a meals-served chart for all schools, and recent forecast runs |
+| Historical demand | `/history/` | Choose a school and date range; summary figures, a trend chart and a paginated table of daily records |
+| Forecast & planning | `/forecast/` | Choose a school and horizon (next school day, next 7 school days, next 30 school days) and optional assumptions; generates the forecast and planning recommendation |
+| Forecast result | `/forecast/runs/<id>/` | Predicted demand and recommended preparation (shown separately), safety buffer, risk level, estimated cost, optional capacity comparison, chart, day-by-day table, assumptions and forecast origin date |
+| Forecast history | `/forecast/runs/` | Every forecast generated through the app, filterable by school |
+| Model performance | `/performance/` | Selected model, how it was selected, validation and held-out test metrics, and comparison with the two naive baselines |
+| Data upload | `/data/upload/` | Upload a CSV/XLSX file, validate it and record the result (users with the upload permission only) |
+| Admin | `/admin/` | Django Admin for schools, upload records, forecast records and users (staff only) |
 
-### Authentication and Role-Based Access
+### Authentication and access
 
-**Not implemented.** The app has no login, user accounts or role-based permissions. Anyone who can open the app can use every page. The roles in the project design (School Manager, Resource Planning Stakeholder, System Administrator) do not appear in the code.
+- Django's built-in authentication (`django.contrib.auth`). `LoginRequiredMiddleware` protects every page except the login page.
+- There is no self-registration. An administrator creates accounts in Django Admin (or with `createsuperuser`).
+- Dataset upload requires the `schools.add_datasetupload` permission. Django Admin requires staff status.
+- The project-design roles (School Manager, Resource Planning Stakeholder, System Administrator) are **not** set up as Django groups yet; access is controlled with Django's user, staff and permission flags.
 
-### Home
+### Forecast & planning
 
-The Home page introduces the project, its stakeholders and its purpose. It also shows a **Pipeline Status** panel that checks whether the processed dataset, baseline metrics, tuned metrics, final model and model metadata exist. If any are missing, it lists the commands you need to run.
+1. Choose a school and a horizon. Optionally enter expected rainfall, temperature, expected day-1 attendance (it only affects day 2 onwards, because a day's own attendance is not a model input) and the meals currently planned for day 1. Blank fields use the school's recent 14-day averages, which the form shows.
+2. Select **Generate forecast**. The request goes through `services/forecast_service.py`, which calls the existing `src/forecasting.py`, the saved model, `src/decision_support.py`, `src/budgeting.py` and `src/resource_allocation.py`. No model is trained during a request.
+3. The result is saved as a `ForecastRun` record and shown on its own page.
 
-### Historical Meal-Demand Dashboard
+**Safety buffer and risk** (`src/decision_support.py`): a documented rule of thumb, not a statistical confidence interval. The buffer grows with recent demand volatility (coefficient of variation) and with how far ahead a day is, and is capped at 20% of predicted demand. Risk is Low if the buffer is under 5%, Moderate if under 12%, and High otherwise. The model name shown on results comes from `models/final_best_model_metadata.json`.
 
-The Dashboard page shows:
+### Data upload and validation
 
-- **Summary metrics:** total schools, total enrolment, average attendance rate, latest-day meals served, average leftover meals per school per day, and the leftover/prepared rate.
-- **Current model:** the name of the selected model with its test MAE and R².
-- **Charts** (Plotly, with a school multi-select filter): daily meals served per school, average meals served by school, and leftover meals over time.
+- Accepts `.csv` and `.xlsx` files up to 10 MB. Required columns are `date`, `school_id`, `school_name` and `meals_served`.
+- Validation (`src/data_validation.py`, via `services/upload_service.py`) reports record and school counts, columns, date range, missing values, duplicates, invalid values, a 0–100 quality score, forecast readiness (READY / LIMITED / NOT READY) and model-compatibility warnings.
+- Every validated file is recorded as a `DatasetUpload`. Valid files are stored under `data/uploads/` (git-ignored and never served over HTTP). Invalid or unreadable files are recorded without being stored.
+- Uploading does **not** replace the active dataset, retrain the model or change any saved artifacts.
 
-### Meal-Demand Forecasting
+### Data status label
 
-On the **Forecast** page, the user:
+Every page shows a banner describing the data behind its results. While the synthetic artifacts are active it reads **SYNTHETIC DEVELOPMENT DATA**, and the Model Performance page shows the stored **SYNTHETIC DEVELOPMENT RESULTS** label. The label comes from the active model metadata and dataset path; if either is synthetic the label is synthetic, and if the metadata is missing the status is shown as unknown.
 
-1. Selects a school and a horizon (next school day, next 7 school days, or next 30 days).
-2. Optionally enters expected rainfall and temperature, and expected attendance for day 1. Otherwise the recent 14-day averages are used and shown. Day 1's attendance features always use the last recorded day, so expected day-1 attendance only affects day 2.
-3. Clicks **Generate Forecast**.
+### Not carried over from the earlier Streamlit prototype
 
-The page then shows:
+The Streamlit interface was replaced by Django. These prototype pages were deliberately not rebuilt for Sprint II (their `src/` functions remain and are still tested): specific-date "Predict & Compare", School Comparison, multi-school Resource Allocation, Budget Planning charts, Data Explorer CSV download, the per-model baseline-vs-tuned tables, and the About page. Details are in `MIGRATION_NOTES.md`.
 
-- A decision-support summary for day 1: predicted meals, a recommended preparation quantity with a safety buffer, a risk level, and the assumptions used.
-- The estimated daily, weekly and monthly cost.
-- A forecast table with the assumption used for each day.
-- A chart of recent actual demand against the forecast.
+## Architecture
 
-**Safety buffer and risk** (`src/decision_support.py`): this is a documented rule of thumb, not a statistical prediction interval. The buffer grows with recent demand volatility (coefficient of variation) and with the forecast horizon, and is capped at 20% of predicted demand. Risk is Low if the buffer is under 5%, Moderate if under 12%, and High otherwise.
+```text
+Browser
+  │  HTML forms (CSRF-protected), Bootstrap 5, Plotly charts
+  ▼
+Django views and forms            web/core, web/schools, web/accounts
+  │  thin: validate input, call services, render templates
+  ▼
+Service layer (no Django imports) services/
+  │  data_service · model_service · forecast_service · performance_service
+  │  upload_service · status_service · calendar_service
+  ▼
+Existing ML and decision-support code   src/
+  │  forecasting · feature building · decision_support · budgeting · resource_allocation · data_validation
+  ▼
+Saved artifacts (generated by scripts/train_models.py, git-ignored)
+     models/final_best_model.joblib + metadata · data/processed/*.csv · reports/metrics/*.csv
+```
 
-### Planning and Resource Analysis
-
-**Planning page** (two tabs, for a selected school):
-
-- **Predict & Compare.** Choose a future date and set rainfall, temperature, term, holiday, exam-period and school-event values (attendance comes from the last recorded day). The page compares your prediction with an automatic baseline forecast for the same date, and shows the difference, a decision-support card, the model's top-5 feature importances (for tree-based models), and recent demand next to the prediction.
-- **Forecast Calendar.** A 14- or 30-school-day table showing predicted demand, recommended preparation, risk level and estimated cost for each day. You can open any single day to see its full decision-support details.
-
-**Resource Allocation page:** for each selected school, the user enters the *available capacity* (meals). The page compares this with the next-day forecast and labels the gap as a **Shortage**, **Surplus** or **Balanced**. If some schools show a shortage and others a surplus, it suggests reviewing allocation between them, and states that this is not an automatic reallocation.
-
-**Budget Planning page:** multiplies the next-day forecast by an editable cost per meal (the default is the recent average). This gives daily, weekly (×5 days) and monthly (×22 days) estimates, and a chart of recent historical spending against the forecast spending.
-
-> **Note:** the app does not compare predicted demand with verified total school enrolment. Its planning comparisons are forecast vs. user-entered capacity (Resource Allocation) and forecast vs. cost (Budget Planning). "Surplus" on the Resource Allocation page means capacity above forecast demand. It is not a measurement of food waste. The "waste" figures on the Dashboard and School Comparison pages come from the synthetic `leftover_meals` field.
-
-### School Comparison
-
-The user selects two or more schools. For each school, the page shows a table with predicted next-day demand, the averages over the last 30 days (attendance, attendance rate, meals served, leftovers, estimated waste %, cost per meal), the expected daily cost and the forecast risk. Bar charts show predicted demand, expected daily cost, and attendance rate against estimated waste.
-
-### Data Submission and Verification
-
-The **Upload School Data** page supports:
-
-- **Uploading** a CSV or Excel (`.xlsx`/`.xls`) file. Required columns are `date`, `school_id`, `school_name` and `meals_served`; the other columns are optional.
-- **Automatic validation** (`src/data_validation.py`): record count, duplicates, missing values, date range, months of coverage, a data-quality score out of 100 (six weighted factors: completeness, duplicates, date validity, coverage, column richness, numeric validity), a forecast-readiness label (READY / LIMITED / NOT READY), and warnings where the file is not compatible with the trained model.
-- **Processing:** runs the same cleaning and feature-engineering steps and saves the upload to `data/uploads/` with a timestamp in the filename.
-
-Not implemented: uploading supporting documents, administrator review or approval, and adding uploaded data to the main dataset. Uploads do **not** replace the development dataset, do **not** retrain the model, and are not used by the other pages.
-
-### Data Explorer
-
-Filter the raw dataset by school and date range, preview rows, view summary statistics and missing-value counts, and download the filtered data as CSV.
-
-### Model Performance
-
-This page is available to all users (there are no roles). It shows:
-
-- The selected model with its test MAE, RMSE and R².
-- Tabs for default-hyperparameter metrics, tuned metrics, and default vs. tuned improvement, each with tables and bar charts.
-- Embedded charts: actual vs. predicted and residuals for the final model, and feature importance for tuned Random Forest and XGBoost.
-
-### About
-
-Methodology, the models compared, ethical considerations, the synthetic-data disclosure, and limitations.
+- **Django database** (SQLite by default) stores application state only: users, `School` metadata, `DatasetUpload` records and `ForecastRun` records. Historical meal-demand records stay in the processed CSV that the ML pipeline produces.
+- **Model loading:** `services/model_service.py` loads the saved model on first use and caches it per process. Before use it checks that the model, its metadata and `models/feature_columns.json` all match the 20 features inference builds, and that the model type and hyperparameters match the metadata. A mismatch stops the forecast with a clear message.
+- **Reuse:** the services layer returns plain Python objects, so a REST API or another frontend could use it without changing the ML code.
 
 ## Technology Stack
 
@@ -278,45 +259,40 @@ Versions below come from `requirements.txt`.
 
 | Area | Technology | Version | Used for |
 |---|---|---|---|
-| Language | Python | ≥ 3.9 (`pyproject.toml`) | Everything |
+| Language | Python | ≥ 3.10 (`pyproject.toml`); developed and tested on 3.11 | Everything |
+| Web framework | Django | 5.2.17 (LTS) | Web application, authentication, admin, ORM |
+| Web serving | WhiteNoise | 6.12.0 | Serving static files when `DJANGO_DEBUG=False` |
+| Web serving | Gunicorn | 26.2.0 | Production WSGI server (Linux/macOS) |
+| Frontend | Bootstrap, Bootstrap Icons, plotly.js | 5.3.3, 1.11.3, 3.7.0 (CDN) | Layout, icons, interactive charts |
 | Data | pandas | 2.3.3 | Data handling |
 | Data | NumPy | 2.0.2 | Numerical work, synthetic data |
 | ML | scikit-learn | 1.6.1 | Linear Regression, Decision Tree, Random Forest, CV, metrics |
 | ML | XGBoost | 2.1.4 | XGBoost regressor |
 | Statistics | statsmodels | 0.14.6 | OLS trendlines in EDA scatter charts (via Plotly) |
-| Visualisation | Plotly | 6.9.0 | All charts (Matplotlib is not used) |
-| Web app | Streamlit | 1.50.0 | User interface |
+| Visualisation | Plotly (Python) | 6.9.0 | Chart specifications |
 | Persistence | joblib | 1.5.3 | Saving and loading models |
 | Config | python-dotenv | 1.2.1 | Loading `.env` |
 | Reporting | tabulate | 0.9.0 | Markdown tables in generated reports |
 | Uploads | openpyxl | 3.1.5 | Reading Excel uploads |
-| Testing | pytest | 8.4.2 | Test suite |
-| Not used yet | psycopg2-binary | 2.9.12 | Installed for possible future PostgreSQL use; the app uses CSV files |
-| Version control | Git, GitHub | — | Source control |
+| Testing | pytest, pytest-django | 8.4.2, 4.14.0 | Test suite |
+| Database (optional) | psycopg2-binary | 2.9.12 | PostgreSQL driver if `DJANGO_DB_ENGINE=postgresql` (not tested against a PostgreSQL server) |
 
 ## Project Structure
 
 ```text
 BiteTracker-ML/
-├── app/
-│   ├── Home.py                     # Streamlit entry point
-│   ├── data_access.py              # Cached loading of data, model, metrics; upload saving
-│   ├── theme.py                    # Page styling and shared UI components
-│   ├── assets/                     # (empty)
-│   └── pages/
-│       ├── 1_Dashboard.py
-│       ├── 2_Forecast.py
-│       ├── 3_Planning.py
-│       ├── 6_School_Comparison.py
-│       ├── 7_Resource_Allocation.py
-│       ├── 8_Budget_Planning.py
-│       ├── 9_Upload_School_Data.py
-│       ├── 10_Data_Explorer.py
-│       ├── 11_Model_Performance.py
-│       └── 12_About.py
-├── config/
-│   └── settings.py                 # Paths, target column, split ratio, seed, env vars
-├── src/
+├── manage.py                       # Django management entry point
+├── bitetracker_web/                # Django project: settings, urls, wsgi, asgi
+├── web/
+│   ├── accounts/                   # Login/logout URLs (Django auth views)
+│   ├── core/                       # Dashboard, history, forecast, performance views; forms; charts; error messages
+│   └── schools/                    # School, DatasetUpload, ForecastRun models; admin; upload views;
+│                                   #   management/commands/import_schools.py
+├── services/                       # Framework-independent bridge between the web layer and src/
+├── templates/                      # Django templates (base layout, pages, error pages)
+├── static/css/bitetracker.css      # Site styles
+├── config/settings.py              # ML pipeline paths, target column, split ratio, seed
+├── src/                            # Data pipeline, ML, forecasting and decision-support code
 │   ├── synthetic_data.py           # Synthetic dataset generator + calendar rules
 │   ├── data_loader.py              # Load dataset and validate schema
 │   ├── preprocessing.py            # Cleaning, imputation, outlier capping, encoding
@@ -329,45 +305,25 @@ BiteTracker-ML/
 │   ├── naive_baselines.py          # Persistence and 7-day-mean forecasting baselines
 │   ├── model_evaluation.py         # MAE / RMSE / R², generalisation gap
 │   ├── forecasting.py              # Multi-horizon and specific-date forecasts
-│   ├── decision_support.py         # Safety buffer, risk level, uncertainty labels
+│   ├── decision_support.py         # Safety buffer, risk level, uncertainty labels, model label
 │   ├── resource_allocation.py      # School summaries, capacity gap
 │   ├── budgeting.py                # Cost estimates
 │   ├── data_validation.py          # Upload validation and quality score
 │   └── utils.py                    # Logging, random seed
+├── scripts/train_models.py         # One command: data → features → train → tune → select → save
+├── run_pipeline.py, run_eda.py, run_training.py, run_tuning.py   # Step-by-step scripts
 ├── data/
 │   ├── sample/synthetic_school_meals.csv   # Committed synthetic dataset
-│   ├── raw/                        # git-ignored
+│   ├── raw/                        # git-ignored (place restricted datasets here)
 │   ├── processed/                  # git-ignored (pipeline output)
-│   └── uploads/                    # git-ignored (user uploads)
+│   └── uploads/                    # git-ignored (validated uploads)
 ├── models/                         # git-ignored (trained models + metadata)
-├── reports/
-│   ├── *.md                        # EDA, training, tuning, forecasting, final reports
-│   ├── figures/                    # git-ignored (generated charts)
-│   └── metrics/                    # git-ignored (generated metrics)
-├── notebooks/                      # (empty)
-├── tests/                          # pytest suite
-├── .github/workflows/ci.yml        # GitHub Actions CI: install → pipeline → tests
-├── scripts/
-│   └── train_models.py             # One command: data → features → train → tune → select → save
-├── run_pipeline.py                 # Step 1: build processed dataset
-├── run_eda.py                      # Optional: EDA charts and report
-├── run_training.py                 # Step 2: default-hyperparameter ML models
-├── run_tuning.py                   # Step 3: tuning + final model selection
-├── .streamlit/config.toml          # Theme and server settings
-├── .streamlit/secrets.toml.example
-├── .env.example
-├── requirements.txt
-├── pyproject.toml
-├── LICENSE
-└── README.md
+├── reports/                        # Written reports; figures/ and metrics/ are git-ignored
+├── tests/                          # pytest suite (ML, services, Django)
+├── .github/workflows/ci.yml        # GitHub Actions: install → pipeline → checks → tests
+├── MIGRATION_NOTES.md              # Streamlit → Django migration log
+├── .env.example, requirements.txt, pyproject.toml, LICENSE, README.md
 ```
-
-- **`app/`** — the Streamlit interface. Pages only display results; the logic lives in `src/`.
-- **`src/`** — the data pipeline, ML code and decision-support logic, which both the scripts and the app use.
-- **`config/settings.py`** — the single place for paths and key settings.
-- **`scripts/train_models.py`** — runs the full ML pipeline with one command.
-- **`run_*.py`** — the individual step scripts that produce the processed data, models, metrics and reports.
-- **`reports/*.md`** — written reports produced by the scripts on the synthetic data.
 
 ## Installation and Local Setup
 
@@ -378,7 +334,7 @@ git clone https://github.com/misskanyi/BiteTracker-ML.git
 cd BiteTracker-ML
 ```
 
-### 2. Create a virtual environment
+### 2. Create a virtual environment (Python 3.10 or newer; 3.11 recommended)
 
 macOS/Linux:
 
@@ -400,52 +356,62 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 4. Build the model (first run only)
-
-A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Build everything with one command (see [One-Command ML Pipeline](#one-command-ml-pipeline)):
-
-```bash
-python scripts/train_models.py
-```
-
-Running the three step scripts in order (`python run_pipeline.py`, `python run_training.py`, `python run_tuning.py`) produces the same result.
-
-If you skip this step, the app still opens, but the Home page shows missing artifacts and most pages show an error with these same commands.
-
-### 5. Run BiteTracker
-
-```bash
-source .venv/bin/activate
-streamlit run app/Home.py
-```
-
-Streamlit prints a local URL in the terminal, usually something like `http://localhost:8501`. If that port is already in use, it picks a different one, so use the URL it prints.
-
-## Configuration
-
-You do not need any configuration to run the app locally with the synthetic dataset. The optional settings are:
-
-| Setting | Where | Purpose |
-|---|---|---|
-| `BITETRACKER_DATA_PATH` | environment / `.env` | Path to a different input CSV with the same schema. Defaults to `data/sample/synthetic_school_meals.csv`. |
-| `RANDOM_SEED` | environment / `.env` | Seed used for reproducibility (default `42`) |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | `.env` | Read by `config/settings.py` for future PostgreSQL use. **Not used** by the current app. |
-| `[postgres]` block | `.streamlit/secrets.toml` | Template only (`secrets.toml.example`). **Not read** by the current code. |
-| Theme / server | `.streamlit/config.toml` | Colours, headless mode, XSRF protection, telemetry turned off |
-
-To create a local `.env`:
+### 4. Configure the environment (optional for local development)
 
 ```bash
 cp .env.example .env
 ```
 
-Then replace the placeholder values with your own. Never commit `.env` or `.streamlit/secrets.toml`; both are already listed in `.gitignore`.
+With the defaults (`DJANGO_DEBUG=True`, no secret key) Django uses a development-only key. Never use those defaults on a server; see [Configuration](#configuration).
 
-The app does not use any weather API, external API or API keys. Weather values come from the dataset columns.
+### 5. Generate the development model artifacts (first run only)
+
+A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Build them from the committed synthetic dataset:
+
+```bash
+python scripts/train_models.py
+```
+
+If you skip this step the app still starts, but pages show a message asking an administrator to run the pipeline.
+
+### 6. Set up the database
+
+```bash
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py import_schools
+```
+
+`import_schools` creates or updates `School` records from the active dataset. It is safe to run repeatedly: schools are matched on their ID, and the command reports how many were created, updated or left unchanged. It never sets verified enrolment.
+
+### 7. Run BiteTracker
+
+```bash
+python manage.py runserver
+```
+
+Open `http://127.0.0.1:8000/` and log in with the superuser account. To let a non-staff user upload datasets, give them the "Can add dataset upload" and "Can view dataset upload" permissions in Django Admin.
+
+## Configuration
+
+| Setting | Where | Purpose |
+|---|---|---|
+| `DJANGO_DEBUG` | environment / `.env` | `True` for local development (default). Set `False` on any server. |
+| `DJANGO_SECRET_KEY` | environment / `.env` | Required when `DJANGO_DEBUG=False` (startup fails without it). Generate with `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`. |
+| `DJANGO_ALLOWED_HOSTS` | environment / `.env` | Comma-separated host names. Defaults to `localhost,127.0.0.1` in debug mode; required when `DJANGO_DEBUG=False`. |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | environment / `.env` | Comma-separated origins (e.g. `https://bitetracker.example.org`) when served behind HTTPS |
+| `DJANGO_SECURE_COOKIES` | environment / `.env` | Secure session/CSRF cookies when not in debug mode (default `True`; set `False` only to try a non-debug build over plain HTTP locally) |
+| `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_SECURE_HSTS_SECONDS`, `DJANGO_BEHIND_HTTPS_PROXY` | environment / `.env` | HTTPS redirect, HSTS and proxy-header settings for a deployment; off by default because they depend on the hosting setup |
+| `DJANGO_DB_ENGINE` | environment / `.env` | `sqlite` (default) or `postgresql` (then uses `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`) |
+| `DJANGO_SQLITE_PATH` | environment / `.env` | Alternative location for the SQLite file (default `db.sqlite3`, git-ignored) |
+| `BITETRACKER_DATA_PATH` | environment / `.env` | Path to a different input CSV with the same schema for the training pipeline. Defaults to `data/sample/synthetic_school_meals.csv`. |
+| `RANDOM_SEED` | environment / `.env` | Seed used for reproducibility (default `42`) |
+
+Never commit `.env`; it is listed in `.gitignore`. The app does not call any weather or other external API; weather values come from the dataset or from user input.
 
 ## Running the Machine-Learning Pipeline
 
-Starting the Streamlit app does **not** retrain anything. The app loads the saved model from `models/final_best_model.joblib`. Rerun the pipeline only when the data or the modelling code changes.
+Starting or using the Django app does **not** retrain anything. The app loads the saved model from `models/final_best_model.joblib` on the first forecast and keeps it in memory. Rerun the pipeline only when the data or the modelling code changes.
 
 ### One-Command ML Pipeline
 
@@ -487,15 +453,23 @@ The individual scripts are still available:
 | EDA (optional) | `python run_eda.py` | Descriptive statistics, data-quality report, charts | `reports/metrics/*`, `reports/figures/*`, `reports/EDA_Report.md` |
 | Train default models | `python run_training.py` | Chronological 80/20 split; trains the 4 ML models with default settings (not the naive baselines) | `models/*.joblib`, `reports/metrics/baseline_*`, `reports/Baseline_Model_Training_Report.md` |
 | Tune and select | `python run_tuning.py` | Tunes Decision Tree, Random Forest and XGBoost and cross-validates Linear Regression with `TimeSeriesSplit`; selects the final model by validation MAE; evaluates it once on the test period; scores the naive baselines | `models/final_best_model.joblib`, `models/final_best_model_metadata.json`, `reports/metrics/tuned_*`, `reports/metrics/naive_baseline_*`, `reports/metrics/model_comparison.csv`, `reports/Hyperparameter_Tuning_Report.md` |
-| Run app | `streamlit run app/Home.py` | Loads the processed data and the final model for prediction | — |
+| Run app | `python manage.py runserver` | Loads the processed data and the final model for prediction | — |
 
 ## Testing
 
 ```bash
+python manage.py check
+python manage.py makemigrations --check --dry-run
 pytest
 ```
 
-The `tests/` folder covers preprocessing, feature engineering, evaluation, training, tuning, the one-command pipeline (on a small dataset with cheap tuning, writing to a temporary folder), forecasting, decision support, data validation, resource allocation, budgeting, and loading the Streamlit pages with `streamlit.testing.v1.AppTest`.
+`pytest` runs everything (pytest-django reads `DJANGO_SETTINGS_MODULE` from `pyproject.toml`):
+
+- **ML tests** (`tests/test_*.py`): preprocessing, feature engineering, training/inference feature alignment, evaluation, training, tuning, model selection, naive baselines, the one-command pipeline, forecasting, decision support (including the model label), data validation, resource allocation and budgeting.
+- **Service tests** (`tests/services/`): model loading and caching, feature-alignment and metadata checks, forecast parity with `src/forecasting.py`, horizons, error handling, data/performance/upload/status/calendar services.
+- **Django tests** (`tests/web/`): authentication and page protection, models, admin, `import_schools`, every page, all three forecast horizons, forecast persistence, uploads, permissions, data labels, error messages and production settings.
+
+Tests that need the saved development model use it if `scripts/train_models.py` has been run and skip otherwise; most service and Django tests use a small synthetic stub dataset and model created in a temporary folder. No test uses real Food4Education data. The Sprint II testing record is in `reports/SPRINT_II_TESTING.md`.
 
 ## Continuous Integration
 
@@ -504,41 +478,52 @@ GitHub Actions checks the project automatically (`.github/workflows/ci.yml`). It
 Each run, on Ubuntu with Python 3.11:
 
 1. Installs the dependencies from `requirements.txt` (pip downloads are cached between runs).
-2. Validates the ML pipeline by running `python scripts/train_models.py` end to end on the committed **synthetic** dataset, then checks that the processed data, final model, model metadata and metrics files were created. No real or restricted data is used, and no secrets are needed.
-3. Runs the test suite with `pytest -q`. Because the pipeline has just produced a trained model, the Streamlit page tests run instead of being skipped.
+2. Runs `python scripts/train_models.py` end to end on the committed **synthetic** dataset, then checks that the processed data, final model, model metadata and metrics files were created. No real or restricted data is used, and no secrets are needed.
+3. Runs `python manage.py check` and `python manage.py makemigrations --check --dry-run`.
+4. Runs the test suite with `pytest -q`. Because the pipeline has just produced a trained model, the tests that use it run instead of being skipped.
 
-The run fails if the dependencies cannot be installed, if any pipeline stage fails, or if any test fails. CI does not deploy anything.
+The run fails if the dependencies cannot be installed, if any pipeline stage or check fails, or if any test fails. CI does not deploy anything.
 
 ## Deployment
 
-The repository does not show a deployment. It has no deployment configuration and no live application URL. `.streamlit/config.toml` sets `headless = true`, which suits hosted environments, but that alone does not show that the app has been deployed anywhere.
+**BiteTracker is not deployed.** There is no live URL. The project is prepared for hosting:
+
+- settings come from environment variables, and startup fails without a secret key and allowed hosts when `DJANGO_DEBUG=False`;
+- secure cookies are on by default outside debug mode, with HTTPS redirect, HSTS and proxy headers available as settings;
+- static files are collected with `python manage.py collectstatic` and served by WhiteNoise;
+- `bitetracker_web/wsgi.py` (e.g. `gunicorn bitetracker_web.wsgi:application`) and `bitetracker_web/asgi.py` are provided;
+- custom 403/404/500 pages never show error details.
+
+A hosted deployment would also need: the model artifacts generated on (or copied to) the server, a persistent database (PostgreSQL recommended over SQLite for multi-user hosting), and persistent storage for `data/uploads/`.
 
 ## Privacy and Data Use
 
 - The project is designed around anonymised, school-level school-feeding data. It never needs individual learner identities; records are daily totals per school.
 - The Food4Education dataset was provided for academic research only, and it is not included in this repository.
 - The committed dataset is fully synthetic. Its school names and locations are made up.
-- The Upload page warns users not to include student names, admission numbers, phone numbers or addresses.
-- Raw, processed and uploaded data, trained models and generated metrics are git-ignored (`data/raw/*`, `data/processed/*`, `data/uploads/*`, `models/*`, `reports/figures/*`, `reports/metrics/*`). Keep restricted datasets out of version control.
+- The Upload page warns users not to include student names, admission numbers, phone numbers or addresses. Upload records store aggregate validation results (counts, column names, scores), not data rows.
+- Raw, processed and uploaded data, trained models, generated metrics, the SQLite database and `.env` are git-ignored (`data/raw/*`, `data/processed/*`, `data/uploads/*`, `models/*`, `reports/figures/*`, `reports/metrics/*`, `db.sqlite3`, `.env`). Keep restricted datasets out of version control.
 
 ## Limitations
 
 - **Synthetic data only.** The current results are SYNTHETIC DEVELOPMENT RESULTS and say nothing about real-world or Food4Education accuracy. The model needs to be retrained and re-evaluated on real data before anyone relies on it.
-- **Small dataset.** Three synthetic schools over about two school years. A real deployment needs more schools and a longer history.
-- **Data quality.** Forecast quality depends on how complete and accurate the historical records are.
-- **Unusual events** (strikes, disease outbreaks, sudden policy changes) may not appear in past patterns.
+- **Forecast origin.** Forecasts start after the last recorded date (20 December 2024), not today, and the synthetic calendar places the next school days in a holiday, so short-horizon forecasts from this origin are low.
+- **Small dataset.** Three synthetic schools over about two school years.
+- **Preprocessing before the split.** Missing-value filling (forward then backward fill, then the per-school median) and IQR outlier capping (including `meals_served`) run on each school's full history before the chronological split, so some test-period information reaches training rows and test targets are capped. This is existing pipeline behaviour, documented in `MIGRATION_NOTES.md`; it was not changed during the web migration because changing it would change the reported results.
+- **Weather.** Training uses observed weather as if it were a perfect forecast; at prediction time users enter expected values or recent averages are used.
 - **Compounding error.** Multi-day forecasts are recursive, and days after day 1 use historical averages for attendance and weather.
 - **Heuristic uncertainty.** The safety buffer and risk levels are rules of thumb, not statistical confidence intervals.
 - **Estimates, not guarantees.** Every output is meant to support human decisions, not replace them.
-- **No authentication or roles**, and uploaded data is not reviewed or merged into the main dataset.
+- **Access control** uses Django staff/permission flags; the design's named roles are not yet set up as groups. Uploaded data is validated and recorded but not reviewed or merged into the main dataset.
 
 ## Future Improvements
 
-- Load and retrain on the anonymised Food4Education dataset, with a schema mapping for its field names.
-- Add authentication and role-based access (School Manager, Resource Planning Stakeholder, System Administrator).
+- Audit and integrate the anonymised Food4Education dataset (schema adapter, real-data target `daily_unique_students_tapped`, real school calendar, weather source), then retrain and re-evaluate.
+- Fit preprocessing statistics on the training period only.
+- Add Django groups for the School Manager, Resource Planning Stakeholder and System Administrator roles.
 - Add an administrator review and approval step so that verified uploads can join the training data.
 - Compare forecasts with verified enrolment as a planning reference.
-- Move from CSV files to the planned PostgreSQL setup.
+- Expose the services through a REST API.
 
 ## Author
 

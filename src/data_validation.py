@@ -75,8 +75,8 @@ class UnsupportedFileTypeError(ValueError):
 def load_uploaded_file(file_bytes: bytes, filename: str) -> pd.DataFrame:
     """Parse an uploaded CSV/XLSX file into a DataFrame.
 
-    Takes raw bytes + filename rather than a Streamlit UploadedFile so this
-    stays testable without importing streamlit.
+    Takes raw bytes + filename rather than a web-framework upload object so
+    this stays framework-independent and testable.
     """
     suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
     buffer = BytesIO(file_bytes)

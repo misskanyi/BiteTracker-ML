@@ -1,0 +1,91 @@
+/* BiteTracker web styles (Bootstrap 5 provides the base). */
+:root {
+  --bite-green: #2e7d32;
+  --bite-green-dark: #1b5e20;
+  --bite-green-soft: #e8f5e9;
+  --bite-gold: #c9a227;
+  --bite-gold-soft: #fff8e1;
+  --bite-slate: #546e7a;
+  --bite-bg: #f4f6f3;
+  --bs-link-color-rgb: 46, 125, 50;
+  --bs-link-hover-color-rgb: 27, 94, 32;
+}
+
+body {
+  background-color: var(--bite-bg);
+  color: #1f2a1f;
+}
+
+/* --- Navigation and banners --------------------------------------------- */
+.bite-navbar {
+  background: linear-gradient(90deg, var(--bite-green-dark), var(--bite-green));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.bite-navbar .nav-link { font-size: 0.92rem; }
+.bite-navbar .nav-link.active { font-weight: 600; border-bottom: 2px solid var(--bite-gold); }
+
+.data-banner { letter-spacing: 0.02em; }
+.data-banner--synthetic { background-color: var(--bite-gold); color: #1f1a05; }
+.data-banner--unknown { background-color: #b3261e; color: #fff; }
+.data-banner--real { background-color: #1565c0; color: #fff; }
+
+.results-label-banner {
+  border-left: 6px solid #1565c0;
+  background: #e3f2fd;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+}
+.results-label-banner--synthetic { border-left-color: var(--bite-gold); background: var(--bite-gold-soft); }
+
+/* --- Cards ---------------------------------------------------------------- */
+.card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.card-header { border-top-left-radius: 0.75rem !important; border-top-right-radius: 0.75rem !important; }
+
+.kpi-label, .result-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bite-slate);
+  font-weight: 600;
+}
+.kpi-value { font-size: 1.9rem; font-weight: 700; line-height: 1.2; color: var(--bite-green-dark); }
+.kpi-value--sm { font-size: 1.15rem; margin-top: 0.35rem; }
+.kpi-note { font-size: 0.8rem; color: #6c757d; margin-top: 0.25rem; }
+
+.result-card { border-top: 4px solid #ced4da; }
+.result-card--predicted { border-top-color: var(--bite-gold); }
+.result-card--recommended { border-top-color: var(--bite-green); background: var(--bite-green-soft); }
+.result-value { font-size: 2.2rem; font-weight: 700; margin: 0.25rem 0; }
+.result-unit { font-size: 1rem; font-weight: 400; color: #6c757d; }
+
+/* --- Badges ---------------------------------------------------------------- */
+.risk-badge { font-weight: 600; }
+.risk-low { background-color: #2e7d32; }
+.risk-moderate { background-color: #ef8f00; }
+.risk-high { background-color: #b3261e; }
+
+.status-valid { background-color: #2e7d32; }
+.status-invalid { background-color: #b3261e; }
+.status-unreadable { background-color: #6c757d; }
+
+.status-pill { font-size: 0.95rem; }
+.status-pill--synthetic { background-color: var(--bite-gold); color: #1f1a05; }
+.status-pill--real { background-color: #1565c0; }
+.status-pill--unknown { background-color: #b3261e; }
+
+/* --- Charts and empty states ----------------------------------------------- */
+.chart-box { width: 100%; min-height: 420px; }
+
+.empty-state { text-align: center; color: #6c757d; padding: 2rem 1rem; }
+.empty-state > i { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; color: #adb5bd; }
+
+.table > :not(caption) > * > * { padding-top: 0.55rem; padding-bottom: 0.55rem; }
+
+.btn-success { background-color: var(--bite-green); border-color: var(--bite-green); }
+.btn-success:hover { background-color: var(--bite-green-dark); border-color: var(--bite-green-dark); }
+
+.login-hero { max-width: 420px; }

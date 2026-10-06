@@ -1,13 +1,12 @@
 """Reusable Plotly chart builders for BiteTracker.
 
 Every function takes the processed DataFrame (output of `src.pipeline`) and
-returns a `plotly.graph_objects.Figure`. Kept framework-agnostic from
-Streamlit so the same functions serve the EDA report (saved as HTML) and,
-later, the app pages (rendered live with `st.plotly_chart`).
+returns a `plotly.graph_objects.Figure`. Kept framework-agnostic so the same functions can serve the EDA report
+(saved as HTML) and any web UI.
 """
 
 # In simple terms: draws the charts/graphs (trends, comparisons) used in
-# the EDA report and the Streamlit app pages.
+# the EDA report.
 
 from __future__ import annotations
 
