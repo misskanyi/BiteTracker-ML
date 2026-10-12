@@ -1,3 +1,11 @@
+"""Tests for src.google_sheet_loader: share-link parsing and workbook-to-schema mapping.
+
+Covers export URL building, mapping the Food4Education workbook onto the
+BiteTracker schema (target column, reporting-only columns, columns left empty
+rather than invented, calendar facts, enrolment), and errors for missing or
+malformed sheets. Uses an in-memory workbook only; no network access.
+"""
+
 import pandas as pd
 import pytest
 

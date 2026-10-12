@@ -1,4 +1,5 @@
-"""Tests for src/preprocessing.py."""
+"""Tests for src/preprocessing.py — date parsing, chronological sorting, duplicate removal,
+missing-value imputation, outlier handling and non-negative enforcement."""
 
 from __future__ import annotations
 
