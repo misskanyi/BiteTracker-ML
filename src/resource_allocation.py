@@ -1,6 +1,6 @@
 """Cross-school comparison and resource-allocation decision support.
 
-Pure functions over the processed dataset + trained model — no Streamlit
+Pure functions over the processed dataset + trained model — no web-framework
 imports — so pages just collect inputs and display these results.
 """
 

@@ -2,7 +2,7 @@
 
 Honesty note (per project scope): real future attendance and weather are
 *not* known. Every forecast either uses a user-supplied assumption (entered
-in the Streamlit Forecast page) or falls back to that school's recent
+on the Forecast page) or falls back to that school's recent
 historical average, and every output is labelled as an estimate built on
 that assumption — never presented as a guaranteed figure.
 
@@ -10,7 +10,7 @@ Multi-day forecasts (7/30 days) are iterative: each day's predicted
 meals_served is fed back in as if it were observed, to compute the next
 day's lag/rolling features. This is standard for autoregressive forecasting
 but means errors can compound over the horizon — documented in the
-Streamlit UI, not hidden.
+web UI, not hidden.
 
 A forecast day's own attendance is never a model input (it isn't known in
 advance). Attendance features use the previous school day: the last recorded

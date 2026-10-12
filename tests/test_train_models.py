@@ -21,6 +21,7 @@ from sklearn.tree import DecisionTreeRegressor
 import run_tuning
 from config import settings
 from scripts import train_models
+from src import pipeline
 from src.model_tuning import tune_random_forest, tune_xgboost
 from src.synthetic_data import generate_synthetic_dataset
 
@@ -183,7 +184,8 @@ def test_stage_failure_propagates_and_names_the_stage(isolated_outputs, small_da
     def broken_engineer_features(df):
         raise RuntimeError("feature engineering exploded")
 
-    monkeypatch.setattr(train_models, "engineer_features", broken_engineer_features)
+    # Stage 3 builds features through src.pipeline (fit-on-training-period preprocessing).
+    monkeypatch.setattr(pipeline, "engineer_features", broken_engineer_features)
     with pytest.raises(RuntimeError, match="feature engineering exploded"):
         train_models.main(["--data-path", str(small_dataset)])
     assert "PIPELINE FAILED during [3/9]" in capsys.readouterr().err

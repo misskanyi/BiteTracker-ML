@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Forecast history{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Forecast history" icon="bi-clock-history" subtitle="Every forecast generated through BiteTracker, newest first." %}
+
+{% if schools %}
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-sm-6 col-md-4">
+    <label class="form-label small" for="filter-school">School</label>
+    <select name="school" id="filter-school" class="form-select form-select-sm">
+      <option value="">All schools</option>
+      {% for code, name in schools %}<option value="{{ code }}"{% if code == selected_school %} selected{% endif %}>{{ name|default:code }} ({{ code }})</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-auto"><button class="btn btn-outline-success btn-sm" type="submit">Filter</button></div>
+</form>
+{% endif %}
+
+<div class="card">
+  {% if page.object_list %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" data-testid="runs-table">
+      <thead class="table-light"><tr><th>Generated</th><th>School</th><th>Horizon</th><th>Forecast dates</th><th class="text-end">Day 1 predicted</th><th class="text-end">Day 1 recommended</th><th>Risk</th><th>Model</th><th>By</th></tr></thead>
+      <tbody>
+        {% for run in page %}
+        <tr>
+          <td class="text-nowrap"><a href="{% url 'core:forecast_run' run.pk %}">{{ run.created_at|date:"j M Y H:i" }}</a></td>
+          <td>{{ run.school_name|default:run.school_code }}</td>
+          <td>{{ run.get_horizon_days_display }}</td>
+          <td class="small text-nowrap">{{ run.first_forecast_date|date:"j M" }} – {{ run.last_forecast_date|date:"j M Y" }}</td>
+          <td class="text-end">{{ run.day1_predicted_meals }}</td>
+          <td class="text-end">{{ run.day1_recommended_meals }}</td>
+          <td><span class="badge risk-badge risk-{{ run.day1_risk_level|lower }}">{{ run.day1_risk_level }}</span></td>
+          <td class="small">{{ run.model_label }}</td>
+          <td class="small">{{ run.user.get_username|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+  <div class="card-body"><div class="empty-state"><i class="bi bi-calendar2-plus"></i><p>No forecasts recorded yet. <a href="{% url 'core:forecast' %}">Generate a forecast</a>.</p></div></div>
+  {% endif %}
+</div>
+{% endblock %}

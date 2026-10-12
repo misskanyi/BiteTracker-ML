@@ -4,8 +4,9 @@ Runs the same stages as `run_pipeline.py` -> `run_training.py` -> `run_tuning.py
 in one process, by calling their functions (no ML logic is duplicated here):
 
     [1/9] load the dataset
-    [2/9] preprocess (clean)
-    [3/9] engineer features
+    [2/9] preprocess (stateless cleaning)
+    [3/9] fit imputation/outlier statistics on the training period only, apply them
+          to every row, and engineer features
     [4/9] chronological 80/20 train/test split
     [5/9] evaluate the naive forecasting baselines (persistence, 7-day mean) on the test period
     [6/9] train the four ML candidates: default-hyperparameter fits, TimeSeriesSplit
@@ -20,8 +21,10 @@ Usage:
     python scripts/train_models.py
     python scripts/train_models.py --data-path path/to/dataset.csv
 
-Without --data-path, the dataset comes from `config.settings.ACTIVE_DATA_PATH`
-(the BITETRACKER_DATA_PATH environment variable, or the synthetic sample by default).
+Without --data-path, the dataset is the Food4Education Google Sheet when
+BITETRACKER_GOOGLE_SHEET_URL is set (read live from the link, never saved),
+otherwise `config.settings.ACTIVE_DATA_PATH` (the BITETRACKER_DATA_PATH
+environment variable, or the synthetic sample by default).
 
 Any failure stops the run with a non-zero exit status, so CI can detect it.
 """
@@ -41,11 +44,16 @@ import run_training  # noqa: E402
 import run_tuning  # noqa: E402
 from config import settings  # noqa: E402
 from src.data_loader import load_dataset  # noqa: E402
-from src.feature_engineering import engineer_features  # noqa: E402
+from src.feature_engineering import (  # noqa: E402
+    FOOD4EDUCATION_SOURCE,
+    SYNTHETIC_SOURCE,
+    feature_columns_for,
+)
+from src.google_sheet_loader import TARGET_SOURCE_COLUMN  # noqa: E402
 from src.model_training import prepare_features_and_target  # noqa: E402
 from src.naive_baselines import evaluate_naive_baselines  # noqa: E402
-from src.pipeline import save_processed_dataset  # noqa: E402
-from src.preprocessing import run_preprocessing  # noqa: E402
+from src.pipeline import build_training_data, save_processed_dataset  # noqa: E402
+from src.preprocessing import clean_raw_data  # noqa: E402
 
 TOTAL_STAGES = 9
 
@@ -62,10 +70,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def resolve_data_path(data_path: Path | None) -> Path:
-    """Use --data-path if given, otherwise the configured ACTIVE_DATA_PATH."""
+def resolve_data_path(data_path: Path | None) -> Path | None:
+    """Use --data-path if given, otherwise the configured dataset.
+
+    Returns None when the configured dataset is the Google Sheet, which
+    `load_dataset(path=None)` then reads from its link.
+    """
     if data_path is None:
-        return settings.ACTIVE_DATA_PATH
+        return None if settings.USE_GOOGLE_SHEET else settings.ACTIVE_DATA_PATH
     return data_path.expanduser().resolve()
 
 
@@ -80,24 +92,30 @@ class _Progress:
         print(f"\n{self.current}", flush=True)
 
 
-def run(data_path: Path, progress: _Progress) -> dict:
+def run(data_path: Path | None, progress: _Progress, data_source: str = SYNTHETIC_SOURCE) -> dict:
     """Run every stage in order and return a summary of the result."""
+    feature_columns = feature_columns_for(data_source)
+
     progress.stage(1, "Loading data...")
     raw_df = load_dataset(path=data_path)
     print(f"      {len(raw_df)} raw rows")
 
     progress.stage(2, "Preprocessing (cleaning)...")
-    clean_df = run_preprocessing(raw_df)
-    print(f"      {len(clean_df)} cleaned rows")
+    cleaned_df = clean_raw_data(raw_df)
+    print(f"      {len(cleaned_df)} cleaned rows")
 
-    progress.stage(3, "Engineering features...")
-    processed_df = engineer_features(clean_df)
+    progress.stage(3, "Fitting preprocessing on the training period and engineering features...")
+    data = build_training_data(cleaned_df)
+    clean_df, processed_df = data.clean_df, data.processed_df
+    print(f"      imputation/outlier statistics fitted on {data.preprocessing.fit_rows} rows up to {data.cutoff_date.date()}")
+    if data.test_targets_capped:
+        print(f"      note: {data.test_targets_capped} test-period target values were capped by the training-period fences")
     save_processed_dataset(processed_df)
 
     progress.stage(4, "Splitting chronologically (train/test)...")
-    train_df, test_df = run_training.split_train_test(processed_df)
-    X_train, y_train = prepare_features_and_target(train_df)
-    X_test, y_test = prepare_features_and_target(test_df)
+    train_df, test_df = data.train_df, data.test_df
+    X_train, y_train = prepare_features_and_target(train_df, feature_columns)
+    X_test, y_test = prepare_features_and_target(test_df, feature_columns)
     print(
         f"      train {len(train_df)} rows ({train_df[settings.DATE_COLUMN].min().date()} to "
         f"{train_df[settings.DATE_COLUMN].max().date()}), test {len(test_df)} rows "
@@ -116,7 +134,7 @@ def run(data_path: Path, progress: _Progress) -> dict:
         "training period only)...",
     )
     baseline_metrics_df, baseline_predictions, baseline_models = run_training.train_and_evaluate_baselines(
-        train_df, test_df
+        train_df, test_df, feature_columns
     )
     baseline_df = baseline_metrics_df.set_index("Model")
     searches, fold_info = run_tuning.tune_models(X_train, y_train, settings.CV_N_SPLITS)
@@ -137,10 +155,13 @@ def run(data_path: Path, progress: _Progress) -> dict:
     evaluation = run_tuning.evaluate_tuned_models(searches, X_train, y_train, X_test, y_test, test_df, baseline_df)
 
     progress.stage(9, "Saving artifacts...")
-    run_training.save_baseline_outputs(baseline_metrics_df, baseline_predictions, baseline_models, train_df, test_df)
+    run_training.save_baseline_outputs(
+        baseline_metrics_df, baseline_predictions, baseline_models, train_df, test_df, feature_columns
+    )
     run_tuning.save_tuning_outputs(
         evaluation, fold_info, final_best, final_model, ranked, naive_metrics_df, naive_predictions,
         baseline_df, train_df, test_df, X_test, y_test, settings.CV_N_SPLITS,
+        extra_metadata=run_metadata(data_source, data),
     )
 
     return {
@@ -151,15 +172,33 @@ def run(data_path: Path, progress: _Progress) -> dict:
     }
 
 
+def run_metadata(data_source: str, data) -> dict:
+    """Data source, target definition and fitted preprocessing, for the model metadata."""
+    return {
+        "data_source": data_source,
+        "target_source_column": TARGET_SOURCE_COLUMN if data_source == FOOD4EDUCATION_SOURCE else "meals_served",
+        "preprocessing": {
+            "fitted_on": "training period only",
+            "test_targets_capped": data.test_targets_capped,
+            **data.preprocessing.to_dict(),
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.data_path is not None:
+        # An explicit file overrides the Google Sheet, including the results label.
+        settings.USE_GOOGLE_SHEET = False
     data_path = resolve_data_path(args.data_path)
-    is_synthetic = data_path.resolve() == settings.SYNTHETIC_DATA_PATH.resolve()
+    is_synthetic = data_path is not None and data_path.resolve() == settings.SYNTHETIC_DATA_PATH.resolve()
 
     print("BiteTracker one-command ML pipeline")
-    print(f"Dataset: {data_path}")
+    print(f"Dataset: {data_path or settings.GOOGLE_SHEET_DATASET_NAME}")
     if is_synthetic:
         print("Data source: SYNTHETIC development dataset (not real school records).")
+    elif data_path is None:
+        print("Data source: Food4Education Google Sheet, read live from its link (not saved to disk).")
     else:
         print(
             "WARNING: non-default dataset. The generated reports, model metadata and app badges "
@@ -169,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     progress = _Progress()
     start = time.perf_counter()
     try:
-        summary = run(data_path, progress)
+        summary = run(data_path, progress, FOOD4EDUCATION_SOURCE if data_path is None else SYNTHETIC_SOURCE)
     except Exception:
         print(f"\nPIPELINE FAILED during {progress.current}", file=sys.stderr, flush=True)
         raise

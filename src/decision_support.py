@@ -31,7 +31,14 @@ such everywhere it's shown.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+
+from config import settings
+
+# Shown when the saved model metadata can't be read, so a card never names
+# a model that isn't the one actually selected.
+_FALLBACK_MODEL_LABEL = "Selected model (metadata unavailable)"
 
 # Horizon multipliers: day-1 predictions carry the least compounding error;
 # day-30 predictions (recursive, self-fed) carry the most. Chosen to reflect
@@ -108,14 +115,28 @@ def uncertainty_label(horizon_days: int) -> str:
     return "Higher uncertainty — long-horizon forecasts compound recursive prediction error; treat as directional."
 
 
+def selected_model_label() -> str:
+    """Name of the currently selected model, read from the saved model metadata.
+
+    Model selection (validation MAE) records its choice in
+    `final_best_model_metadata.json`; reading it here keeps the label in step
+    with whichever model was actually selected instead of a hardcoded name.
+    """
+    path = settings.MODELS_DIR / "final_best_model_metadata.json"
+    try:
+        with open(path) as f:
+            name = json.load(f).get("selected_model")
+    except (OSError, ValueError, AttributeError):
+        return _FALLBACK_MODEL_LABEL
+    return name.strip() if isinstance(name, str) and name.strip() else _FALLBACK_MODEL_LABEL
+
+
 @dataclass
 class DecisionSupportResult:
     """Reusable decision-support bundle for any single-point meal-demand prediction.
 
-    Rendered consistently by every prediction-producing page (Forecast,
-    Specific Date Prediction, Scenario Simulator) via
-    `app/theme.py::decision_support_card` (kept in the UI layer since it's
-    pure presentation of these already-computed values).
+    Rendered by the web UI's forecast result page (presentation stays in the
+    UI layer since it only displays these already-computed values).
     """
 
     predicted_meals: float
@@ -135,11 +156,14 @@ def build_decision_support_result(
     recent_std: float,
     horizon_days: int,
     horizon_label: str,
-    model_label: str = "Tuned XGBoost",
+    model_label: str | None = None,
     assumptions: list[str] | None = None,
     warnings: list[str] | None = None,
 ) -> DecisionSupportResult:
-    """Single entry point pages should call to turn a raw prediction into the full decision-support bundle."""
+    """Single entry point pages should call to turn a raw prediction into the full decision-support bundle.
+
+    `model_label` defaults to the selected model named in the saved metadata.
+    """
     buffer = compute_safety_buffer(predicted_meals, recent_std, horizon_days)
     risk = classify_risk(buffer["buffer_pct"])
     recommended = round(predicted_meals) + buffer["buffer_meals"]
@@ -152,7 +176,7 @@ def build_decision_support_result(
         risk_level=risk,
         uncertainty=uncertainty_label(horizon_days),
         horizon_label=horizon_label,
-        model_label=model_label,
+        model_label=model_label or selected_model_label(),
         assumptions=assumptions or [],
         warnings=warnings or [],
     )

@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Forecast &amp; planning{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Forecast & planning" icon="bi-calendar2-week" subtitle="Predict meal demand for a school and get a preparation recommendation." %}
+
+{% if data_error %}
+  <div class="alert alert-warning" role="alert" data-testid="data-error">{{ data_error }}</div>
+{% else %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card"><div class="card-body p-4">
+      <form method="post" novalidate data-loading="Generating forecast…" data-testid="forecast-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger" role="alert" data-testid="forecast-error">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+        {% endif %}
+        <div class="row g-3">
+          <div class="col-md-7">
+            <label class="form-label fw-semibold" for="{{ form.school.id_for_label }}">{{ form.school.label }}</label>
+            {{ form.school }}
+            {% for e in form.school.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="col-md-5">
+            <label class="form-label fw-semibold" for="{{ form.horizon.id_for_label }}">{{ form.horizon.label }}</label>
+            {{ form.horizon }}
+            {% for e in form.horizon.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
+
+        <div class="alert alert-light border small mt-3 mb-3" id="origin-note" role="status">
+          <i class="bi bi-info-circle me-1"></i>Forecasts start from the last recorded date in the {{ DATA_STATUS.kind }} dataset, not from today.
+          <span id="origin-detail"></span>
+        </div>
+
+        <h2 class="h6 mt-2">Optional assumptions</h2>
+        <p class="small text-muted">Leave blank to use this school's recent 14-day average. Every result shows which basis was used.</p>
+        <div class="row g-3">
+          {% for field in form %}
+            {% if field.name != "school" and field.name != "horizon" %}
+            <div class="col-md-6">
+              <label class="form-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              <div class="form-text" data-hint="{{ field.name }}">{{ field.help_text }}</div>
+              {% for e in field.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-success btn-lg mt-4 w-100"><i class="bi bi-magic me-1"></i>Generate forecast</button>
+      </form>
+    </div></div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-3"><div class="card-body">
+      <h2 class="h6"><i class="bi bi-diagram-3 me-1"></i>How the forecast is produced</h2>
+      <ol class="small mb-0 ps-3">
+        <li>The school's recorded history is loaded from the active dataset.</li>
+        <li>The same features used in training are built for each forecast day.</li>
+        <li>The saved, already-trained model predicts demand. No model is trained here.</li>
+        <li>A rule-based safety buffer turns predicted demand into a recommended preparation quantity.</li>
+        <li>The result is saved to the forecast history.</li>
+      </ol>
+    </div></div>
+    <div class="card"><div class="card-body small">
+      <h2 class="h6"><i class="bi bi-exclamation-diamond me-1"></i>Read results with care</h2>
+      <ul class="mb-0 ps-3">
+        <li>Forecasts are estimates, not guarantees.</li>
+        <li>Multi-day forecasts reuse earlier predictions as if they were observed, so uncertainty grows with the horizon. Treat 30-day forecasts as directional.</li>
+        <li>Horizons count school days (Monday–Friday).</li>
+      </ul>
+    </div></div>
+  </div>
+</div>
+{{ defaults|json_script:"school-defaults" }}
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    var el = document.getElementById("school-defaults");
+    if (!el) return;
+    var defaults = JSON.parse(el.textContent);
+    var select = document.getElementById("id_school");
+    var fields = {
+      expected_attendance: function (d) { return "Last recorded day: " + d.last_recorded_attendance + " students. Recent 14-day average: " + d.recent_attendance + ". A day's own attendance is not a model input, so this only affects day 2 onwards."; },
+      expected_rainfall_mm: function (d) { return "Blank = recent 14-day average (" + d.recent_rainfall_mm + " mm)."; },
+      expected_temperature_c: function (d) { return "Blank = recent 14-day average (" + d.recent_temperature_c + " °C)."; }
+    };
+    function update() {
+      var d = defaults[select.value];
+      if (!d) return;
+      var origin = new Date(d.origin_date + "T00:00:00");
+      document.getElementById("origin-detail").textContent =
+        "This school's data ends on " + origin.toLocaleDateString("en-GB", {day: "numeric", month: "long", year: "numeric"}) + ".";
+      Object.keys(fields).forEach(function (name) {
+        var hint = document.querySelector('[data-hint="' + name + '"]');
+        if (hint) hint.textContent = fields[name](d);
+      });
+    }
+    select.addEventListener("change", update);
+    update();
+  })();
+</script>
+{% endblock %}

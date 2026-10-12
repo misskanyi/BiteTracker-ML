@@ -61,6 +61,40 @@ FEATURE_COLUMNS = [
     "day_of_week_Friday",
 ]
 
+# Food4Education feature set. The real workbook has no weather, holiday,
+# exam or event columns, and no published term calendar, so those features
+# are left out rather than filled with invented values. The target there is
+# `daily_unique_students_tapped`, which `src.google_sheet_loader` also maps to
+# `students_present`, so `previous_attendance` would just repeat
+# `lag_1_meals`; both attendance features are left out too.
+FOOD4EDUCATION_FEATURE_COLUMNS = [
+    "lag_1_meals",
+    "lag_7_meals",
+    "lag_14_meals",
+    "rolling_mean_7",
+    "rolling_mean_14",
+    "rolling_std_7",
+    "month",
+    "day_of_week_Tuesday",
+    "day_of_week_Wednesday",
+    "day_of_week_Thursday",
+    "day_of_week_Friday",
+]
+
+SYNTHETIC_SOURCE = "synthetic"
+FOOD4EDUCATION_SOURCE = "food4education"
+FEATURE_SETS = {
+    SYNTHETIC_SOURCE: FEATURE_COLUMNS,
+    FOOD4EDUCATION_SOURCE: FOOD4EDUCATION_FEATURE_COLUMNS,
+}
+
+
+def feature_columns_for(data_source: str) -> list[str]:
+    """Model feature list for a data source ("synthetic" or "food4education")."""
+    if data_source not in FEATURE_SETS:
+        raise ValueError(f"Unknown data source {data_source!r}; expected one of {sorted(FEATURE_SETS)}")
+    return list(FEATURE_SETS[data_source])
+
 
 def add_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     """Add lag_1/7/14_meals: meals_served N school-days before today, per school."""

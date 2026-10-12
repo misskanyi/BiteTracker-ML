@@ -1,0 +1,5 @@
+{# Usage: {% include "partials/_chart.html" with chart=some_chart chart_id="unique-id" %} — page must include partials/_plotly_js.html in extra_js. #}
+{% if chart %}
+  <div class="chart-box" data-chart="{{ chart_id }}" role="img" aria-label="{{ chart.layout.title.text|default:'Chart' }}"></div>
+  {{ chart|json_script:chart_id }}
+{% endif %}

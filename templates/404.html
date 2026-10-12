@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Page not found{% endblock %}
+{% block content %}
+<div class="empty-state py-5" data-testid="error-404">
+  <i class="bi bi-signpost-split"></i>
+  <h1 class="h4">Page not found</h1>
+  <p>The page you asked for doesn't exist or has been removed.</p>
+  <a class="btn btn-success" href="{% url 'core:dashboard' %}">Back to dashboard</a>
+</div>
+{% endblock %}

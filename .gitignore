@@ -214,8 +214,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Streamlit
-.streamlit/secrets.toml
 
 # Claude Code local config
 .claude/
@@ -238,3 +236,54 @@ reports/metrics/*
 data/uploads/*
 !data/uploads/.gitkeep
 
+# Django collected static files (db.sqlite3 is already ignored above)
+staticfiles/
+media/
+
+# Local databases, copies and dumps (DJANGO_SQLITE_PATH may point anywhere)
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.dump
+*.bak
+
+# Secrets and per-environment config (keep the committed template)
+.env.*
+!.env.example
+secrets.toml
+*.pem
+*.key
+*.p12
+*.crt
+credentials*.json
+service-account*.json
+
+# Logs
+logs/
+
+# More OS / editor junk
+._*
+.AppleDouble
+.LSOverride
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Colab / Google Drive experiment workflow (notebooks/bitetracker_training.ipynb)
+# Experiment runs live in Google Drive (MyDrive/BiteTracker/experiments/), not in git.
+experiments/
+run_[0-9]*_[0-9]*/
+# Model files copied out of a run folder (models/ is already ignored above)
+*.joblib
+# Executed notebook copies with outputs (commit the clean notebook only)
+*.nbconvert.ipynb
+*-executed.ipynb
+*_executed.ipynb
+
+# Real Food4Education data must never be committed (it is read live from the Google Sheet)
+*.xlsx
+*.xls
+*[Ff]ood4[Ee]ducation*.csv

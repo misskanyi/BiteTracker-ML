@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Historical demand{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Historical demand" icon="bi-graph-up" subtitle="Recorded daily meal demand for one school." %}
+
+{% if data_error %}
+  <div class="alert alert-warning" role="alert" data-testid="data-error">{{ data_error }}</div>
+{% endif %}
+
+{% if form %}
+<div class="card mb-4"><div class="card-body">
+  <form method="get" class="row g-3 align-items-end" novalidate>
+    {% if form.non_field_errors %}<div class="col-12"><div class="alert alert-danger mb-0" role="alert">{{ form.non_field_errors|join:" " }}</div></div>{% endif %}
+    <div class="col-md-5">
+      <label class="form-label" for="{{ form.school.id_for_label }}">{{ form.school.label }}</label>
+      {{ form.school }}
+      {% for e in form.school.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label" for="{{ form.start.id_for_label }}">{{ form.start.label }}</label>
+      {{ form.start }}
+      {% for e in form.start.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label" for="{{ form.end.id_for_label }}">{{ form.end.label }}</label>
+      {{ form.end }}
+      {% for e in form.end.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="col-md-1 d-grid"><button type="submit" class="btn btn-success">Show</button></div>
+  </form>
+  {% if available %}<p class="small text-muted mt-2 mb-0">Records for this school: {{ available.start|date:"j M Y" }} – {{ available.end|date:"j M Y" }}. Leave both dates blank to see the last {{ 90 }} days.</p>{% endif %}
+</div></div>
+{% endif %}
+
+{% if school %}
+  {% if records %}
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Records</div><div class="kpi-value">{{ records }}</div><div class="kpi-note">{{ start|date:"j M Y" }} – {{ end|date:"j M Y" }}</div></div></div></div>
+      <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Mean meals / day</div><div class="kpi-value">{{ stats.mean }}</div></div></div></div>
+      <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Min – max</div><div class="kpi-value kpi-value--sm">{{ stats.min }} – {{ stats.max }}</div></div></div></div>
+      <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Total meals served</div><div class="kpi-value">{{ stats.total|intcomma }}</div></div></div></div>
+    </div>
+
+    <div class="card mb-4"><div class="card-body">
+      {% include "partials/_chart.html" with chart=chart chart_id="history-chart" %}
+    </div></div>
+
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h2 class="h6 mb-0">{{ school.school_name }} ({{ school.school_id }}) — daily records, newest first</h2>
+        <a class="btn btn-success btn-sm" href="{% url 'core:forecast' %}?school={{ school.school_id }}"><i class="bi bi-calendar2-week me-1"></i>Forecast this school</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0" data-testid="history-table">
+          <thead class="table-light"><tr><th>Date</th><th>Day</th>{% for c in columns %}<th class="text-end">{{ c }}</th>{% endfor %}<th>Calendar</th></tr></thead>
+          <tbody>
+            {% for row in page %}
+            <tr>
+              <td class="text-nowrap">{{ row.date|date:"j M Y" }}</td>
+              <td>{{ row.date|date:"D" }}</td>
+              {% for v in row.values %}<td class="text-end">{% if v is None %}—{% else %}{{ v|floatformat:"-1" }}{% endif %}</td>{% endfor %}
+              <td>{% for f in row.flags %}<span class="badge text-bg-light border me-1">{{ f }}</span>{% empty %}<span class="text-muted small">School day</span>{% endfor %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white">{% include "partials/_pagination.html" %}</div>
+    </div>
+  {% else %}
+    <div class="card"><div class="card-body"><div class="empty-state" data-testid="history-empty"><i class="bi bi-calendar-x"></i><p>No records for {{ school.school_name }} between {{ start|date:"j M Y" }} and {{ end|date:"j M Y" }}.</p></div></div></div>
+  {% endif %}
+{% endif %}
+{% endblock %}
+{% block extra_js %}{% include "partials/_plotly_js.html" %}{% endblock %}

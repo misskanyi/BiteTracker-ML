@@ -6,6 +6,7 @@ from src.decision_support import (
     build_decision_support_result,
     classify_risk,
     compute_safety_buffer,
+    selected_model_label,
     uncertainty_label,
 )
 
@@ -56,4 +57,4 @@ def test_build_decision_support_result_recommended_ge_predicted():
     )
     assert result.recommended_meals >= result.predicted_meals
     assert result.risk_level in {"Low", "Moderate", "High"}
-    assert result.model_label == "Tuned XGBoost"
+    assert result.model_label == selected_model_label()

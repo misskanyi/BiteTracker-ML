@@ -62,6 +62,12 @@ PRETTY_NAMES = {
 SHORT_NAMES = {pretty: short for short, pretty in PRETTY_NAMES.items()}
 
 SYNTHETIC_LABEL = "SYNTHETIC DEVELOPMENT RESULTS"
+REAL_DATA_LABEL = "FOOD4EDUCATION RESEARCH RESULTS"
+
+
+def results_label() -> str:
+    """Label for saved results: real only when the Food4Education Google Sheet is the data source."""
+    return REAL_DATA_LABEL if settings.USE_GOOGLE_SHEET else SYNTHETIC_LABEL
 
 # Phase 4 default-hyperparameter results — used only for the untuned-vs-tuned
 # comparison, recomputed from the saved metrics file (not hardcoded/fabricated).
@@ -333,8 +339,14 @@ def save_tuning_outputs(
     X_test: pd.DataFrame,
     y_test: pd.Series,
     n_splits: int = 5,
+    extra_metadata: dict | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Save tuned models, validation scores, naive-baseline results, metrics, the final model + metadata, charts and report."""
+    """Save tuned models, validation scores, naive-baseline results, metrics, the final model + metadata, charts and report.
+
+    `extra_metadata` (data source, target definition, fitted preprocessing)
+    is merged into final_best_model_metadata.json.
+    """
+    feature_columns = list(X_test.columns)
     for name, model in evaluation["best_models"].items():
         save_tuned_model(model, name)
 
@@ -386,8 +398,10 @@ def save_tuning_outputs(
     with open(settings.MODELS_DIR / "tuning_metadata.json", "w") as f:
         json.dump(tuning_metadata, f, indent=2, default=str)
 
-    save_final_best_model(final_best, final_model, naive_comparison_df, train_df, test_df, n_splits)
-    generate_charts(tuned_metrics_df, comparison_df, evaluation["predictions"], fold_info)
+    save_final_best_model(
+        final_best, final_model, naive_comparison_df, train_df, test_df, n_splits, feature_columns, extra_metadata
+    )
+    generate_charts(tuned_metrics_df, comparison_df, evaluation["predictions"], fold_info, feature_columns)
     generate_final_best_model_charts(final_best, X_test, y_test)
     write_report(
         tuned_metrics_df, comparison_df, evaluation["best_params"], fold_info, final_best, ranked,
@@ -422,7 +436,7 @@ def main() -> None:
         baseline_df, train_df, test_df, X_test, y_test, n_splits,
     )
 
-    print(f"\n=== {SYNTHETIC_LABEL} ===")
+    print(f"\n=== {results_label()} ===")
     print("\n=== Validation ranking (TimeSeriesSplit, training period) ===")
     for rank, s in enumerate(ranked, start=1):
         print(f"{rank}. {s.model}: validation MAE {s.cv_mae:.3f}")
@@ -466,6 +480,8 @@ def save_final_best_model(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     n_splits: int,
+    features_used: list[str] | None = None,
+    extra_metadata: dict | None = None,
 ) -> None:
     import joblib
 
@@ -473,7 +489,7 @@ def save_final_best_model(
     joblib.dump(model, final_path)
 
     metadata = {
-        "results_label": SYNTHETIC_LABEL,
+        "results_label": results_label(),
         "selected_model": final_best["Model"],
         "model_kind": final_best["model_kind"],
         "selection_criterion": SELECTION_CRITERION,
@@ -496,14 +512,14 @@ def save_final_best_model(
         },
         "train_records": int(len(train_df)),
         "test_records": int(len(test_df)),
-        "features_used": FEATURE_COLUMNS,
+        "features_used": list(FEATURE_COLUMNS if features_used is None else features_used),
         "target_variable": settings.TARGET_COLUMN,
         "final_test_evaluation": "selected model evaluated once on the held-out test period, after selection",
         "final_test_mae": final_best["Test MAE"],
         "final_test_rmse": final_best["Test RMSE"],
         "final_test_r2": final_best["Test R2"],
         "naive_baseline_comparison": naive_comparison_df.to_dict(orient="records"),
-        "synthetic_data_warning": (
+        "synthetic_data_warning": None if settings.USE_GOOGLE_SHEET else (
             "These metrics were measured on a SYNTHETIC development dataset "
             "(src/synthetic_data.py), not real school records or Food4Education data. "
             "Re-run the full pipeline and re-tune once real data is available before "
@@ -517,14 +533,16 @@ def save_final_best_model(
             "scikit_learn": sklearn.__version__,
             "xgboost": xgboost.__version__,
         },
+        **(extra_metadata or {}),
     }
     with open(settings.MODELS_DIR / "final_best_model_metadata.json", "w") as f:
         json.dump(metadata, f, indent=2, default=str)
     logger.info("Saved final best model (%s) and metadata", final_best["Model"])
 
 
-def generate_charts(tuned_metrics_df, comparison_df, predictions, fold_info) -> None:
+def generate_charts(tuned_metrics_df, comparison_df, predictions, fold_info, feature_columns=None) -> None:
     figures_dir = settings.FIGURES_DIR
+    feature_columns = list(FEATURE_COLUMNS if feature_columns is None else feature_columns)
 
     # Baseline vs tuned MAE / RMSE / R2
     for metric, label in [("MAE", "MAE"), ("RMSE", "RMSE"), ("R2", "R²")]:
@@ -580,7 +598,7 @@ def generate_charts(tuned_metrics_df, comparison_df, predictions, fold_info) -> 
         if not hasattr(model, "feature_importances_"):
             continue
         importance_df = pd.DataFrame(
-            {"feature": FEATURE_COLUMNS, "importance": model.feature_importances_}
+            {"feature": feature_columns, "importance": model.feature_importances_}
         ).sort_values("importance", ascending=True)
         fig = px.bar(
             importance_df, x="importance", y="feature", orientation="h", template="plotly_white",
@@ -635,9 +653,15 @@ def write_report(
     lines = [
         "# BiteTracker — Hyperparameter Tuning Report (Phase 5)",
         "",
-        f"> **{SYNTHETIC_LABEL}.** Results below are from **synthetic development data** "
-        "(`data/sample/synthetic_school_meals.csv`), not Food4Education or any real school "
-        "records. They are measured, not fabricated.",
+        (
+            f"> **{REAL_DATA_LABEL}.** Results below are from the anonymised Food4Education "
+            "dataset, read live from its Google Sheet. Weather, cost and exam/event fields are "
+            "not in that sheet and were held constant."
+            if settings.USE_GOOGLE_SHEET
+            else f"> **{SYNTHETIC_LABEL}.** Results below are from **synthetic development data** "
+            "(`data/sample/synthetic_school_meals.csv`), not Food4Education or any real school "
+            "records. They are measured, not fabricated."
+        ),
         "",
         "## Why Tuning Was Required",
         "",
@@ -796,28 +820,29 @@ def write_report(
         else:
             verdict = "ties it on MAE"
         lines.append(f"- vs **{row['Naive Baseline']}**: {row['Selected Model']} {verdict}.")
-    lines += [
-        "",
-        "## Limitations of Synthetic Data",
-        "",
-        "All tuning and evaluation above used the synthetic dataset generated for "
-        "development (`src/synthetic_data.py`). Relationships between rainfall, "
-        "holidays, exams, and attendance were hand-designed to be plausible, not "
-        "fit to any real county's records. Hyperparameters selected here are only "
-        "known to be good for this synthetic data's noise structure and scale.",
-        "",
-        "## What to Repeat With Real Data",
-        "",
-        "1. Re-run `run_pipeline.py` and `run_eda.py` against the real dataset once "
-        "available (point `BITETRACKER_DATA_PATH`/`ACTIVE_DATA_PATH` at it).",
-        "2. Re-run `run_training.py` for fresh baselines — real data's noise level "
-        "and feature relationships will differ from the synthetic generator's assumptions.",
-        "3. Re-run this tuning phase (`run_tuning.py`) from scratch — do not reuse "
-        "the hyperparameters found here; they were fit to synthetic patterns.",
-        "4. Re-check the TimeSeriesSplit fold sizes — a real dataset with different "
-        "row counts or a longer history may warrant more or fewer folds.",
-        "",
-    ]
+    if not settings.USE_GOOGLE_SHEET:
+        lines += [
+            "",
+            "## Limitations of Synthetic Data",
+            "",
+            "All tuning and evaluation above used the synthetic dataset generated for "
+            "development (`src/synthetic_data.py`). Relationships between rainfall, "
+            "holidays, exams, and attendance were hand-designed to be plausible, not "
+            "fit to any real county's records. Hyperparameters selected here are only "
+            "known to be good for this synthetic data's noise structure and scale.",
+            "",
+            "## What to Repeat With Real Data",
+            "",
+            "1. Re-run `run_pipeline.py` and `run_eda.py` against the real dataset once "
+            "available (point `BITETRACKER_DATA_PATH`/`ACTIVE_DATA_PATH` at it).",
+            "2. Re-run `run_training.py` for fresh baselines — real data's noise level "
+            "and feature relationships will differ from the synthetic generator's assumptions.",
+            "3. Re-run this tuning phase (`run_tuning.py`) from scratch — do not reuse "
+            "the hyperparameters found here; they were fit to synthetic patterns.",
+            "4. Re-check the TimeSeriesSplit fold sizes — a real dataset with different "
+            "row counts or a longer history may warrant more or fewer folds.",
+            "",
+        ]
 
     out_path = settings.REPORTS_DIR / "Hyperparameter_Tuning_Report.md"
     out_path.write_text("\n".join(lines))

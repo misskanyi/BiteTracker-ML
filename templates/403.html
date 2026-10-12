@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Access denied{% endblock %}
+{% block content %}
+<div class="empty-state py-5" data-testid="error-403">
+  <i class="bi bi-shield-lock"></i>
+  <h1 class="h4">You don't have permission to view this page</h1>
+  <p>Ask a BiteTracker administrator if you need access.</p>
+  <a class="btn btn-success" href="{% url 'core:dashboard' %}">Back to dashboard</a>
+</div>
+{% endblock %}

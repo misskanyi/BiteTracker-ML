@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load bitetracker %}
+{% block title %}Model performance{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Model performance" icon="bi-bar-chart-line" subtitle="How the selected forecasting model was chosen and how it performed on held-out data." %}
+
+{% if error %}
+  <div class="alert alert-warning" role="alert" data-testid="performance-error">{{ error }}</div>
+{% else %}
+<div class="results-label-banner mb-4 {% if 'SYNTHETIC' in perf.results_label %}results-label-banner--synthetic{% endif %}" role="note" data-testid="results-label">
+  <div class="fw-bold">{{ perf.results_label }}</div>
+  {% if perf.synthetic_data_warning %}<div class="small">{{ perf.synthetic_data_warning }}</div>{% endif %}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="kpi-label">Selected model</div>
+      <div class="fs-4 fw-semibold mb-2" data-testid="selected-model">{{ perf.selected_model }}{% if perf.model_kind %} <span class="badge text-bg-light border fs-6 align-middle">{{ perf.model_kind }}</span>{% endif %}</div>
+      <p class="small mb-2">{{ perf.selected_model }} was selected because it achieved the lowest <strong>mean validation MAE</strong> across the {{ perf.selection.cv_n_folds }} TimeSeriesSplit folds of the training period{% if perf.selection.tiebreak %} (tie-break: {{ perf.selection.tiebreak }}){% endif %}. The held-out test period was not used for tuning or selection.</p>
+      {% if perf.validation.mae_std %}
+      <p class="small text-muted mb-0">Validation MAE varied between folds (standard deviation {{ perf.validation.mae_std|floatformat:1 }} meals), so this selection does not show that {{ perf.selected_model }} is unequivocally the best model.</p>
+      {% endif %}
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="kpi-label">Validation (training period, TimeSeriesSplit)</div>
+      <dl class="row mb-0 mt-2">
+        <dt class="col-7 fw-normal">Mean validation MAE</dt><dd class="col-5 text-end" data-testid="validation-mae">{{ perf.validation.mae|floatformat:2 }}</dd>
+        {% if perf.validation.mae_std %}<dt class="col-7 fw-normal">MAE std across folds</dt><dd class="col-5 text-end">{{ perf.validation.mae_std|floatformat:2 }}</dd>{% endif %}
+        {% if perf.validation.rmse %}<dt class="col-7 fw-normal">Mean validation RMSE</dt><dd class="col-5 text-end">{{ perf.validation.rmse|floatformat:2 }}</dd>{% endif %}
+      </dl>
+      <p class="small text-muted mb-0 mt-2">Errors in meals per school day.{% if perf.train_date_range %} Training period {{ perf.train_date_range.start }} – {{ perf.train_date_range.end }} ({{ perf.train_records }} records).{% endif %}</p>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-lg-4">
+    <div class="card h-100"><div class="card-body">
+      <div class="kpi-label">Held-out test period (evaluated once, after selection)</div>
+      <dl class="row mb-0 mt-2">
+        <dt class="col-7 fw-normal">Test MAE</dt><dd class="col-5 text-end" data-testid="test-mae">{{ perf.test.mae|floatformat:2 }}</dd>
+        <dt class="col-7 fw-normal">Test RMSE</dt><dd class="col-5 text-end" data-testid="test-rmse">{{ perf.test.rmse|floatformat:2 }}</dd>
+        <dt class="col-7 fw-normal">Test R²</dt><dd class="col-5 text-end" data-testid="test-r2">{{ perf.test.r2|floatformat:3 }}</dd>
+      </dl>
+      <p class="small text-muted mb-0 mt-2">R² is the share of day-to-day variation in meals served that the model explains on the test period. It is not an accuracy percentage.{% if perf.test_date_range %} Test period {{ perf.test_date_range.start }} – {{ perf.test_date_range.end }} ({{ perf.test_records }} records).{% endif %}</p>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header bg-white"><h2 class="h6 mb-0">Comparison with naive forecasting baselines (held-out test period)</h2></div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0" data-testid="baselines-table">
+      <thead class="table-light"><tr><th>Method</th><th class="text-end">Test MAE</th><th class="text-end">Test RMSE</th><th class="text-end">Test R²</th><th class="text-end">{{ perf.selected_model }} MAE improvement</th></tr></thead>
+      <tbody>
+        <tr class="table-success">
+          <td class="fw-semibold">{{ perf.selected_model }} (selected model)</td>
+          <td class="text-end">{{ perf.test.mae|floatformat:2 }}</td><td class="text-end">{{ perf.test.rmse|floatformat:2 }}</td><td class="text-end">{{ perf.test.r2|floatformat:3 }}</td><td class="text-end">—</td>
+        </tr>
+        {% for b in perf.naive_baselines %}
+        <tr>
+          <td>{{ b.name }}</td>
+          <td class="text-end">{{ b.test_mae|floatformat:2 }}</td><td class="text-end">{{ b.test_rmse|floatformat:2 }}</td><td class="text-end">{{ b.test_r2|floatformat:3 }}</td>
+          <td class="text-end">{% for c in perf.baseline_comparison %}{% if c.baseline == b.name %}{{ c.mae_improvement|floatformat:2 }} meals ({{ c.mae_improvement_pct|floatformat:1 }}%){% endif %}{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer bg-white small text-muted">Persistence predicts each school day's demand as the previous recorded day's; the 7-Day Historical Mean uses the mean of the previous 7 recorded days. Both are evaluated on the same test period as the model.</div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6"><div class="card h-100"><div class="card-body">{% include "partials/_chart.html" with chart=baselines_chart chart_id="baselines-chart" %}</div></div></div>
+  {% if ranking_chart %}<div class="col-lg-6"><div class="card h-100"><div class="card-body">{% include "partials/_chart.html" with chart=ranking_chart chart_id="ranking-chart" %}</div></div></div>{% endif %}
+</div>
+
+{% if perf.validation_ranking %}
+<div class="card mb-4">
+  <div class="card-header bg-white"><h2 class="h6 mb-0">Candidate models: validation results used for selection</h2></div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light"><tr><th>Rank</th><th>Model</th><th class="text-end">Mean validation MAE</th><th class="text-end">MAE std</th><th class="text-end">Mean validation RMSE</th><th>Selected</th></tr></thead>
+      <tbody>
+        {% for r in perf.validation_ranking %}
+        <tr{% if r.Selected %} class="table-success"{% endif %}>
+          <td>{{ r|get_item:"Selection Rank" }}</td>
+          <td>{{ r.Model }}</td>
+          <td class="text-end">{{ r|get_item:"Validation MAE"|floatformat:2 }}</td>
+          <td class="text-end">{{ r|get_item:"Validation MAE Std"|floatformat:2 }}</td>
+          <td class="text-end">{{ r|get_item:"Validation RMSE"|floatformat:2 }}</td>
+          <td>{% if r.Selected %}<i class="bi bi-check-circle-fill text-success"></i>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<p class="small text-muted">Features used ({{ perf.features_used|length }}): {{ perf.features_used|join:", " }}.{% if perf.trained_at %} Artifacts generated {{ perf.trained_at }}.{% endif %}</p>
+{% endif %}
+{% endblock %}
+{% block extra_js %}{% include "partials/_plotly_js.html" %}{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Data upload{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Data upload & validation" icon="bi-cloud-upload" subtitle="Check a school meal-service dataset before it is considered for use." %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="alert alert-info small" role="note" data-testid="upload-notice">
+      <strong><i class="bi bi-shield-check me-1"></i>Uploading only validates and records the file.</strong>
+      It does <strong>not</strong> replace the active dataset, does <strong>not</strong> retrain the model and does <strong>not</strong> change any saved model artifacts.
+      Valid files are stored on the server under <code>data/uploads/</code>, which is excluded from version control.
+    </div>
+    <div class="alert alert-warning small" role="note">
+      <strong>Privacy:</strong> upload only aggregated, school-level daily records. Do not include student names, admission numbers, phone numbers, addresses or any other personal information.
+    </div>
+    <div class="card"><div class="card-body p-4">
+      <form method="post" enctype="multipart/form-data" novalidate data-loading="Validating…">
+        {% csrf_token %}
+        <label class="form-label fw-semibold" for="{{ form.file.id_for_label }}">{{ form.file.label }}</label>
+        {{ form.file }}
+        {% for e in form.file.errors %}<div class="text-danger small mt-1" data-testid="upload-form-error">{{ e }}</div>{% endfor %}
+        <div class="form-text">Maximum {{ max_size_mb }} MB. Required columns: <code>date</code>, <code>school_id</code>, <code>school_name</code>, <code>meals_served</code>. Other BiteTracker columns are optional.</div>
+        <button type="submit" class="btn btn-success mt-3"><i class="bi bi-check2-square me-1"></i>Upload and validate</button>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header bg-white"><h2 class="h6 mb-0">Recent uploads</h2></div>
+      {% if recent_uploads %}
+      <ul class="list-group list-group-flush">
+        {% for u in recent_uploads %}
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div class="me-2 text-truncate">
+            <a href="{% url 'schools:upload_detail' u.pk %}">{{ u.original_filename }}</a>
+            <div class="small text-muted">{{ u.uploaded_at|date:"j M Y H:i" }} · {{ u.uploaded_by.get_username|default:"—" }}</div>
+          </div>
+          <span class="badge status-{{ u.validation_status }}">{{ u.get_validation_status_display }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+        <div class="card-body"><div class="empty-state"><i class="bi bi-inbox"></i><p>No uploads yet.</p></div></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

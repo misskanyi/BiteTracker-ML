@@ -34,12 +34,19 @@ MODEL_FILENAMES = {
 }
 
 
-def prepare_features_and_target(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
-    """Select the model feature matrix X and target vector y from a processed DataFrame."""
-    missing = [c for c in FEATURE_COLUMNS if c not in df.columns]
+def prepare_features_and_target(
+    df: pd.DataFrame, feature_columns: list[str] | None = None
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Select the model feature matrix X and target vector y from a processed DataFrame.
+
+    `feature_columns` defaults to the synthetic `FEATURE_COLUMNS`; real-data
+    runs pass `feature_engineering.FOOD4EDUCATION_FEATURE_COLUMNS`.
+    """
+    feature_columns = list(FEATURE_COLUMNS if feature_columns is None else feature_columns)
+    missing = [c for c in feature_columns if c not in df.columns]
     if missing:
         raise ValueError(f"Processed dataset is missing expected feature columns: {missing}")
-    X = df[FEATURE_COLUMNS].copy()
+    X = df[feature_columns].copy()
     bool_cols = X.select_dtypes(include="bool").columns
     X[bool_cols] = X[bool_cols].astype(int)
     y = df[settings.TARGET_COLUMN].copy()
@@ -70,6 +77,14 @@ def chronological_split(
     train = df.iloc[:split_idx].copy()
     test = df.iloc[split_idx:].copy()
     return train, test
+
+
+def train_cutoff_date(df: pd.DataFrame, train_ratio: float = settings.TRAIN_TEST_SPLIT_RATIO) -> pd.Timestamp:
+    """Last date in the training period that `chronological_split` would produce."""
+    train, _ = chronological_split(df, train_ratio)
+    if train.empty:
+        raise ValueError("Not enough rows to form a training period")
+    return pd.Timestamp(train[settings.DATE_COLUMN].max())
 
 
 def train_linear_regression(X_train: pd.DataFrame, y_train: pd.Series) -> LinearRegression:
