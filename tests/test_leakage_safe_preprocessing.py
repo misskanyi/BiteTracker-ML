@@ -3,6 +3,16 @@
 Imputation medians and outlier fences must come from training-period rows,
 be reused unchanged for later rows, and never move information backwards in
 time. Uses synthetic fixtures only.
+
+What this file checks:
+- Fill values and outlier caps are learned from training rows only.
+- Changing the test period leaves the training data unchanged.
+- No date appears in both train and test.
+- Missing values are never back-filled; forward-fill is used only after a known value.
+- A school the pipeline hasn't seen uses the all-schools fallback.
+- Saved preprocessing settings survive being written to JSON and read back.
+- The Food4Education feature set drops unavailable or duplicate features; an unknown
+  data source raises an error.
 """
 
 from __future__ import annotations

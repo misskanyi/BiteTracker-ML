@@ -1,4 +1,13 @@
-"""Stage 2: forecast_service — parity with src.forecasting, horizons, planning output, errors."""
+"""Stage 2: forecast_service — parity with src.forecasting, horizons, planning output, errors.
+
+What this file checks:
+- Service forecasts give exactly the same results as calling the ML code directly.
+- Forecast horizons count school days; the forecast starts from the last recorded date,
+  not today.
+- Results are plain Python and JSON-serialisable.
+- Invalid horizons, unknown schools, short history, or missing data or model are
+  rejected with service errors.
+"""
 
 from __future__ import annotations
 

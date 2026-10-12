@@ -2,6 +2,14 @@
 
 Final model selection must depend only on TimeSeriesSplit validation scores
 from the training period — never on test-set metrics.
+
+What this file checks:
+- The model with the lowest validation MAE wins; RMSE breaks ties.
+- Test metrics can't change the choice: rows carrying test metrics are rejected, and the
+  selection functions don't take test data.
+- Empty, NaN or infinite scores are rejected.
+- Linear regression is scored with the same folds and scorer as the tuned models, so
+  scores are comparable.
 """
 
 from __future__ import annotations

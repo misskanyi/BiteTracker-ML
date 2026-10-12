@@ -1,4 +1,15 @@
-"""Tests for src/feature_engineering.py — correctness and leakage prevention."""
+"""Tests for src/feature_engineering.py — correctness and leakage prevention.
+
+What this file checks:
+- Lag features (yesterday's value) never mix data from different schools.
+- lag_1 equals the previous day's value.
+- The rolling mean leaves out the current day.
+- The target is meals served on the row's own date.
+- Attendance rate stays between 0 and 1.
+- Attendance features use the previous day; same-day attendance is not a feature (that
+  would be cheating).
+- Rows without enough history, or without a target, are dropped.
+"""
 
 from __future__ import annotations
 

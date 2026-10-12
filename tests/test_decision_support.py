@@ -1,4 +1,11 @@
-"""Tests for src.decision_support: safety buffer, risk level, decision-support bundle."""
+"""Tests for src.decision_support: safety buffer, risk level, decision-support bundle.
+
+What this file checks:
+- The safety buffer grows with volatility and forecast horizon, is capped and is never
+  negative.
+- Risk thresholds and uncertainty labels are correct.
+- The recommended amount is always at least the predicted amount.
+"""
 
 from __future__ import annotations
 

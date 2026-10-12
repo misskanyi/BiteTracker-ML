@@ -4,6 +4,16 @@ Covers export URL building, mapping the Food4Education workbook onto the
 BiteTracker schema (target column, reporting-only columns, columns left empty
 rather than invented, calendar facts, enrolment), and errors for missing or
 malformed sheets. Uses an in-memory workbook only; no network access.
+
+What this file checks:
+- A share link is converted to an export URL; other links are rejected without repeating
+  the link back.
+- Sheet columns are mapped to the full schema; the target is daily unique students
+  tapped.
+- Columns the sheet doesn't have are left empty, not made up; calendar facts come from
+  the date.
+- Enrolment is never lower than the number of students present.
+- A missing meals sheet, missing target column or non-numeric target raises an error.
 """
 
 import pandas as pd

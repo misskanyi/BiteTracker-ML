@@ -1,4 +1,10 @@
-"""Tests for src.resource_allocation: school summaries, comparison, allocation gaps."""
+"""Tests for src.resource_allocation: school summaries, comparison, allocation gaps.
+
+What this file checks:
+- School summaries and school comparisons work.
+- Allocation is classified as shortage, surplus or balanced.
+- A reallocation note appears only when some schools are short and others have surplus.
+"""
 
 from __future__ import annotations
 

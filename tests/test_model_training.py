@@ -1,4 +1,14 @@
-"""Tests for src/model_training.py — splitting, fitting, persistence, reproducibility."""
+"""Tests for src/model_training.py — splitting, fitting, persistence, reproducibility.
+
+What this file checks:
+- The split keeps row order, the last 20% is the test set, and no date is split across
+  train and test.
+- Feature and target shapes match; missing columns raise an error.
+- Models fit and return predictions of the right shape.
+- A saved model loads back correctly.
+- Metrics match known values, and the decision tree gives the same result every run with
+  a fixed seed.
+"""
 
 from __future__ import annotations
 

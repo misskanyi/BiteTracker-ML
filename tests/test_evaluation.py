@@ -1,4 +1,10 @@
-"""Tests for src/model_evaluation.py — metrics and chronological splitting."""
+"""Tests for src/model_evaluation.py — metrics and chronological splitting.
+
+What this file checks:
+- MAE and RMSE are correct for a perfect prediction and for known values.
+- The split is chronological (train before test), roughly 80/20, with no shuffling and
+  no shared rows.
+"""
 
 from __future__ import annotations
 

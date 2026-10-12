@@ -1,4 +1,12 @@
-"""Stage 3: calendar_service (synthetic + 2025 Kenyan calendar) and status_service (data labels)."""
+"""Stage 3: calendar_service (synthetic + 2025 Kenyan calendar) and status_service (data labels).
+
+What this file checks:
+- Kenya 2025 school calendar: holidays and half-terms are not school days, and it stops
+  at the end of the known calendar.
+- The synthetic calendar is used for the synthetic model.
+- The data label (synthetic, real or unknown) follows the metadata and dataset path;
+  'real' is shown only when both agree.
+"""
 
 from __future__ import annotations
 

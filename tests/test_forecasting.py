@@ -1,4 +1,15 @@
-"""Tests for src/forecasting.py — multi-horizon, recursive, leakage-safe forecasting."""
+"""Tests for src/forecasting.py — multi-horizon, recursive, leakage-safe forecasting.
+
+What this file checks:
+- School history is sorted and filtered; an invalid school ID raises an error.
+- 1-, 7- and 30-day forecasts return that many school days (weekends are skipped).
+- Multi-day forecasts are recursive: predicted values become the history for the next
+  day.
+- Missing optional inputs fall back to the recent average; user-supplied inputs are
+  labelled as such.
+- Predictions are never negative and are reproducible.
+- Predicting a specific date rejects past or current dates and invalid schools.
+"""
 
 from __future__ import annotations
 

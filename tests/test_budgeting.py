@@ -1,4 +1,9 @@
-"""Tests for src.budgeting: cost projection helpers."""
+"""Tests for src.budgeting: cost projection helpers.
+
+What this file checks:
+- Meal cost scales with demand, and zero demand gives zero cost.
+- Historical spend is calculated both with and without a cost column.
+"""
 
 from __future__ import annotations
 

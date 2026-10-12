@@ -1,4 +1,11 @@
-"""Tests for src.data_validation: upload parsing, validation, and quality scoring."""
+"""Tests for src.data_validation: upload parsing, validation, and quality scoring.
+
+What this file checks:
+- CSV and Excel files load; other file types are rejected.
+- Detects missing columns, duplicates, missing values, invalid numbers and empty files.
+- Forecast-readiness thresholds work.
+- Flags an unknown school term or missing attendance data.
+"""
 
 from __future__ import annotations
 

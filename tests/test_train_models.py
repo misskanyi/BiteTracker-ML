@@ -4,6 +4,14 @@ The end-to-end test runs every stage on a small synthetic dataset with cheap
 stand-in tuners and writes all artifacts to a temporary directory, so it
 never touches the real models/ or reports/ folders and avoids the full
 hyperparameter search.
+
+What this file checks:
+- Argument parsing works and the data path resolves (configured default, or a CLI path
+  made absolute).
+- The full pipeline runs every stage and saves the artifacts.
+- Model selection happens before test evaluation and never sees test rows.
+- When a stage fails, the error names the stage; the CLI exits with an error if the
+  dataset is missing.
 """
 
 from __future__ import annotations
