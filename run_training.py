@@ -64,14 +64,15 @@ def split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def train_and_evaluate_baselines(
-    train_df: pd.DataFrame, test_df: pd.DataFrame
+    train_df: pd.DataFrame, test_df: pd.DataFrame, feature_columns: list[str] | None = None
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """Fit every model in TRAINERS with default settings and score it on train and test.
 
+    `feature_columns` defaults to the synthetic FEATURE_COLUMNS.
     Returns (metrics_df, test_predictions, trained_models). Nothing is written to disk.
     """
-    X_train, y_train = prepare_features_and_target(train_df)
-    X_test, y_test = prepare_features_and_target(test_df)
+    X_train, y_train = prepare_features_and_target(train_df, feature_columns)
+    X_test, y_test = prepare_features_and_target(test_df, feature_columns)
 
     results = []
     predictions = pd.DataFrame(
@@ -120,8 +121,10 @@ def save_baseline_outputs(
     trained_models: dict,
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
+    feature_columns: list[str] | None = None,
 ) -> dict:
     """Save baseline models, metrics, predictions, split metadata, charts and report."""
+    feature_columns = list(FEATURE_COLUMNS if feature_columns is None else feature_columns)
     for name, model in trained_models.items():
         save_model(model, name)
 
@@ -134,7 +137,7 @@ def save_baseline_outputs(
     logger.info("Saved test predictions to %s", predictions_path)
 
     with open(settings.MODELS_DIR / "feature_columns.json", "w") as f:
-        json.dump(FEATURE_COLUMNS, f, indent=2)
+        json.dump(feature_columns, f, indent=2)
 
     split_metadata = {
         "train_records": int(len(train_df)),
@@ -148,7 +151,7 @@ def save_baseline_outputs(
             "end": str(test_df[settings.DATE_COLUMN].max().date()),
         },
         "target_variable": settings.TARGET_COLUMN,
-        "feature_count": len(FEATURE_COLUMNS),
+        "feature_count": len(feature_columns),
         "random_seed": settings.RANDOM_SEED,
         "train_test_split_ratio": settings.TRAIN_TEST_SPLIT_RATIO,
     }

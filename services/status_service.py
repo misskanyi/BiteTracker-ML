@@ -22,10 +22,15 @@ def get_data_status() -> dict:
 
     `kind` is "synthetic", "real" or "unknown".
     """
-    active = settings.ACTIVE_DATA_PATH
-    dataset_is_synthetic = active.resolve() == settings.SYNTHETIC_DATA_PATH.resolve()
+    if settings.USE_GOOGLE_SHEET:
+        dataset_name = settings.GOOGLE_SHEET_DATASET_NAME
+        dataset_is_synthetic = False
+    else:
+        active = settings.ACTIVE_DATA_PATH
+        dataset_name = active.name
+        dataset_is_synthetic = active.resolve() == settings.SYNTHETIC_DATA_PATH.resolve()
     status = {
-        "dataset_name": active.name,
+        "dataset_name": dataset_name,
         "results_label": None,
         "model_name": None,
         "model_trained_at": None,
@@ -55,5 +60,5 @@ def get_data_status() -> dict:
             detail="Model metadata is unavailable, so the data behind results cannot be confirmed. Treat results as unverified.",
         )
     else:
-        status.update(kind="real", label=metadata["results_label"], detail=f"Model trained on {active.name}.")
+        status.update(kind="real", label=metadata["results_label"], detail=f"Model trained on {dataset_name}.")
     return status

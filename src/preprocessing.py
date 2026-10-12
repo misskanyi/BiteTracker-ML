@@ -4,12 +4,30 @@ Each function does one job and returns a new DataFrame so steps can be
 composed, tested, and reordered independently. `run_preprocessing()` chains
 them in the order that matters for correctness (e.g. dates must be parsed
 and sorted before outlier/duplicate logic that depends on order).
+
+Cleaning has two kinds of step:
+
+- Stateless steps (`clean_raw_data`): parse dates, fix dtypes, sort, drop
+  duplicates, clip negatives. Each row is cleaned on its own, so these are
+  safe to run on the whole dataset.
+- Learned steps: the per-school imputation medians and IQR outlier fences.
+  `fit_preprocessing` learns them from the TRAINING PERIOD ONLY and
+  `apply_preprocessing` applies the same numbers to training, validation,
+  test and inference rows, so no statistic ever sees the future.
+
+Missing values are forward-filled within each school (yesterday's value
+carried forward) and then filled with the fitted median. They are never
+back-filled, because that would copy a later day's value into an earlier one.
 """
 
 # In simple terms: cleans up messy raw data (fixes dates, removes
 # duplicates/outliers) so it's ready for feature-building and modelling.
+# Anything "learned" from the data (typical values, outlier limits) is
+# learned from the training period only.
 
 from __future__ import annotations
+
+from dataclasses import asdict, dataclass, field
 
 import pandas as pd
 
@@ -43,6 +61,62 @@ _NUMERIC_FILLABLE_COLUMNS = [
 # Columns checked for statistical outliers (IQR method), capped rather than dropped
 # so we don't lose school-days of history.
 _OUTLIER_COLUMNS = ["meals_served", "leftover_meals", "enrolled_students"]
+
+# Key for the all-schools fallback in fitted statistics, used for a school
+# with no usable training rows (e.g. one that first appears in the test period).
+ALL_SCHOOLS = "__all_schools__"
+
+
+@dataclass
+class PreprocessingParams:
+    """Statistics learned by `fit_preprocessing` from the training period only.
+
+    Plain JSON-friendly values so they can be saved next to a model and
+    reapplied unchanged at evaluation and inference time.
+    """
+
+    fit_end_date: str | None
+    fit_rows: int
+    # column -> {school_id or ALL_SCHOOLS: median}
+    fill_values: dict[str, dict[str, float | None]] = field(default_factory=dict)
+    # column -> {school_id or ALL_SCHOOLS: [lower fence, upper fence]}
+    outlier_bounds: dict[str, dict[str, list[float] | None]] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> PreprocessingParams:
+        return cls(**data)
+
+
+def _median_or_none(series: pd.Series) -> float | None:
+    """Median of a series, or None if it has no values (e.g. a column the source lacks)."""
+    series = series.dropna()
+    return None if series.empty else float(series.median())
+
+
+def _iqr_fences(series: pd.Series) -> list[float] | None:
+    """1.5x IQR fences of a series, or None if it has no values."""
+    series = series.dropna()
+    if series.empty:
+        return None
+    q1, q3 = series.quantile(0.25), series.quantile(0.75)
+    iqr = q3 - q1
+    return [float(q1 - 1.5 * iqr), float(q3 + 1.5 * iqr)]
+
+
+def _per_school(df: pd.DataFrame, col: str, stat) -> dict:
+    """`stat` of `col` for each school, plus an all-schools fallback."""
+    values = {str(school): stat(group) for school, group in df.groupby(settings.SCHOOL_ID_COLUMN)[col]}
+    values[ALL_SCHOOLS] = stat(df[col])
+    return values
+
+
+def _school_lookup(df: pd.DataFrame, values: dict) -> pd.Series:
+    """Map each row's school to its fitted value, falling back to the all-schools value."""
+    fallback = values.get(ALL_SCHOOLS)
+    return df[settings.SCHOOL_ID_COLUMN].astype(str).map(lambda s: values.get(s, fallback))
 
 
 def parse_dates(df: pd.DataFrame) -> pd.DataFrame:
@@ -120,14 +194,43 @@ def enforce_non_negative(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-    """Impute missing numeric values per-school using forward/backward fill,
-    falling back to the per-school median for any values still missing at
-    the start/end of a school's history.
+def fit_preprocessing(train_df: pd.DataFrame, fit_end_date=None) -> PreprocessingParams:
+    """Learn imputation medians and IQR outlier fences, per school, from `train_df`.
+
+    Pass training-period rows only (already through `clean_raw_data`); the
+    returned numbers are then reused unchanged for every later row.
+    """
+    fill_values = {
+        col: _per_school(train_df, col, _median_or_none)
+        for col in _NUMERIC_FILLABLE_COLUMNS
+        if col in train_df.columns
+    }
+    outlier_bounds = {
+        col: _per_school(train_df, col, _iqr_fences)
+        for col in _OUTLIER_COLUMNS
+        if col in train_df.columns
+    }
+    return PreprocessingParams(
+        fit_end_date=None if fit_end_date is None else str(pd.Timestamp(fit_end_date).date()),
+        fit_rows=int(len(train_df)),
+        fill_values=fill_values,
+        outlier_bounds=outlier_bounds,
+    )
+
+
+def handle_missing_values(df: pd.DataFrame, params: PreprocessingParams | None = None) -> pd.DataFrame:
+    """Impute missing numeric values per school: forward fill, then the fitted median.
+
+    Forward fill only carries a school's earlier value into a later gap, so
+    nothing moves backwards in time. Gaps still left (e.g. a school's first
+    rows) get that school's median from `params`, which `fit_preprocessing`
+    learned from the training period. Without `params`, the medians are
+    fitted on `df` itself (fine for descriptive work, not for model evaluation).
 
     Per-school (not global) imputation avoids blending one school's typical
     attendance/weather pattern into another's gaps.
     """
+    params = params or fit_preprocessing(df)
     df = df.copy()
     for col in _NUMERIC_FILLABLE_COLUMNS:
         if col not in df.columns:
@@ -135,33 +238,39 @@ def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
         n_missing_before = df[col].isna().sum()
         if n_missing_before == 0:
             continue
-        df[col] = df.groupby(settings.SCHOOL_ID_COLUMN)[col].transform(lambda s: s.ffill().bfill())
-        df[col] = df.groupby(settings.SCHOOL_ID_COLUMN)[col].transform(lambda s: s.fillna(s.median()))
-        logger.info("Imputed %d missing values in %s", n_missing_before, col)
+        df[col] = df.groupby(settings.SCHOOL_ID_COLUMN)[col].ffill()
+        if col in params.fill_values:
+            df[col] = df[col].fillna(_school_lookup(df, params.fill_values[col]))
+        n_filled = n_missing_before - df[col].isna().sum()
+        if n_filled:
+            logger.info("Imputed %d missing values in %s", n_filled, col)
     return df
 
 
-def handle_outliers(df: pd.DataFrame) -> pd.DataFrame:
-    """Cap outliers per-school using the IQR method (1.5x fences).
+def handle_outliers(df: pd.DataFrame, params: PreprocessingParams | None = None) -> pd.DataFrame:
+    """Cap outliers per school at the fitted IQR fences (1.5x).
 
     Values are capped rather than removed, preserving each school's
     chronological record for lag/rolling features while still preventing a
-    single bad sensor reading from distorting trained models.
+    single bad sensor reading from distorting trained models. The fences come
+    from `params` (training period only); without `params` they are fitted
+    on `df` itself.
     """
+    params = params or fit_preprocessing(df)
     df = df.copy()
     for col in _OUTLIER_COLUMNS:
-        if col not in df.columns:
+        if col not in df.columns or col not in params.outlier_bounds:
             continue
-
-        def _cap(series: pd.Series) -> pd.Series:
-            q1, q3 = series.quantile(0.25), series.quantile(0.75)
-            iqr = q3 - q1
-            lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-            return series.clip(lower=lower, upper=upper)
-
-        before = df[col].copy()
-        df[col] = df.groupby(settings.SCHOOL_ID_COLUMN)[col].transform(_cap)
-        n_capped = (before != df[col]).sum()
+        fences = _school_lookup(df, params.outlier_bounds[col])
+        known = fences.notna()
+        if not known.any():
+            continue
+        lower = fences[known].map(lambda f: f[0]).astype(float)
+        upper = fences[known].map(lambda f: f[1]).astype(float)
+        df[col] = df[col].astype(float)
+        before = df.loc[known, col].copy()
+        df.loc[known, col] = before.clip(lower=lower, upper=upper)
+        n_capped = (before.ne(df.loc[known, col]) & before.notna()).sum()
         if n_capped:
             logger.info("Capped %d outliers in %s", n_capped, col)
     return df
@@ -193,8 +302,8 @@ def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def run_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
-    """Run the full cleaning pipeline in the order correctness requires."""
+def clean_raw_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Stateless cleaning steps: nothing here is learned from the data."""
     logger.info("Starting preprocessing on %d raw rows", len(df))
     validate_schema(df)
     df = parse_dates(df)
@@ -202,8 +311,33 @@ def run_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     df = sort_chronologically(df)
     df = drop_duplicates(df)
     df = enforce_non_negative(df)
-    df = handle_missing_values(df)
-    df = handle_outliers(df)
+    return df
+
+
+def apply_preprocessing(clean_df: pd.DataFrame, params: PreprocessingParams) -> pd.DataFrame:
+    """Apply fitted imputation, outlier capping and encoding to `clean_raw_data` output."""
+    df = handle_missing_values(clean_df, params)
+    df = handle_outliers(df, params)
     df = encode_categoricals(df)
     logger.info("Preprocessing complete: %d rows remain", len(df))
     return df
+
+
+def run_preprocessing(
+    df: pd.DataFrame,
+    params: PreprocessingParams | None = None,
+    fit_end_date=None,
+) -> pd.DataFrame:
+    """Run the full cleaning pipeline in the order correctness requires.
+
+    Learned statistics come from `params` if given, otherwise they are fitted
+    on rows dated up to `fit_end_date`. With neither, they are fitted on
+    every row: acceptable for EDA and dashboards, but model training must
+    use `src.pipeline.prepare_training_data`, which fits on the training
+    period only.
+    """
+    df = clean_raw_data(df)
+    if params is None:
+        fit_rows = df if fit_end_date is None else df[df[settings.DATE_COLUMN] <= pd.Timestamp(fit_end_date)]
+        params = fit_preprocessing(fit_rows, fit_end_date)
+    return apply_preprocessing(df, params)

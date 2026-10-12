@@ -41,10 +41,15 @@ def real_artifacts():
     """Paths and metadata of the real saved pipeline outputs (skips if not generated)."""
     if not REAL_ARTIFACTS_READY:
         pytest.skip("Pipeline artifacts missing — run `python scripts/train_models.py` first.")
+    metadata = json.loads(REAL_METADATA.read_text())
+    if "SYNTHETIC" not in metadata["results_label"].upper():
+        # These tests pin synthetic school ids and labels; artifacts trained on
+        # the Food4Education sheet have neither.
+        pytest.skip("Saved artifacts were trained on real data, not the synthetic dataset these tests expect.")
     return types.SimpleNamespace(
         processed_path=REAL_PROCESSED,
         model_path=REAL_MODEL,
-        metadata=json.loads(REAL_METADATA.read_text()),
+        metadata=metadata,
         naive_metrics_path=REAL_NAIVE_METRICS,
     )
 

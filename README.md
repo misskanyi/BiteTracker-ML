@@ -22,6 +22,7 @@ Final-year project, BSc Informatics and Computer Science, Strathmore University.
 - [Installation and Local Setup](#installation-and-local-setup)
 - [Configuration](#configuration)
 - [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)
+- [Google Colab and Google Drive Workflow](#google-colab-and-google-drive-workflow)
 - [Testing](#testing)
 - [Continuous Integration](#continuous-integration)
 - [Deployment](#deployment)
@@ -309,8 +310,12 @@ BiteTracker-ML/
 │   ├── resource_allocation.py      # School summaries, capacity gap
 │   ├── budgeting.py                # Cost estimates
 │   ├── data_validation.py          # Upload validation and quality score
+│   ├── experiment_tracking.py      # Copies one run's outputs into its own experiment folder (Colab → Drive)
 │   └── utils.py                    # Logging, random seed
 ├── scripts/train_models.py         # One command: data → features → train → tune → select → save
+├── scripts/summarize_experiments.py  # Lists Colab runs saved to Google Drive (local review)
+├── notebooks/bitetracker_training.ipynb  # Google Colab training workflow (GitHub → Colab → Drive)
+├── requirements-colab.txt          # Pinned ML packages for Colab (no Django)
 ├── run_pipeline.py, run_eda.py, run_training.py, run_tuning.py   # Step-by-step scripts
 ├── data/
 │   ├── sample/synthetic_school_meals.csv   # Committed synthetic dataset
@@ -454,6 +459,131 @@ The individual scripts are still available:
 | Train default models | `python run_training.py` | Chronological 80/20 split; trains the 4 ML models with default settings (not the naive baselines) | `models/*.joblib`, `reports/metrics/baseline_*`, `reports/Baseline_Model_Training_Report.md` |
 | Tune and select | `python run_tuning.py` | Tunes Decision Tree, Random Forest and XGBoost and cross-validates Linear Regression with `TimeSeriesSplit`; selects the final model by validation MAE; evaluates it once on the test period; scores the naive baselines | `models/final_best_model.joblib`, `models/final_best_model_metadata.json`, `reports/metrics/tuned_*`, `reports/metrics/naive_baseline_*`, `reports/metrics/model_comparison.csv`, `reports/Hyperparameter_Tuning_Report.md` |
 | Run app | `python manage.py runserver` | Loads the processed data and the final model for prediction | — |
+
+## Google Colab and Google Drive Workflow
+
+The notebook [`notebooks/bitetracker_training.ipynb`](notebooks/bitetracker_training.ipynb) shows the Sprint II development workflow:
+
+**Local IDE → GitHub → Google Colab → Google Drive → Local IDE + AI agent**
+
+1. Write and test code locally.
+2. Commit and push it to GitHub.
+3. Open the notebook in Colab. It clones an exact commit and runs the existing pipeline, `scripts/train_models.py`. No training code is copied into the notebook.
+4. The notebook saves the model, metrics, plots and logs to a new folder in Google Drive.
+5. Google Drive for desktop syncs that folder to your Mac, where you (or the AI agent) review the results in the IDE.
+
+The default data source is the **synthetic** dataset, a safe demonstration with no real records. The real Food4Education source can be selected for later experiments. Its results are **PROVISIONAL** (see [Current methodological limitations](#current-methodological-limitations)).
+
+### Before you start: commit and push
+
+Colab can only run code that is on GitHub. Local changes that haven't been committed and pushed **are not included** in a Colab run. The notebook stops with a clear message if the commit it clones is missing files it needs, such as `src/experiment_tracking.py` or `src/google_sheet_loader.py`. Every run records the exact Git commit SHA in `metadata.json`.
+
+### 1. Open the notebook in Google Colab
+
+1. Go to [colab.research.google.com](https://colab.research.google.com) and choose **File → Open notebook → GitHub**.
+2. Because the repository is private, tick **Include private repos** and allow Colab to access your GitHub account when asked.
+3. Choose `misskanyi/BiteTracker-ML`, branch `feature/ml-data-colab`, and open `notebooks/bitetracker_training.ipynb`.
+
+Alternatively, once the notebook is pushed, use this direct link: `https://colab.research.google.com/github/misskanyi/BiteTracker-ML/blob/feature/ml-data-colab/notebooks/bitetracker_training.ipynb`
+
+### 2. Connect the private GitHub repository (Colab Secret `GITHUB_TOKEN`)
+
+Opening the notebook (step 1) and cloning the code inside it (this step) are separate permissions. The clone needs a read-only token:
+
+1. On GitHub, go to **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+2. Under *Repository access*, choose **Only select repositories** → `misskanyi/BiteTracker-ML`. Under *Permissions → Repository permissions*, set **Contents: Read-only**. Pick an expiry date.
+3. Copy the token. In Colab, click the **key icon (Secrets)** in the left sidebar → **Add new secret**. Set the name to `GITHUB_TOKEN`, paste the token as the value, and switch on **Notebook access**.
+
+The token is never typed into a cell or printed. It's sent to `git` as a one-off request header, so it isn't stored in `.git/config` and isn't saved with the experiment.
+
+### 3. Mount Google Drive
+
+The notebook runs `drive.mount("/content/drive")`. Colab opens a Google sign-in window: choose your account and allow access. Experiments are saved to:
+
+```text
+MyDrive/BiteTracker/experiments/
+```
+
+The folder is created automatically on the first run.
+
+### 4. Configure the dataset
+
+Edit `DATA_SOURCE` in section 1 of the notebook:
+
+| `DATA_SOURCE` | Data | Setup |
+|---|---|---|
+| `"synthetic"` (default) | Committed synthetic dataset `data/sample/synthetic_school_meals.csv` | None |
+| `"food4education"` | Real Food4Education workbook, read live and read-only from its Google Sheets link by `src/google_sheet_loader.py` | Add the share link as the Colab Secret **`BITETRACKER_GOOGLE_SHEET_URL`**. If it isn't set, the notebook asks for the link in a hidden input box. The sheet must be shared as *Anyone with the link → Viewer*. |
+
+No Excel file needs to be downloaded. The notebook shows only summary information about the data (row and school counts, date range, quality score), never individual records.
+
+### 5. Run the training workflow
+
+1. Check the settings in section 1 (`BRANCH`, optional `COMMIT`, `DATA_SOURCE`, `RANDOM_SEED`).
+2. Choose **Runtime → Run all**.
+3. If the dependency cell asks you to restart, choose **Runtime → Restart session**, then **Run all** again. This happens when Colab had already loaded different numpy/pandas versions.
+
+The notebook installs the pinned package versions from `requirements-colab.txt`, which match `requirements.txt`. That way a model trained in Colab loads locally with the same library versions. On the synthetic dataset, training takes about one minute.
+
+The pipeline writes its outputs inside the temporary Colab copy of the repository. Your local `models/` folder, including the model the Django app uses, is never changed.
+
+### 6. Where experiment outputs are saved
+
+Each run gets its own new folder. The timestamp is in **UTC**. Earlier runs are never overwritten. If two runs start in the same second, the second folder gets a `_2` suffix.
+
+```text
+MyDrive/BiteTracker/experiments/
+└── run_YYYYMMDD_HHMMSS/
+    ├── metadata.json        # status, Git commit SHA, branch, data source, random seed, command,
+    │                        #   timestamps, Python/package versions, dataset summary, artifact list
+    ├── metrics.json         # selected model, validation/test metrics, baseline and model comparisons
+    ├── model.joblib         # the selected final model
+    ├── models/              # every trained model + feature list, split and tuning metadata
+    ├── metrics/             # the pipeline's metric CSV files
+    ├── plots/               # interactive Plotly charts (.html)
+    ├── reports/             # generated training and tuning reports (.md)
+    ├── environment/pip_freeze.txt
+    └── logs/                # training.log, pip_install.log
+```
+
+- If the pipeline didn't produce an expected file, it's listed under `artifacts.missing` in `metadata.json` and printed by the notebook. Nothing is generated to fill the gap.
+- If training fails, the folder still holds `metadata.json` with `"status": "failed"` and the full `logs/training.log`.
+- Dataset rows (`data/processed/`) are never saved.
+- For Food4Education runs, row-level outputs are not saved by default: per-day test predictions and the actual-vs-predicted and residual charts. Set `SAVE_ROW_LEVEL_OUTPUTS = True` only if you have permission to store them.
+
+### 7. Access the results locally (Google Drive for desktop)
+
+1. Download and install **Google Drive for desktop** from [google.com/drive/download](https://www.google.com/drive/download/). Sign in with the same Google account you used in Colab.
+2. Drive appears in Finder under **Locations → Google Drive**. The experiments folder is at:
+
+   ```text
+   ~/Library/CloudStorage/GoogleDrive-<your-email>/My Drive/BiteTracker/experiments/
+   ```
+
+3. By default Drive **streams** files, which means they download when opened. To let the IDE and AI agent read them without delay, right-click the `experiments` folder in Finder and choose **Make available offline**. You can also switch to *Mirror files* in Drive's preferences.
+4. List all runs from the project folder:
+
+   ```bash
+   python scripts/summarize_experiments.py
+   # or, if Drive is somewhere else:
+   python scripts/summarize_experiments.py --experiments-dir "/path/to/BiteTracker/experiments"
+   ```
+
+5. Open `metadata.json`, `metrics.json`, `logs/training.log` and the charts in `plots/` in VS Code. You can also ask the AI agent to review a run folder by its path.
+
+Treat Drive results as experiment records. **Don't copy a Colab `model.joblib` into the local `models/` folder**, because that would replace the model the Django app uses.
+
+### Current methodological limitations
+
+The real-data pipeline still has unresolved issues: target outlier capping and validation leakage. Until they are fixed:
+
+- Food4Education results from this workflow are labelled **PROVISIONAL** in the notebook, `metadata.json` and `metrics.json`. They are not final validated research findings.
+- The model selected on real data should not be presented as the definitive best model.
+- The notebook's purpose is to demonstrate a reproducible Colab workflow, not to claim the methodology is final.
+
+### Verifying the notebook locally (without Colab)
+
+The notebook also runs outside Colab. Two environment variables redirect it: `BITETRACKER_NOTEBOOK_REPO_URL` sets the clone source (for example a local test repository) and `BITETRACKER_EXPERIMENTS_DIR` sets the output folder, which replaces Google Drive. It always clones into a new temporary folder, so it never writes into your working copy.
 
 ## Testing
 

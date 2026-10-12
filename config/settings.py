@@ -35,6 +35,17 @@ for _dir in (RAW_DATA_DIR, PROCESSED_DATA_DIR, SAMPLE_DATA_DIR, UPLOADS_DIR, MOD
 SYNTHETIC_DATA_PATH: Path = SAMPLE_DATA_DIR / "synthetic_school_meals.csv"
 ACTIVE_DATA_PATH: Path = Path(os.getenv("BITETRACKER_DATA_PATH", str(SYNTHETIC_DATA_PATH)))
 
+# Real Food4Education data, read live from its Google Sheets share link (see
+# src/google_sheet_loader.py). When set, it replaces ACTIVE_DATA_PATH as the
+# default dataset. Keep the link in .env, not in committed code.
+GOOGLE_SHEET_URL: str = os.getenv("BITETRACKER_GOOGLE_SHEET_URL", "").strip()
+USE_GOOGLE_SHEET: bool = bool(GOOGLE_SHEET_URL)
+GOOGLE_SHEET_DATASET_NAME: str = "Food4Education Google Sheet"
+# The sheet has no meal-cost column; budgeting uses this value (KSh) when it
+# is set. Unset means unknown, so the cost column is left empty, not zero.
+_cost_per_meal = os.getenv("BITETRACKER_COST_PER_MEAL_KSH", "").strip()
+COST_PER_MEAL_KSH: float | None = float(_cost_per_meal) if _cost_per_meal else None
+
 # Meals served on the target date; each processed row is that target date
 # (see src/feature_engineering.py).
 TARGET_COLUMN: str = "target_meals_served"

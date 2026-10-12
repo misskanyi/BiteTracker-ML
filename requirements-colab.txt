@@ -1,0 +1,14 @@
+# Packages needed to run the ML pipeline (scripts/train_models.py) in Google Colab.
+# Same pinned versions as requirements.txt, so a model trained in Colab loads
+# locally with the same library versions. The Django web packages are left out:
+# the notebook only trains models, it does not run the website.
+pandas==2.3.3
+numpy==2.0.2
+scikit-learn==1.6.1
+xgboost==2.1.4
+statsmodels==0.14.6
+plotly==6.9.0
+joblib==1.5.3
+python-dotenv==1.2.1
+tabulate==0.9.0
+openpyxl==3.1.5

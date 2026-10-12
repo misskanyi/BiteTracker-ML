@@ -16,6 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from config import settings
+from src.google_sheet_loader import load_google_sheet_dataset
 from src.synthetic_data import SCHEMA_COLUMNS, generate_synthetic_dataset, save_synthetic_dataset
 from src.utils import get_logger
 
@@ -39,7 +40,15 @@ def load_dataset(path: Path | None = None, generate_if_missing: bool = True) -> 
 
     If `path` points at the default synthetic dataset and the file does not
     exist yet, it is generated automatically (helps first-time setup).
+
+    With no `path` and a Google Sheet link configured, the real dataset is
+    read live from the sheet instead (nothing is saved to disk).
     """
+    if path is None and settings.USE_GOOGLE_SHEET:
+        df = load_google_sheet_dataset()
+        validate_schema(df)
+        return df
+
     data_path = path or settings.ACTIVE_DATA_PATH
 
     if not data_path.exists():
