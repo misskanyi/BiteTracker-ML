@@ -482,9 +482,9 @@ Colab can only run code that is on GitHub. Local changes that haven't been commi
 
 1. Go to [colab.research.google.com](https://colab.research.google.com) and choose **File → Open notebook → GitHub**.
 2. Because the repository is private, tick **Include private repos** and allow Colab to access your GitHub account when asked.
-3. Choose `misskanyi/BiteTracker-ML`, branch `feature/ml-data-colab`, and open `notebooks/bitetracker_training.ipynb`.
+3. Choose `misskanyi/BiteTracker-ML`, branch `main`, and open `notebooks/bitetracker_training.ipynb`.
 
-Alternatively, once the notebook is pushed, use this direct link: `https://colab.research.google.com/github/misskanyi/BiteTracker-ML/blob/feature/ml-data-colab/notebooks/bitetracker_training.ipynb`
+Alternatively, once the notebook is pushed, use this direct link: `https://colab.research.google.com/github/misskanyi/BiteTracker-ML/blob/main/notebooks/bitetracker_training.ipynb`
 
 ### 2. Connect the private GitHub repository (Colab Secret `GITHUB_TOKEN`)
 
