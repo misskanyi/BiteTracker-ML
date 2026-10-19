@@ -1,0 +1,250 @@
+/* =============================================================================
+   BiteTracker design tokens — shared by the app (bitetracker.css) and Django admin (admin.css).
+   Theme is selected by html[data-theme="light|dark"], set before first paint by
+   templates/partials/_theme_init.html. Load this file before either stylesheet.
+   ============================================================================= */
+
+/* --- 1. Tokens: light theme (default) --------------------------------------- */
+:root {
+  /* Brand */
+  --bt-primary: #7C3AED;
+  --bt-primary-hover: #6D28D9;
+  --bt-primary-rgb: 124, 58, 237;
+  --bt-primary-soft: #EDE9FE;
+  --bt-primary-soft-hover: #DDD6FE;
+  --bt-on-primary: #FFFFFF;
+  --bt-btn-primary-bg: #7C3AED;
+  --bt-btn-primary-hover: #6D28D9;
+  --bt-link: #6D28D9;
+  --bt-link-hover: #5B21B6;
+
+  /* Surfaces and text */
+  --bt-bg: #F3F0FA;
+  --bt-surface: #FFFFFF;
+  --bt-surface-muted: #FAF9FD;
+  --bt-surface-elevated: #FFFFFF;
+  --bt-sidebar-bg: #FFFFFF;
+  --bt-text: #1F1B2D;
+  --bt-text-muted: #5F576E;
+  --bt-text-subtle: #655D74;
+  --bt-border: #E8E3F0;
+  --bt-border-strong: #D6CFE3;
+
+  /* Status (text on the solid colour is white; *-soft pairs with *-text) */
+  --bt-success: #15803D;
+  --bt-success-soft: #DCFCE7;
+  --bt-success-text: #14532D;
+  --bt-warning: #B45309;
+  --bt-warning-soft: #FEF3C7;
+  --bt-warning-text: #78350F;
+  --bt-danger: #B91C1C;
+  --bt-danger-soft: #FEE2E2;
+  --bt-danger-text: #7F1D1D;
+  --bt-info-soft: #EDE9FE;
+  --bt-info-text: #4C1D95;
+  --bt-neutral: #6B6478;
+
+  /* Charts (roles referenced by web/core/charts.py via static/js/charts.js) */
+  --bt-chart-series-1: #2563EB;
+  --bt-chart-series-2: #0D9488;
+  --bt-chart-series-3: #D97706;
+  --bt-chart-series-4: #DB2777;
+  --bt-chart-series-5: #7C3AED;
+  --bt-chart-other: #8A8298;
+  --bt-chart-actual: #7C3AED;
+  --bt-chart-secondary: #8A8298;
+  --bt-chart-predicted: #D97706;
+  --bt-chart-recommended: #0D9488;
+  --bt-chart-mae: #7C3AED;
+  --bt-chart-rmse: #D97706;
+  --bt-chart-selected: #7C3AED;
+  --bt-chart-candidate: #B9A6F2;
+  --bt-chart-served: #7C3AED;
+  --bt-chart-unserved: #D97706;
+  --bt-chart-grid: #EEEAF4;
+
+  /* Typography */
+  --bt-font-sans: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --bt-weight-body: 400;
+  --bt-weight-label: 500;
+  --bt-weight-heading: 600;
+  --bt-weight-display: 700;
+  --bt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --bt-text-xs: 0.75rem;
+  --bt-text-sm: 0.8125rem;
+  --bt-text-base: 0.9375rem;
+  --bt-text-lg: 1.125rem;
+  --bt-text-xl: 1.5rem;
+  --bt-text-2xl: 1.875rem;
+
+  /* Spacing, radius, elevation */
+  --bt-space-1: 0.25rem;
+  --bt-space-2: 0.5rem;
+  --bt-space-3: 0.75rem;
+  --bt-space-4: 1rem;
+  --bt-space-5: 1.5rem;
+  --bt-space-6: 2rem;
+  --bt-radius-sm: 0.625rem;
+  --bt-radius: 1rem;
+  --bt-radius-lg: 1.25rem;
+  --bt-radius-pill: 999px;
+  --bt-shadow-sm: 0 1px 2px rgba(31, 27, 45, 0.04);
+  --bt-shadow: 0 1px 3px rgba(31, 27, 45, 0.05), 0 4px 16px rgba(76, 29, 149, 0.04);
+  --bt-shadow-lg: 0 12px 32px rgba(31, 27, 45, 0.12);
+
+  /* Focus and motion */
+  --bt-focus: #7C3AED;
+  --bt-focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.35);
+  --bt-transition: 200ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Layout */
+  --bt-sidebar-w: 256px;
+  --bt-sidebar-w-collapsed: 76px;
+  --bt-topbar-h: 60px;
+}
+
+/* --- 1b. Tokens: dark theme (designed, not inverted) ------------------------ */
+[data-theme="dark"] {
+  --bt-primary: #A78BFA;
+  --bt-primary-hover: #C4B5FD;
+  --bt-primary-rgb: 167, 139, 250;
+  --bt-primary-soft: #2E2548;
+  --bt-primary-soft-hover: #3A2F5A;
+  --bt-on-primary: #FFFFFF;
+  --bt-btn-primary-bg: #7C3AED;
+  --bt-btn-primary-hover: #6D28D9;
+  --bt-link: #C4B5FD;
+  --bt-link-hover: #DDD6FE;
+
+  --bt-bg: #100D1C;
+  --bt-surface: #241E35;
+  --bt-surface-muted: #1E1930;
+  --bt-surface-elevated: #302743;
+  --bt-sidebar-bg: #1B1729;
+  --bt-text: #F5F3FF;
+  --bt-text-muted: #B8B0C9;
+  --bt-text-subtle: #9890AB;
+  --bt-border: #3D3452;
+  --bt-border-strong: #4D4266;
+
+  --bt-success: #4ADE80;
+  --bt-success-soft: rgba(74, 222, 128, 0.14);
+  --bt-success-text: #86EFAC;
+  --bt-warning: #FBBF24;
+  --bt-warning-soft: rgba(251, 191, 36, 0.14);
+  --bt-warning-text: #FDE68A;
+  --bt-danger: #F87171;
+  --bt-danger-soft: rgba(248, 113, 113, 0.15);
+  --bt-danger-text: #FECACA;
+  --bt-info-soft: #2E2548;
+  --bt-info-text: #DDD6FE;
+  --bt-neutral: #B8B0C9;
+
+  --bt-chart-series-1: #3B82F6;
+  --bt-chart-series-2: #0D9488;
+  --bt-chart-series-3: #D97706;
+  --bt-chart-series-4: #EC4899;
+  --bt-chart-series-5: #8B5CF6;
+  --bt-chart-other: #9890AB;
+  --bt-chart-actual: #A78BFA;
+  --bt-chart-secondary: #9890AB;
+  --bt-chart-predicted: #F59E0B;
+  --bt-chart-recommended: #14B8A6;
+  --bt-chart-mae: #A78BFA;
+  --bt-chart-rmse: #F59E0B;
+  --bt-chart-selected: #A78BFA;
+  --bt-chart-candidate: #5E4F86;
+  --bt-chart-served: #A78BFA;
+  --bt-chart-unserved: #F59E0B;
+  --bt-chart-grid: #342C47;
+
+  --bt-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --bt-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.18);
+  --bt-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --bt-focus: #C4B5FD;
+  --bt-focus-ring: 0 0 0 3px rgba(196, 181, 253, 0.45);
+}
+
+/* --- 1c. Tokens: Liquid Glass ---------------------------------------------------- */
+/* Glass needs colour behind it: an ambient gradient backdrop (body::before) shows through
+   every translucent layer. Three levels of glass build hierarchy:
+     chrome  (sidebar, top bar, menus)  — most opaque, strongest blur
+     surface (content cards: charts, tables, forms) — readable, softly frosted
+     tile    (KPI / summary tiles)      — lightest, most luminous
+   Text colours were contrast-checked against each level over the most saturated
+   part of the backdrop (WCAG AA). Solid fallbacks follow for browsers without
+   backdrop-filter and for users who ask for reduced transparency. */
+:root {
+  --bt-glass-chrome: rgba(255, 255, 255, 0.62);
+  --bt-glass-surface: rgba(255, 255, 255, 0.70);
+  --bt-glass-tile: rgba(255, 255, 255, 0.60);
+  --bt-glass-hover: rgba(255, 255, 255, 0.78);
+  --bt-glass-menu: rgba(255, 255, 255, 0.82);
+  --bt-glass-bg: var(--bt-glass-surface);
+  --bt-glass-bg-strong: var(--bt-glass-menu);
+  --bt-card-bg: var(--bt-glass-surface);
+  --bt-glass-border: rgba(255, 255, 255, 0.70);
+  --bt-glass-border-hover: rgba(255, 255, 255, 0.95);
+  --bt-glass-edge: rgba(124, 58, 237, 0.10);
+  --bt-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  --bt-glass-sheen: linear-gradient(140deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.10) 38%, rgba(255, 255, 255, 0) 60%);
+  --bt-glass-shadow: 0 1px 2px rgba(31, 27, 45, 0.04), 0 10px 30px -8px rgba(91, 33, 182, 0.16);
+  --bt-glass-shadow-hover: 0 2px 4px rgba(31, 27, 45, 0.05), 0 18px 40px -10px rgba(91, 33, 182, 0.26);
+  --bt-glass-blur: blur(24px) saturate(180%);
+  --bt-glass-blur-strong: blur(32px) saturate(190%);
+  --bt-nav-active-bg: rgba(124, 58, 237, 0.12);
+  --bt-nav-active-glow: 0 0 0 1px rgba(124, 58, 237, 0.16), 0 8px 20px -8px rgba(124, 58, 237, 0.55);
+  --bt-table-head-bg: rgba(237, 233, 254, 0.55);
+  --bt-sticky-head-bg: rgba(250, 248, 255, 0.92);
+  --bt-input-bg: rgba(255, 255, 255, 0.80);
+  --bt-backdrop:
+    radial-gradient(48rem 36rem at 92% -6%, rgba(139, 92, 246, 0.40), transparent 65%),
+    radial-gradient(40rem 34rem at -6% 46%, rgba(236, 72, 153, 0.24), transparent 65%),
+    radial-gradient(46rem 30rem at 48% 108%, rgba(129, 140, 248, 0.32), transparent 65%),
+    radial-gradient(30rem 24rem at 42% 30%, rgba(196, 181, 253, 0.35), transparent 70%),
+    linear-gradient(180deg, #F6F3FD 0%, #F1ECFA 100%);
+
+  --bt-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --bt-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --bt-dur-fast: 150ms;
+  --bt-dur: 220ms;
+  --bt-dur-slow: 300ms;
+}
+[data-theme="dark"] {
+  --bt-glass-chrome: rgba(24, 19, 40, 0.62);
+  --bt-glass-surface: rgba(30, 24, 48, 0.66);
+  --bt-glass-tile: rgba(30, 24, 48, 0.56);
+  --bt-glass-hover: rgba(40, 32, 64, 0.72);
+  --bt-glass-menu: rgba(28, 22, 46, 0.86);
+  --bt-glass-border: rgba(255, 255, 255, 0.10);
+  --bt-glass-border-hover: rgba(196, 181, 253, 0.30);
+  --bt-glass-edge: rgba(196, 181, 253, 0.08);
+  --bt-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --bt-glass-sheen: linear-gradient(140deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 40%, rgba(255, 255, 255, 0) 60%);
+  --bt-glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 34px -10px rgba(0, 0, 0, 0.60);
+  --bt-glass-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.40), 0 20px 44px -12px rgba(76, 29, 149, 0.55);
+  --bt-nav-active-bg: rgba(167, 139, 250, 0.16);
+  --bt-nav-active-glow: 0 0 0 1px rgba(167, 139, 250, 0.22), 0 8px 24px -8px rgba(167, 139, 250, 0.55);
+  --bt-table-head-bg: rgba(255, 255, 255, 0.04);
+  --bt-sticky-head-bg: rgba(34, 27, 54, 0.94);
+  --bt-input-bg: rgba(16, 13, 28, 0.55);
+  --bt-backdrop:
+    radial-gradient(48rem 36rem at 92% -6%, rgba(124, 58, 237, 0.42), transparent 65%),
+    radial-gradient(40rem 34rem at -6% 46%, rgba(192, 38, 211, 0.24), transparent 65%),
+    radial-gradient(46rem 30rem at 48% 108%, rgba(67, 56, 202, 0.34), transparent 65%),
+    radial-gradient(30rem 24rem at 42% 30%, rgba(91, 33, 182, 0.22), transparent 70%),
+    linear-gradient(180deg, #120E20 0%, #0E0B18 100%);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root, [data-theme="dark"] {
+    --bt-glass-chrome: var(--bt-sidebar-bg); --bt-glass-surface: var(--bt-surface); --bt-glass-tile: var(--bt-surface);
+    --bt-glass-hover: var(--bt-surface); --bt-glass-menu: var(--bt-surface-elevated); --bt-glass-blur: none; --bt-glass-blur-strong: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme="dark"] {
+    --bt-glass-chrome: var(--bt-sidebar-bg); --bt-glass-surface: var(--bt-surface); --bt-glass-tile: var(--bt-surface);
+    --bt-glass-hover: var(--bt-surface); --bt-glass-menu: var(--bt-surface-elevated); --bt-glass-blur: none; --bt-glass-blur-strong: none;
+    --bt-glass-sheen: none; --bt-backdrop: var(--bt-bg);
+  }
+}

@@ -1,22 +1,57 @@
 {% extends "admin/base.html" %}
-{% load static %}
-{# Same blocks as Django's own admin/base_site.html, plus the BiteTracker font. Full admin branding follows in Stage 6. #}
+{% load i18n static %}
+{% comment %}
+  Same blocks as Django's own admin/base_site.html, restyled to match BiteTracker:
+  shared tokens, Outfit, Liquid Glass surfaces and the app's light/dark toggle.
+  Django's dark_mode.css and admin theme.js are replaced (dark-mode-vars block) because
+  admin.css maps every admin colour variable onto BiteTracker tokens for both themes,
+  and the app's theme script keeps the shared "theme" localStorage key in sync.
+{% endcomment %}
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
 
+{% block dark-mode-vars %}
+  {% include "partials/_theme_init.html" %}
+  <meta name="color-scheme" content="light dark">
+  <script src="{% static 'js/theme.js' %}"></script>
+{% endblock %}
+
 {% block extrastyle %}{{ block.super }}
+<link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
 <link rel="preload" href="{% static 'fonts/outfit/outfit-latin-wght-normal.woff2' %}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
 <style>
   :root { --font-family-primary: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 </style>
 {% endblock %}
 
+{# In extrahead so it loads after page-specific admin CSS (changelists.css, forms.css, login.css). #}
+{% block extrahead %}{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
+
 {% block branding %}
-<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+<div id="site-name"><a href="{% url 'admin:index' %}">{% include "partials/_logo.html" %}<span>{{ site_header|default:_('Django administration') }}</span></a></div>
 {% if user.is_anonymous %}
   {% include "admin/color_theme_toggle.html" %}
 {% endif %}
+{% endblock %}
+
+{% block welcome-msg %}
+  <span class="bt-admin-user">{% translate 'Signed in as' %} <strong>{% firstof user.get_short_name user.get_username %}</strong></span>
+{% endblock %}
+
+{% block userlinks %}
+  <a href="{% url 'core:dashboard' %}" class="bt-admin-back">{% translate 'Back to BiteTracker' %}</a> /
+  {% if user.has_usable_password %}
+  <a href="{% url 'admin:password_change' %}">{% translate 'Change password' %}</a> /
+  {% endif %}
+  <form id="logout-form" method="post" action="{% url 'admin:logout' %}">
+    {% csrf_token %}
+    <button type="submit">{% translate 'Log out' %}</button>
+  </form>
+  {% include "admin/color_theme_toggle.html" %}
 {% endblock %}
 
 {% block nav-global %}{% endblock %}

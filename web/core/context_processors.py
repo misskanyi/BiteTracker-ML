@@ -19,6 +19,7 @@ NAV_SECTIONS = [
         ("Forecast & planning", "bi-calendar2-week", "core:forecast", {"forecast", "forecast_run"}, None),
         ("Forecast history", "bi-clock-history", "core:forecast_history", {"forecast_history"}, None),
         ("Model performance", "bi-bar-chart-line", "core:performance", {"performance"}, None),
+        ("Donor insights", "bi-heart", "core:donors", {"donors"}, None),
     ]),
     ("Data management", [
         ("Data upload", "bi-cloud-arrow-up", "schools:upload", {"upload", "upload_detail"},

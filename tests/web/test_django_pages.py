@@ -46,7 +46,7 @@ pytestmark = pytest.mark.django_db
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PASSWORD = "Str0ng-test-passw0rd!"
 
-PAGES = ["core:dashboard", "core:history", "core:forecast", "core:forecast_history", "core:performance", "schools:upload"]
+PAGES = ["core:dashboard", "core:history", "core:forecast", "core:forecast_history", "core:performance", "core:donors", "schools:upload"]
 
 
 @pytest.fixture

@@ -1,0 +1,2 @@
+{# Usage: {% include "core/_reach_badge.html" with s=school %} — reach band from donor_service. #}
+{% if s.reach_band %}<span class="badge risk-badge {% if s.reach_band == 'Strong' %}risk-low{% elif s.reach_band == 'Moderate' %}risk-moderate{% else %}risk-high{% endif %}" data-testid="reach-band">{{ s.reach_band }} reach</span>{% endif %}

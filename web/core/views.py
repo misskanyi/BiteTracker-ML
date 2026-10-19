@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from config import settings as ml_settings
-from services import ServiceError, data_service, forecast_service, model_service, performance_service, planning_service
+from services import ServiceError, data_service, donor_service, forecast_service, model_service, performance_service, planning_service
 from web.core import charts
 from web.core.errors import user_message
 from web.core.forecast_records import record_forecast_run, stored_cost_per_meal, stored_days
@@ -272,3 +272,12 @@ def performance(request):
     if perf["validation_ranking"]:
         context["ranking_chart"] = charts.validation_ranking_chart(perf["validation_ranking"])
     return render(request, "core/performance.html", context)
+
+
+def donors(request):
+    """How each school's programme is doing and where a donation would reach the most children."""
+    try:
+        impact = donor_service.school_impact()
+    except ServiceError as exc:
+        return render(request, "core/donors.html", {"data_error": user_message(exc)})
+    return render(request, "core/donors.html", {"impact": impact, "chart": charts.donor_reach_chart(impact["schools"])})

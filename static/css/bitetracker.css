@@ -1,212 +1,16 @@
 /* =============================================================================
    BiteTracker design system — Violet & Lavender
    Bootstrap 5.3 provides the base components. This file:
-     1. defines design tokens (--bt-*) for light and dark themes,
+     1. design tokens (--bt-*) for light and dark themes live in tokens.css,
      2. maps them onto Bootstrap's own variables (--bs-*) so stock components follow,
      3. styles the application shell (sidebar, header, banner),
      4. styles shared components (cards, KPIs, tables, forms, badges, charts).
    Theme is selected by html[data-theme="light|dark"] (set before first paint by
-   templates/partials/_theme_init.html). Never hardcode colours below section 2:
-   use a token.
+   templates/partials/_theme_init.html). Tokens (section 1) live in tokens.css, which
+   loads first. Never hardcode colours below section 2: use a token.
    ============================================================================= */
 
-/* --- 1. Tokens: light theme (default) --------------------------------------- */
-:root {
-  /* Brand */
-  --bt-primary: #7C3AED;
-  --bt-primary-hover: #6D28D9;
-  --bt-primary-rgb: 124, 58, 237;
-  --bt-primary-soft: #EDE9FE;
-  --bt-primary-soft-hover: #DDD6FE;
-  --bt-on-primary: #FFFFFF;
-  --bt-btn-primary-bg: #7C3AED;
-  --bt-btn-primary-hover: #6D28D9;
-  --bt-link: #6D28D9;
-  --bt-link-hover: #5B21B6;
-
-  /* Surfaces and text */
-  --bt-bg: #F8F7FC;
-  --bt-surface: #FFFFFF;
-  --bt-surface-muted: #FAF9FD;
-  --bt-surface-elevated: #FFFFFF;
-  --bt-sidebar-bg: #FFFFFF;
-  --bt-text: #1F1B2D;
-  --bt-text-muted: #6B6478;
-  --bt-text-subtle: #746C83;
-  --bt-border: #E8E3F0;
-  --bt-border-strong: #D6CFE3;
-
-  /* Status (text on the solid colour is white; *-soft pairs with *-text) */
-  --bt-success: #15803D;
-  --bt-success-soft: #DCFCE7;
-  --bt-success-text: #14532D;
-  --bt-warning: #B45309;
-  --bt-warning-soft: #FEF3C7;
-  --bt-warning-text: #78350F;
-  --bt-danger: #B91C1C;
-  --bt-danger-soft: #FEE2E2;
-  --bt-danger-text: #7F1D1D;
-  --bt-info-soft: #EDE9FE;
-  --bt-info-text: #4C1D95;
-  --bt-neutral: #6B6478;
-
-  /* Charts (roles referenced by web/core/charts.py via static/js/charts.js) */
-  --bt-chart-series-1: #2563EB;
-  --bt-chart-series-2: #0D9488;
-  --bt-chart-series-3: #D97706;
-  --bt-chart-series-4: #DB2777;
-  --bt-chart-series-5: #7C3AED;
-  --bt-chart-other: #8A8298;
-  --bt-chart-actual: #7C3AED;
-  --bt-chart-secondary: #8A8298;
-  --bt-chart-predicted: #D97706;
-  --bt-chart-recommended: #0D9488;
-  --bt-chart-mae: #7C3AED;
-  --bt-chart-rmse: #D97706;
-  --bt-chart-selected: #7C3AED;
-  --bt-chart-candidate: #B9A6F2;
-  --bt-chart-grid: #EEEAF4;
-
-  /* Typography */
-  --bt-font-sans: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --bt-weight-body: 400;
-  --bt-weight-label: 500;
-  --bt-weight-heading: 600;
-  --bt-weight-display: 700;
-  --bt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --bt-text-xs: 0.75rem;
-  --bt-text-sm: 0.8125rem;
-  --bt-text-base: 0.9375rem;
-  --bt-text-lg: 1.125rem;
-  --bt-text-xl: 1.5rem;
-  --bt-text-2xl: 1.875rem;
-
-  /* Spacing, radius, elevation */
-  --bt-space-1: 0.25rem;
-  --bt-space-2: 0.5rem;
-  --bt-space-3: 0.75rem;
-  --bt-space-4: 1rem;
-  --bt-space-5: 1.5rem;
-  --bt-space-6: 2rem;
-  --bt-radius-sm: 0.625rem;
-  --bt-radius: 1rem;
-  --bt-radius-lg: 1.25rem;
-  --bt-radius-pill: 999px;
-  --bt-shadow-sm: 0 1px 2px rgba(31, 27, 45, 0.04);
-  --bt-shadow: 0 1px 3px rgba(31, 27, 45, 0.05), 0 4px 16px rgba(76, 29, 149, 0.04);
-  --bt-shadow-lg: 0 12px 32px rgba(31, 27, 45, 0.12);
-
-  /* Focus and motion */
-  --bt-focus: #7C3AED;
-  --bt-focus-ring: 0 0 0 3px rgba(124, 58, 237, 0.35);
-  --bt-transition: 200ms cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* Layout */
-  --bt-sidebar-w: 256px;
-  --bt-sidebar-w-collapsed: 76px;
-  --bt-topbar-h: 60px;
-}
-
-/* --- 1b. Tokens: dark theme (designed, not inverted) ------------------------ */
-[data-theme="dark"] {
-  --bt-primary: #A78BFA;
-  --bt-primary-hover: #C4B5FD;
-  --bt-primary-rgb: 167, 139, 250;
-  --bt-primary-soft: #2E2548;
-  --bt-primary-soft-hover: #3A2F5A;
-  --bt-on-primary: #FFFFFF;
-  --bt-btn-primary-bg: #7C3AED;
-  --bt-btn-primary-hover: #6D28D9;
-  --bt-link: #C4B5FD;
-  --bt-link-hover: #DDD6FE;
-
-  --bt-bg: #14111F;
-  --bt-surface: #241E35;
-  --bt-surface-muted: #1E1930;
-  --bt-surface-elevated: #302743;
-  --bt-sidebar-bg: #1B1729;
-  --bt-text: #F5F3FF;
-  --bt-text-muted: #B8B0C9;
-  --bt-text-subtle: #9890AB;
-  --bt-border: #3D3452;
-  --bt-border-strong: #4D4266;
-
-  --bt-success: #4ADE80;
-  --bt-success-soft: rgba(74, 222, 128, 0.14);
-  --bt-success-text: #86EFAC;
-  --bt-warning: #FBBF24;
-  --bt-warning-soft: rgba(251, 191, 36, 0.14);
-  --bt-warning-text: #FDE68A;
-  --bt-danger: #F87171;
-  --bt-danger-soft: rgba(248, 113, 113, 0.15);
-  --bt-danger-text: #FECACA;
-  --bt-info-soft: #2E2548;
-  --bt-info-text: #DDD6FE;
-  --bt-neutral: #B8B0C9;
-
-  --bt-chart-series-1: #3B82F6;
-  --bt-chart-series-2: #0D9488;
-  --bt-chart-series-3: #D97706;
-  --bt-chart-series-4: #EC4899;
-  --bt-chart-series-5: #8B5CF6;
-  --bt-chart-other: #9890AB;
-  --bt-chart-actual: #A78BFA;
-  --bt-chart-secondary: #9890AB;
-  --bt-chart-predicted: #F59E0B;
-  --bt-chart-recommended: #14B8A6;
-  --bt-chart-mae: #A78BFA;
-  --bt-chart-rmse: #F59E0B;
-  --bt-chart-selected: #A78BFA;
-  --bt-chart-candidate: #5E4F86;
-  --bt-chart-grid: #342C47;
-
-  --bt-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --bt-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.18);
-  --bt-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
-  --bt-focus: #C4B5FD;
-  --bt-focus-ring: 0 0 0 3px rgba(196, 181, 253, 0.45);
-}
-
-/* --- 1c. Tokens: glass surfaces and motion --------------------------------- */
-/* Frosted glass sits on a soft lavender backdrop (body::before). Every glass token has a
-   solid fallback below for browsers without backdrop-filter and for reduced transparency. */
-:root {
-  --bt-card-bg: rgba(255, 255, 255, 0.92);
-  --bt-glass-bg: rgba(255, 255, 255, 0.72);
-  --bt-glass-bg-strong: rgba(255, 255, 255, 0.86);
-  --bt-glass-border: rgba(124, 58, 237, 0.10);
-  --bt-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  --bt-glass-blur: blur(20px) saturate(170%);
-  --bt-table-head-bg: rgba(237, 233, 254, 0.45);
-  --bt-backdrop:
-    radial-gradient(56rem 36rem at 88% -12%, rgba(167, 139, 250, 0.26), transparent 62%),
-    radial-gradient(44rem 32rem at -8% 28%, rgba(196, 181, 253, 0.30), transparent 60%),
-    radial-gradient(40rem 28rem at 55% 112%, rgba(125, 211, 252, 0.14), transparent 60%);
-
-  --bt-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --bt-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
-  --bt-dur-fast: 140ms;
-  --bt-dur: 220ms;
-  --bt-dur-slow: 420ms;
-}
-[data-theme="dark"] {
-  --bt-card-bg: rgba(36, 30, 53, 0.92);
-  --bt-glass-bg: rgba(36, 30, 53, 0.64);
-  --bt-glass-bg-strong: rgba(27, 23, 41, 0.82);
-  --bt-glass-border: rgba(196, 181, 253, 0.10);
-  --bt-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --bt-table-head-bg: rgba(255, 255, 255, 0.035);
-  --bt-backdrop:
-    radial-gradient(56rem 36rem at 88% -12%, rgba(124, 58, 237, 0.24), transparent 62%),
-    radial-gradient(44rem 32rem at -8% 30%, rgba(76, 29, 149, 0.30), transparent 60%),
-    radial-gradient(40rem 28rem at 55% 112%, rgba(14, 116, 144, 0.14), transparent 60%);
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root, [data-theme="dark"] { --bt-card-bg: var(--bt-surface); --bt-glass-bg: var(--bt-surface); --bt-glass-bg-strong: var(--bt-surface-elevated); --bt-glass-blur: none; }
-}
-@media (prefers-reduced-transparency: reduce) {
-  :root, [data-theme="dark"] { --bt-card-bg: var(--bt-surface); --bt-glass-bg: var(--bt-surface); --bt-glass-bg-strong: var(--bt-surface-elevated); --bt-glass-blur: none; --bt-backdrop: none; }
-}
+/* --- 1. Tokens: see tokens.css ------------------------------------------------- */
 
 /* --- 2. Bootstrap bridge: stock components read these ----------------------- */
 :root,
@@ -630,7 +434,16 @@ b, strong { font-weight: var(--bt-weight-heading); }
 }
 .bt-subheading { font-size: var(--bt-text-xs); font-weight: var(--bt-weight-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--bt-text-muted); margin-bottom: var(--bt-space-3); }
 .bt-section-title { font-size: 1.1rem; font-weight: var(--bt-weight-heading); margin: var(--bt-space-4) 0 var(--bt-space-3); }
+.bt-section-title > .bi { color: var(--bt-primary); margin-right: var(--bt-space-2); }
 .bt-page-header--actions { flex-wrap: wrap; align-items: center; }
+
+/* Donor insights: reach meter and trend arrows. */
+.bt-meter { height: 8px; border-radius: var(--bt-radius-pill); background: var(--bt-surface-muted); overflow: hidden; }
+.bt-meter__fill { display: block; height: 100%; width: var(--bt-meter, 0%); border-radius: inherit; background: var(--bt-primary); transform-origin: left; animation: bt-meter-grow 900ms var(--bt-ease) 200ms both; }
+@keyframes bt-meter-grow { from { transform: scaleX(0); } to { transform: none; } }
+.bt-trend { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: var(--bt-weight-label); color: var(--bt-text-muted); }
+.bt-trend--up { color: var(--bt-success-text); }
+.bt-trend--down { color: var(--bt-danger-text); }
 .bt-submit-bar { padding: var(--bt-space-3); border-radius: var(--bt-radius); background: var(--bt-glass-bg-strong); -webkit-backdrop-filter: var(--bt-glass-blur); backdrop-filter: var(--bt-glass-blur); border: 1px solid var(--bt-glass-border); box-shadow: var(--bt-shadow); }
 .bt-checklist { list-style: none; padding: 0; font-size: var(--bt-text-sm); }
 .bt-checklist li { position: relative; padding-left: 1.5rem; margin-bottom: 0.45rem; color: var(--bt-text-muted); }
@@ -666,51 +479,136 @@ b, strong { font-weight: var(--bt-weight-heading); }
 .empty-state > i { font-size: 2.25rem; display: inline-grid; place-items: center; width: 64px; height: 64px; margin-bottom: 0.75rem; border-radius: 50%; background: var(--bt-primary-soft); color: var(--bt-primary); }
 .spinner-border { --bs-spinner-border-width: 0.18em; }
 
-/* --- 6. Glass surfaces ---------------------------------------------------------- */
+/* --- 6. Liquid Glass components ----------------------------------------------------- */
+/* Ambient backdrop the glass refracts. Fixed, behind everything, never over data. */
+body { background: var(--bt-bg); }
 body::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background: var(--bt-backdrop);
 }
-/* Content cards (charts, tables, forms) stay nearly opaque for readability and need no blur.
-   Frosted glass is reserved for summary tiles (.kpi-card, .bt-glass) and floating chrome. */
-.card {
-  --bs-card-bg: var(--bt-card-bg);
+
+/* Reusable glass recipes. Bootstrap cards use .bt-glass-card automatically (below). */
+.bt-glass-panel, .bt-glass-card, .bt-glass-nav, .bt-glass-button, .card {
+  -webkit-backdrop-filter: var(--bt-glass-blur);
+  backdrop-filter: var(--bt-glass-blur);
+}
+.bt-glass-panel, .bt-glass-nav {
+  background: var(--bt-glass-sheen), var(--bt-glass-chrome);
+  -webkit-backdrop-filter: var(--bt-glass-blur-strong);
+  backdrop-filter: var(--bt-glass-blur-strong);
+  border: 1px solid var(--bt-glass-border);
+  box-shadow: var(--bt-glass-shadow), var(--bt-glass-highlight);
+}
+.bt-glass-card, .card {
+  --bs-card-bg: transparent;
   --bs-card-cap-bg: transparent;
   --bs-card-border-color: var(--bt-glass-border);
-  box-shadow: var(--bt-shadow), var(--bt-glass-highlight);
+  background: var(--bt-glass-sheen), var(--bt-glass-surface);
+  border: 1px solid var(--bt-glass-border);
+  box-shadow: var(--bt-glass-shadow), var(--bt-glass-highlight);
+  transition: background-color var(--bt-dur) var(--bt-ease), border-color var(--bt-dur) var(--bt-ease),
+              box-shadow var(--bt-dur) var(--bt-ease), transform var(--bt-dur) var(--bt-ease);
 }
-.kpi-card, .card.bt-glass {
-  --bs-card-bg: var(--bt-glass-bg);
-  -webkit-backdrop-filter: var(--bt-glass-blur);
-  backdrop-filter: var(--bt-glass-blur);
+/* Summary tiles: the lightest, most luminous glass. */
+.kpi-card, .card.bt-glass, .result-card {
+  background: var(--bt-glass-sheen), var(--bt-glass-tile);
 }
-.result-card--recommended { background: color-mix(in srgb, var(--bt-primary-soft) 85%, transparent); }
-aside.bt-sidebar {
-  background-color: var(--bt-glass-bg-strong) !important;
-  -webkit-backdrop-filter: var(--bt-glass-blur);
-  backdrop-filter: var(--bt-glass-blur);
-  border-right-color: var(--bt-glass-border);
+.result-card--recommended { background: var(--bt-glass-sheen), color-mix(in srgb, var(--bt-primary-soft) 72%, transparent); }
+.bt-glass-button {
+  background: var(--bt-glass-sheen), var(--bt-glass-tile);
+  border: 1px solid var(--bt-glass-border);
+  box-shadow: var(--bt-glass-highlight);
 }
-.bt-topbar {
-  background: color-mix(in srgb, var(--bt-bg) 62%, transparent);
-  -webkit-backdrop-filter: var(--bt-glass-blur);
-  backdrop-filter: var(--bt-glass-blur);
-  border-bottom-color: var(--bt-glass-border);
+.card-header, .card-footer { border-color: var(--bt-glass-edge) !important; }
+.card-footer.bt-footnote { background: transparent; }
+
+/* Hover: tiles lift, edges brighten, glass becomes a touch more opaque. */
+@media (hover: hover) {
+  .kpi-card:hover, .bt-glass-card.is-interactive:hover {
+    background: var(--bt-glass-sheen), var(--bt-glass-hover);
+    border-color: var(--bt-glass-border-hover);
+    box-shadow: var(--bt-glass-shadow-hover), var(--bt-glass-highlight);
+    transform: translateY(-3px);
+  }
 }
-.bt-icon-btn { background: var(--bt-glass-bg); border-color: var(--bt-glass-border); box-shadow: var(--bt-glass-highlight); }
-.dropdown-menu, .modal-content, .offcanvas {
-  --bs-dropdown-bg: var(--bt-glass-bg-strong);
-  --bs-modal-bg: var(--bt-glass-bg-strong);
-  --bs-offcanvas-bg: var(--bt-glass-bg-strong);
-  -webkit-backdrop-filter: var(--bt-glass-blur);
-  backdrop-filter: var(--bt-glass-blur);
-  border-color: var(--bt-glass-border);
+
+/* Floating glass sidebar (desktop): inset from the window edge with rounded corners. */
+aside.bt-sidebar { background: var(--bt-glass-sheen), var(--bt-glass-chrome) !important; }
+@media (min-width: 992px) {
+  aside.bt-sidebar {
+    position: sticky; top: 12px; height: calc(100vh - 24px); margin: 12px 0 12px 12px;
+    border: 1px solid var(--bt-glass-border); border-radius: var(--bt-radius-lg);
+    box-shadow: var(--bt-glass-shadow), var(--bt-glass-highlight);
+  }
+  .bt-sidebar-collapsed aside.bt-sidebar { width: var(--bt-sidebar-w-collapsed); }
 }
-.offcanvas-backdrop.show, .modal-backdrop.show { opacity: 1; background: rgba(20, 17, 31, 0.32); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
-.bt-footer { border-top-color: var(--bt-glass-border); }
 @media (max-width: 991.98px) {
-  aside.bt-sidebar { background-color: var(--bt-glass-bg-strong) !important; }
+  aside.bt-sidebar { background: var(--bt-glass-sheen), var(--bt-glass-menu) !important; border-right: 1px solid var(--bt-glass-border); }
 }
+.bt-sidebar__footer { border-top-color: var(--bt-glass-edge); }
+
+/* Navigation: rounded pills, active item glows softly. */
+.bt-nav__link { border-radius: 0.75rem; transition: background-color var(--bt-dur) var(--bt-ease), color var(--bt-dur) var(--bt-ease), box-shadow var(--bt-dur) var(--bt-ease); }
+.bt-nav__link:hover { background: var(--bt-glass-hover); color: var(--bt-text); }
+.bt-nav__link.is-active { background: var(--bt-nav-active-bg); color: var(--bt-primary); box-shadow: var(--bt-nav-active-glow); }
+.bt-nav__link.is-active::before { left: 6px; top: 50%; bottom: auto; height: 18px; transform: translateY(-50%); border-radius: 3px; }
+.bt-nav__link.is-active .bi { filter: drop-shadow(0 0 6px rgba(var(--bt-primary-rgb), 0.45)); }
+
+/* Floating glass top bar. */
+.bt-topbar {
+  margin: 12px 12px 0; border-radius: var(--bt-radius-lg);
+  background: var(--bt-glass-sheen), var(--bt-glass-chrome);
+  -webkit-backdrop-filter: var(--bt-glass-blur-strong);
+  backdrop-filter: var(--bt-glass-blur-strong);
+  border: 1px solid var(--bt-glass-border);
+  box-shadow: var(--bt-glass-shadow), var(--bt-glass-highlight);
+  top: 12px;
+}
+.bt-data-banner { margin: 12px 12px 0; border-radius: var(--bt-radius); border: 1px solid var(--bt-glass-border); -webkit-backdrop-filter: var(--bt-glass-blur); backdrop-filter: var(--bt-glass-blur); }
+.bt-data-banner--real { background: color-mix(in srgb, var(--bt-info-soft) 78%, transparent); }
+.bt-data-banner--synthetic { background: color-mix(in srgb, var(--bt-warning-soft) 85%, transparent); }
+.bt-data-banner--unknown { background: color-mix(in srgb, var(--bt-danger-soft) 85%, transparent); }
+.bt-public .bt-data-banner { margin: 0; border-radius: 0; border-width: 0 0 1px; }
+@media (max-width: 575.98px) {
+  .bt-topbar, .bt-data-banner { margin: 8px 8px 0; }
+  .bt-topbar { top: 8px; }
+}
+
+/* Header buttons and avatar as small glass discs. */
+.bt-icon-btn { background: var(--bt-glass-sheen), var(--bt-glass-tile); border-color: var(--bt-glass-border); box-shadow: var(--bt-glass-highlight); border-radius: 0.75rem; }
+.bt-icon-btn:hover { background: var(--bt-glass-hover); color: var(--bt-primary); border-color: var(--bt-glass-border-hover); }
+.bt-avatar { box-shadow: 0 4px 14px -4px rgba(124, 58, 237, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.35); background: linear-gradient(145deg, #8B5CF6, #6D28D9); }
+
+/* Menus, modals and the mobile drawer: dense glass. */
+.dropdown-menu, .modal-content, .offcanvas {
+  --bs-dropdown-bg: var(--bt-glass-menu);
+  --bs-modal-bg: var(--bt-glass-menu);
+  --bs-offcanvas-bg: var(--bt-glass-menu);
+  -webkit-backdrop-filter: var(--bt-glass-blur-strong);
+  backdrop-filter: var(--bt-glass-blur-strong);
+  border: 1px solid var(--bt-glass-border);
+  box-shadow: var(--bt-shadow-lg), var(--bt-glass-highlight);
+}
+.dropdown-menu { border-radius: var(--bt-radius); padding: 0.35rem; }
+.dropdown-item { border-radius: 0.55rem; }
+.offcanvas-backdrop.show, .modal-backdrop.show { opacity: 1; background: rgba(20, 17, 31, 0.28); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+
+/* Controls on glass: slightly translucent fields, glassy secondary buttons. */
+.form-control, .form-select { background-color: var(--bt-input-bg); border-color: var(--bt-glass-edge); box-shadow: inset 0 1px 2px rgba(31, 27, 45, 0.04); }
+[data-theme="dark"] .form-control, [data-theme="dark"] .form-select { border-color: rgba(255, 255, 255, 0.10); }
+.form-control:disabled, .form-select:disabled { background-color: var(--bt-table-head-bg); }
+.input-group-text { background: var(--bt-table-head-bg); border-color: var(--bt-glass-edge); }
+.btn-outline-secondary, .btn-outline-success { --bs-btn-bg: var(--bt-glass-tile); --bs-btn-border-color: var(--bt-glass-border); box-shadow: var(--bt-glass-highlight); }
+[data-theme="dark"] .btn-outline-secondary, [data-theme="dark"] .btn-outline-success { --bs-btn-border-color: rgba(255, 255, 255, 0.14); }
+.btn-primary, .btn-success { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0)); box-shadow: 0 6px 18px -8px rgba(124, 58, 237, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+.bt-chip { background: var(--bt-glass-tile); border-color: var(--bt-glass-border); box-shadow: var(--bt-glass-highlight); }
+.bt-kpi__icon, .bt-icon-chip { background: linear-gradient(145deg, rgba(var(--bt-primary-rgb), 0.18), rgba(var(--bt-primary-rgb), 0.08)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+[data-theme="dark"] .bt-kpi__icon, [data-theme="dark"] .bt-icon-chip { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+
+/* Tables on glass keep clear row separation; sticky headers sit on denser glass. */
+.table { --bs-table-border-color: var(--bt-glass-edge); --bs-table-hover-bg: rgba(var(--bt-primary-rgb), 0.07); }
+.bt-table--sticky thead th { --bs-table-bg: var(--bt-sticky-head-bg); -webkit-backdrop-filter: var(--bt-glass-blur); backdrop-filter: var(--bt-glass-blur); }
+.bt-footer { border-top: 0; }
 
 /* --- 7. Motion (all of it is switched off by prefers-reduced-motion below) ------------ */
 @keyframes bt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -726,11 +624,7 @@ aside.bt-sidebar {
 .bt-content > :nth-child(4), .bt-content > .row > :nth-child(4) { animation-delay: 120ms; }
 .bt-content > :nth-child(n+5) { animation-delay: 160ms; }
 
-/* Cards and buttons respond to touch and pointer. */
-.kpi-card { transition: transform var(--bt-dur) var(--bt-ease), box-shadow var(--bt-dur) var(--bt-ease); }
-@media (hover: hover) {
-  .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--bt-shadow-lg), var(--bt-glass-highlight); }
-}
+/* Buttons respond to touch and pointer (card hover lives with the glass components, section 6). */
 .btn { transition: background-color var(--bt-dur-fast) var(--bt-ease), border-color var(--bt-dur-fast) var(--bt-ease), color var(--bt-dur-fast) var(--bt-ease), box-shadow var(--bt-dur-fast) var(--bt-ease), transform var(--bt-dur-fast) var(--bt-ease); }
 .btn:active, .bt-icon-btn:active, .bt-avatar--button:active { transform: scale(0.97); }
 .bt-icon-btn, .bt-avatar--button { transition: transform var(--bt-dur-fast) var(--bt-ease), background-color var(--bt-dur-fast) var(--bt-ease), color var(--bt-dur-fast) var(--bt-ease); }

@@ -1,6 +1,6 @@
 {# Slim header: drawer button (mobile), current location, theme toggle, account menu. #}
-<header class="bt-topbar">
-  <button type="button" class="bt-icon-btn d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#bt-sidebar"
+<header class="bt-topbar bt-glass-nav">
+  <button type="button" class="bt-icon-btn bt-glass-button d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#bt-sidebar"
           aria-controls="bt-sidebar" aria-label="Open navigation">
     <i class="bi bi-list" aria-hidden="true"></i>
   </button>
@@ -13,7 +13,7 @@
   </nav>
 
   <div class="bt-topbar__actions">
-    <button type="button" class="bt-icon-btn" id="bt-theme-toggle" aria-label="Switch to dark theme" aria-pressed="false">
+    <button type="button" class="bt-icon-btn bt-glass-button" id="bt-theme-toggle" aria-label="Switch to dark theme" aria-pressed="false">
       <i class="bi bi-moon-stars bt-theme-icon--light" aria-hidden="true"></i>
       <i class="bi bi-sun bt-theme-icon--dark" aria-hidden="true"></i>
     </button>

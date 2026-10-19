@@ -23,6 +23,7 @@ ROLE_COLOURS = {
     "other": "#8A8298",
     "actual": "#7C3AED", "secondary": "#8A8298", "predicted": "#D97706", "recommended": "#0D9488",
     "mae": "#7C3AED", "rmse": "#D97706", "selected": "#7C3AED", "candidate": "#B9A6F2",
+    "served": "#7C3AED", "unserved": "#D97706",
 }
 SCHOOL_ROLES = ["series-1", "series-2", "series-3", "series-4", "series-5"]
 
@@ -121,3 +122,19 @@ def validation_ranking_chart(ranking: list[dict]) -> dict:
     ))
     fig.update_layout(hovermode="closest")
     return _spec(fig, "Mean validation MAE across TimeSeriesSplit folds (bars: ± 1 std)", "MAE (meals)", x_title="")
+
+
+def donor_reach_chart(schools: list[dict]) -> dict:
+    """Stacked bars per school: registered students served a meal vs not, on an average recent day."""
+    rows = [s for s in schools if s["registered_students"]]
+    names = [s["school_name"] for s in rows]
+    served = [s["recent_mean_meals"] for s in rows]
+    unserved = [s["unserved_per_day"] for s in rows]
+    fig = go.Figure([
+        go.Bar(name="Served a meal", x=names, y=served, meta="served", marker_color=ROLE_COLOURS["served"],
+               customdata=[s["reach_pct"] for s in rows], hovertemplate="%{y:,.0f} students served (%{customdata}% reach)<extra></extra>"),
+        go.Bar(name="Not yet served", x=names, y=unserved, meta="unserved", marker_color=ROLE_COLOURS["unserved"],
+               hovertemplate="%{y:,.0f} registered students not served<extra></extra>"),
+    ])
+    fig.update_layout(barmode="stack", hovermode="x unified")
+    return _spec(fig, "Registered students served vs not served on an average recent school day", "Students", x_title="")

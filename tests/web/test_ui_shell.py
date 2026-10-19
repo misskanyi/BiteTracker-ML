@@ -68,7 +68,13 @@ def test_no_template_comment_leaks_into_page(client, planner):
 
 def test_theme_toggle_is_an_accessible_button(client, planner):
     html = _page(client, planner)
-    assert re.search(r'<button type="button" class="bt-icon-btn" id="bt-theme-toggle" aria-label="[^"]+" aria-pressed=', html)
+    assert re.search(r'<button type="button" class="bt-icon-btn[^"]*" id="bt-theme-toggle" aria-label="[^"]+" aria-pressed=', html)
+
+
+def test_shell_uses_shared_glass_components(client, planner):
+    html = _page(client, planner)
+    assert '<aside class="bt-sidebar bt-glass-panel' in html
+    assert '<header class="bt-topbar bt-glass-nav">' in html
 
 
 def test_theme_init_also_runs_on_login_page(client, db):
@@ -153,8 +159,25 @@ def test_admin_uses_the_same_font(client, staff):
     assert 'id="site-name"' in html  # stock admin branding block still rendered
 
 
+def test_admin_matches_app_theme(client, staff):
+    """Admin shares tokens, glass skin and the app's light/dark toggle instead of Django's own."""
+    client.force_login(staff)
+    html = client.get(reverse("admin:schools_school_changelist")).content.decode()
+    assert "css/tokens.css" in html and "css/admin.css" in html
+    assert html.index('localStorage.getItem("theme")') < html.index("css/admin.css")  # no theme flash
+    assert "admin/css/dark_mode.css" not in html and "admin/js/theme.js" not in html
+    assert 'id="bt-theme-toggle"' in html and "js/theme.js" in html
+    assert "BiteTracker administration" in html
+    assert f'href="{reverse("core:dashboard")}"' in html and "Back to BiteTracker" in html
+
+
+def test_admin_login_matches_app_theme(client, db):
+    html = client.get(reverse("admin:login")).content.decode()
+    assert "css/admin.css" in html and 'id="bt-theme-toggle"' in html
+
+
 @pytest.mark.parametrize("path", [
-    "css/bitetracker.css", "css/fonts.css", "js/theme.js", "js/layout.js", "js/charts.js",
+    "css/bitetracker.css", "css/tokens.css", "css/admin.css", "css/fonts.css", "js/theme.js", "js/layout.js", "js/charts.js",
     "fonts/outfit/outfit-latin-wght-normal.woff2", "fonts/outfit/outfit-latin-ext-wght-normal.woff2", "fonts/outfit/OFL.txt",
 ])
 def test_static_assets_exist(path):
