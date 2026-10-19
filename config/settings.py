@@ -45,6 +45,10 @@ GOOGLE_SHEET_DATASET_NAME: str = "Food4Education Google Sheet"
 # is set. Unset means unknown, so the cost column is left empty, not zero.
 _cost_per_meal = os.getenv("BITETRACKER_COST_PER_MEAL_KSH", "").strip()
 COST_PER_MEAL_KSH: float | None = float(_cost_per_meal) if _cost_per_meal else None
+# Planning assumption for meal budgets in the web app (services/planning_service.py).
+# Kept separate from COST_PER_MEAL_KSH so it never changes the dataset; it is a
+# user-adjustable assumption, not verified Food4Education expenditure.
+PLANNING_COST_PER_MEAL_KES: str = os.getenv("BITETRACKER_PLANNING_COST_PER_MEAL_KES", "27").strip() or "27"
 
 # Meals served on the target date; each processed row is that target date
 # (see src/feature_engineering.py).

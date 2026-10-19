@@ -62,11 +62,31 @@
     // Disable submit buttons and show progress while a form is being processed.
     document.querySelectorAll("form[data-loading]").forEach(function (form) {
       form.addEventListener("submit", function () {
+        // Announce the wait to screen readers; buttons are disabled to prevent duplicate submissions.
+        var status = form.querySelector("[data-loading-status]");
+        if (status) status.textContent = form.dataset.loading + " This can take a few seconds.";
+        form.setAttribute("aria-busy", "true");
         form.querySelectorAll("button[type=submit]").forEach(function (button) {
+          button.dataset.label = button.innerHTML;
           button.disabled = true;
           button.setAttribute("aria-busy", "true");
           button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + form.dataset.loading;
         });
+      });
+    });
+  });
+
+  // Back/forward cache restores the page as it was left, so undo the busy state.
+  window.addEventListener("pageshow", function (event) {
+    if (!event.persisted) return;
+    document.querySelectorAll("form[data-loading]").forEach(function (form) {
+      form.removeAttribute("aria-busy");
+      var status = form.querySelector("[data-loading-status]");
+      if (status) status.textContent = "";
+      form.querySelectorAll("button[type=submit][data-label]").forEach(function (button) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        button.innerHTML = button.dataset.label;
       });
     });
   });

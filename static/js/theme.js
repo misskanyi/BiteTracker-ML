@@ -28,7 +28,17 @@
     button.setAttribute("title", dark ? "Switch to light theme" : "Switch to dark theme");
   }
 
+  var fadeTimer = null;
+
+  // Cross-fade colours for one theme change only; a permanent transition on every element would slow the app.
+  function crossFade() {
+    root.classList.add("bt-theme-transition");
+    window.clearTimeout(fadeTimer);
+    fadeTimer = window.setTimeout(function () { root.classList.remove("bt-theme-transition"); }, 320);
+  }
+
   function apply(theme) {
+    crossFade();
     root.setAttribute("data-theme", theme);
     root.setAttribute("data-bs-theme", theme);
     syncToggle();

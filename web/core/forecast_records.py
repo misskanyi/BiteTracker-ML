@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from services.forecast_service import ForecastResult
 from web.schools.models import ForecastRun, School
 
 
-def record_forecast_run(result: ForecastResult, user) -> ForecastRun:
-    """Save one successful forecast. Stores the result summary, never raw historical data."""
+def record_forecast_run(result: ForecastResult, user, cost_per_meal: Decimal | None = None) -> ForecastRun:
+    """Save one successful forecast. Stores the result summary, never raw historical data.
+
+    `cost_per_meal` (KES) is the planning assumption the user priced the forecast with;
+    it is kept beside the model output in the summary and never changes predictions.
+    """
     summary = result.to_dict()
     summary.pop("forecast_frame", None)
     summary.pop("recent_history", None)
+    if cost_per_meal is not None:
+        summary["planning"] = {"cost_per_meal_kes": str(cost_per_meal)}
     first_day = result.days[0]
     return ForecastRun.objects.create(
         user=user if getattr(user, "is_authenticated", False) else None,
@@ -34,6 +41,11 @@ def record_forecast_run(result: ForecastResult, user) -> ForecastRun:
         total_recommended_meals=result.totals["recommended_meals"],
         result_summary=summary,
     )
+
+
+def stored_cost_per_meal(run: ForecastRun) -> str | None:
+    """The cost per meal (KES) a run was priced with, or None for runs saved before budgeting existed."""
+    return (run.result_summary.get("planning") or {}).get("cost_per_meal_kes")
 
 
 def stored_days(run: ForecastRun) -> list[dict]:

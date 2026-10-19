@@ -140,7 +140,23 @@ def test_login_page_has_no_app_shell(client, db):
     assert 'data-testid="synthetic-banner"' in html
 
 
-@pytest.mark.parametrize("path", ["css/bitetracker.css", "js/theme.js", "js/layout.js", "js/charts.js"])
+def test_font_is_self_hosted(client, planner):
+    html = _page(client, planner)
+    assert "fonts.googleapis.com" not in html and "fonts.gstatic.com" not in html
+    assert "css/fonts.css" in html and 'rel="preload"' in html
+
+
+def test_admin_uses_the_same_font(client, staff):
+    client.force_login(staff)
+    html = client.get(reverse("admin:index")).content.decode()
+    assert "css/fonts.css" in html and '--font-family-primary: "Outfit"' in html
+    assert 'id="site-name"' in html  # stock admin branding block still rendered
+
+
+@pytest.mark.parametrize("path", [
+    "css/bitetracker.css", "css/fonts.css", "js/theme.js", "js/layout.js", "js/charts.js",
+    "fonts/outfit/outfit-latin-wght-normal.woff2", "fonts/outfit/outfit-latin-ext-wght-normal.woff2", "fonts/outfit/OFL.txt",
+])
 def test_static_assets_exist(path):
     assert finders.find(path)
 

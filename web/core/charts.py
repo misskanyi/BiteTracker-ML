@@ -40,7 +40,7 @@ def _spec(fig: go.Figure, title: str, y_title: str, x_title: str = "Date") -> di
     fig.update_layout(
         title={"text": title, "x": 0, "font": {"size": 15}},
         template="plotly_white",
-        font={"family": "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"},
+        font={"family": "Outfit, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         margin={"l": 56, "r": 20, "t": 50, "b": 90},

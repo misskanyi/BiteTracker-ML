@@ -118,26 +118,69 @@ def get_latest_date(school_id: str | None = None) -> date:
 
 
 def recent_demand_summary(window: int = 14) -> list[dict]:
-    """Per school: latest recorded day and the mean/min/max meals served over its last `window` records."""
+    """Per school: latest recorded day and the mean/min/max meals served over its last `window` records.
+
+    Counts are returned as stored (floats), not truncated: preprocessing caps outliers at
+    IQR fences, so a few processed counts are non-integer and the display must show them as such.
+    """
     df = load_processed_data()
+    original = original_count_column()
     summary = []
     for school in list_schools():
         history = _src_get_school_history(df, school["school_id"])
         recent = history.tail(window)["meals_served"]
         latest = history.iloc[-1]
+        latest_original = float(latest[original]) if original and original in history else None
         summary.append(
             {
                 **school,
                 "latest_date": latest[settings.DATE_COLUMN].date(),
-                "latest_meals_served": int(latest["meals_served"]),
+                "latest_meals_served": float(latest["meals_served"]),
+                "latest_original_meals": latest_original,
+                "latest_is_processed": is_processed_value(latest["meals_served"], latest_original),
                 "recent_records": int(len(recent)),
                 "recent_mean_meals": round(float(recent.mean()), 1),
-                "recent_min_meals": int(recent.min()),
-                "recent_max_meals": int(recent.max()),
+                "recent_min_meals": float(recent.min()),
+                "recent_max_meals": float(recent.max()),
                 "total_records": int(len(history)),
             }
         )
     return summary
+
+
+def original_count_column() -> str | None:
+    """Column that still holds the unprocessed source count behind `meals_served`, if the source has one.
+
+    The Google Sheet loader fills `meals_served` and `students_present` from the same source
+    column (daily unique students tapped), and only `meals_served` is outlier-capped during
+    preprocessing, so `students_present` keeps the original observation. Other sources record
+    them separately, so no original is available there.
+    """
+    return "students_present" if settings.USE_GOOGLE_SHEET else None
+
+
+def is_processed_value(meals, original) -> bool:
+    """True when a processed meal count differs from its original observation (or, without one, is non-integer)."""
+    if original is not None and not pd.isna(original):
+        return float(meals) != float(original)
+    return not float(meals).is_integer()
+
+
+WEATHER_COLUMNS = ("rainfall_mm", "temperature_c")
+
+
+def unrecorded_columns(df: pd.DataFrame | None = None) -> set[str]:
+    """Weather columns the active data does not genuinely record.
+
+    The Food4Education Google Sheet has no weather data (the loader leaves these
+    columns empty), so placeholder values in the processed file must not be shown
+    as measurements. A column that is absent or entirely empty is also unrecorded.
+    """
+    df = load_processed_data() if df is None else df
+    missing = {c for c in WEATHER_COLUMNS if c not in df.columns or df[c].isna().all()}
+    if settings.USE_GOOGLE_SHEET:
+        missing.update(WEATHER_COLUMNS)
+    return missing
 
 
 def clear_data_cache() -> None:

@@ -1,5 +1,5 @@
-{# Usage: {% include "partials/_chart.html" with chart=some_chart chart_id="unique-id" %} — page must include partials/_plotly_js.html in extra_js. #}
+{# Usage: {% include "partials/_chart.html" with chart=some_chart chart_id="unique-id" hide_title=True fill=True %} — hide_title when the card heading already names the chart; fill to grow to the card height; page must include partials/_plotly_js.html. #}
 {% if chart %}
-  <div class="chart-box" data-chart="{{ chart_id }}" role="img" aria-label="{{ chart.layout.title.text|default:'Chart' }}"></div>
+  <div class="chart-box" data-chart="{{ chart_id }}"{% if hide_title %} data-hide-title{% endif %}{% if fill %} data-fill{% endif %} role="img" aria-label="{{ chart.layout.title.text|default:'Chart' }}"></div>
   {{ chart|json_script:chart_id }}
 {% endif %}

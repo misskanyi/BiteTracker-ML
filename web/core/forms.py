@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from django import forms
 
+from services import planning_service
 from services.forecast_service import HORIZONS, TEMPERATURE_RANGE_C
 
 
@@ -58,6 +59,21 @@ class ForecastForm(SchoolChoiceMixin, forms.Form):
         "Optional. Compares day-1 predicted demand with the meals you currently plan to prepare.",
         min_value=0,
     )
+    # Planning assumption only: it prices the forecast and never reaches the model.
+    cost_per_meal_kes = forms.DecimalField(
+        label="Cost per meal (KES)", required=False, max_digits=7, decimal_places=2,
+        min_value=planning_service.MIN_COST_PER_MEAL, max_value=planning_service.MAX_COST_PER_MEAL,
+        help_text="Planning assumption used to estimate the meal budget. Blank = the default.",
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "inputmode": "decimal"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cost_per_meal_kes"].initial = planning_service.default_cost_per_meal()
+
+    def clean_cost_per_meal_kes(self):
+        cost = self.cleaned_data.get("cost_per_meal_kes")
+        return planning_service.default_cost_per_meal() if cost is None else cost
 
 
 class DatasetUploadForm(forms.Form):
