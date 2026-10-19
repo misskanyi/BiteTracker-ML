@@ -1,82 +1,51 @@
 {% load static %}<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light" data-bs-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}BiteTracker{% endblock %} · BiteTracker</title>
+  {% include "partials/_theme_init.html" %}
+  <meta name="color-scheme" content="light dark">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="{% static 'css/bitetracker.css' %}" rel="stylesheet">
   {% block extra_head %}{% endblock %}
 </head>
-<body class="d-flex flex-column min-vh-100">
-  {# Data-status banner on every page: synthetic results must never be mistaken for real Food4Education results. #}
-  <div class="data-banner data-banner--{{ DATA_STATUS.kind }} text-center py-1 px-2 small fw-semibold" role="note" data-testid="synthetic-banner">
-    {% if DATA_STATUS.kind == "synthetic" %}<i class="bi bi-exclamation-triangle-fill me-1"></i>{% elif DATA_STATUS.kind == "unknown" %}<i class="bi bi-question-circle-fill me-1"></i>{% else %}<i class="bi bi-database-check me-1"></i>{% endif %}
-    {{ DATA_LABEL }}{% if DATA_STATUS.detail %} &middot; {{ DATA_STATUS.detail }}{% endif %}
-  </div>
+<body class="{% if user.is_authenticated %}bt-app{% else %}bt-public{% endif %}">
+  <a class="bt-skip-link" href="#main">Skip to main content</a>
+  {# The content block may appear only once, so the authenticated shell is opened and closed around it. #}
+  {% if user.is_authenticated %}
+  <div class="bt-shell">
+    {% include "partials/_sidebar.html" %}
+    <div class="bt-main">
+      {% include "partials/_data_banner.html" %}
+      {% include "partials/_topbar.html" %}
+      <main id="main" class="bt-content" tabindex="-1">
+  {% else %}
+  {% include "partials/_data_banner.html" %}
+  <main id="main" class="bt-public-main" tabindex="-1">
+  {% endif %}
 
-  <nav class="navbar navbar-expand-lg navbar-dark bite-navbar">
-    <div class="container-fluid px-3 px-lg-4">
-      <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="{% url 'core:dashboard' %}">
-        <i class="bi bi-basket2-fill"></i> BiteTracker
-      </a>
-      {% if user.is_authenticated %}
-        {% with current=request.resolver_match.url_name %}
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="mainNav">
-          <ul class="navbar-nav me-auto">
-            <li class="nav-item"><a class="nav-link{% if current == 'dashboard' %} active{% endif %}" href="{% url 'core:dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-            <li class="nav-item"><a class="nav-link{% if current == 'history' %} active{% endif %}" href="{% url 'core:history' %}"><i class="bi bi-graph-up me-1"></i>Historical demand</a></li>
-            <li class="nav-item"><a class="nav-link{% if current == 'forecast' or current == 'forecast_run' %} active{% endif %}" href="{% url 'core:forecast' %}"><i class="bi bi-calendar2-week me-1"></i>Forecast &amp; planning</a></li>
-            <li class="nav-item"><a class="nav-link{% if current == 'forecast_history' %} active{% endif %}" href="{% url 'core:forecast_history' %}"><i class="bi bi-clock-history me-1"></i>Forecast history</a></li>
-            <li class="nav-item"><a class="nav-link{% if current == 'performance' %} active{% endif %}" href="{% url 'core:performance' %}"><i class="bi bi-bar-chart-line me-1"></i>Model performance</a></li>
-            {% if perms.schools.add_datasetupload %}
-              <li class="nav-item"><a class="nav-link{% if current == 'upload' or current == 'upload_detail' %} active{% endif %}" href="{% url 'schools:upload' %}"><i class="bi bi-cloud-upload me-1"></i>Data upload</a></li>
-            {% endif %}
-            {% if user.is_staff %}
-              <li class="nav-item"><a class="nav-link" href="{% url 'admin:index' %}"><i class="bi bi-gear me-1"></i>Admin</a></li>
-            {% endif %}
-          </ul>
-          <span class="navbar-text me-3 small"><i class="bi bi-person-circle me-1"></i>Signed in as {{ user.get_username }}</span>
-          <form method="post" action="{% url 'accounts:logout' %}" class="d-inline">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right me-1"></i>Log out</button>
-          </form>
-        </div>
-        {% endwith %}
-      {% endif %}
+        {% include "partials/_messages.html" %}
+        {% block content %}{% endblock %}
+
+  {% if user.is_authenticated %}
+      </main>
+      <footer class="bt-footer">
+        BiteTracker &middot; Machine learning-based school meal demand forecasting and resource allocation decision support &middot; {{ DATA_LABEL }}
+      </footer>
     </div>
-  </nav>
-
-  <main class="container-xl py-4 flex-grow-1">
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %}" role="alert">{{ message }}</div>
-      {% endfor %}
-    {% endif %}
-    {% block content %}{% endblock %}
+  </div>
+  {% else %}
   </main>
-
-  <footer class="py-3 text-center text-muted small border-top bg-white">
-    BiteTracker &middot; Machine learning-based school meal demand forecasting and resource allocation decision support &middot; {{ DATA_LABEL }}
-  </footer>
+  {% endif %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    // Disable submit buttons and show progress while a form is being processed.
-    document.querySelectorAll("form[data-loading]").forEach(function (form) {
-      form.addEventListener("submit", function () {
-        form.querySelectorAll("button[type=submit]").forEach(function (button) {
-          button.disabled = true;
-          button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + form.dataset.loading;
-        });
-      });
-    });
-  </script>
+  <script src="{% static 'js/theme.js' %}"></script>
+  <script src="{% static 'js/layout.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

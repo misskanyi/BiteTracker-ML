@@ -11,7 +11,7 @@ observations strictly before the target date T:
 History is grouped by school, sorted by date, and shifted by one row before
 any window is taken, so T's own demand and any later day never enter its
 prediction, and one school's history never mixes with another's. Rows with
-missing `meals_served` are skipped ("available" observations only).
+missing `meals_served` are skipped ("available"`     observations only).
 
 Neither rule is tuned or fit to data, and neither uses `projected_students`.
 """
