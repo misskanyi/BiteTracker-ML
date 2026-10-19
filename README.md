@@ -155,20 +155,20 @@ In the most recent local run, the validation ranking was (TimeSeriesSplit, train
 
 | Model | Validation MAE | Selection rank |
 |---|---|---|
-| Random Forest (tuned) | 55.43 | 1 |
-| Linear Regression | 60.54 | 2 |
-| XGBoost (tuned) | 71.31 | 3 |
-| Decision Tree (tuned) | 90.89 | 4 |
+| Decision Tree (tuned) | 18.72 | 1 |
+| Random Forest (tuned) | 19.51 | 2 |
+| XGBoost (tuned) | 23.81 | 3 |
+| Linear Regression | 43.44 | 4 |
 
-`models/final_best_model_metadata.json` therefore records **tuned Random Forest** as the selected model. Its single evaluation on the test period, next to the naive baselines:
+`models/final_best_model_metadata.json` therefore records **tuned Decision Tree** as the selected model. Its single evaluation on the test period, next to the naive baselines:
 
 | Method | Type | Test MAE | Test RMSE | Test R² |
 |---|---|---|---|---|
-| Persistence / Last Observation | Naive baseline | 31.43 | 81.19 | 0.849 |
-| 7-Day Historical Mean | Naive baseline | 58.91 | 122.92 | 0.653 |
-| Random Forest (selected) | ML model | 19.37 | 47.07 | 0.949 |
+| Persistence / Last Observation | Naive baseline | 22.94 | 41.79 | 0.876 |
+| 7-Day Historical Mean | Naive baseline | 29.45 | 51.71 | 0.810 |
+| Decision Tree (selected) | ML model | 11.74 | 21.08 | 0.968 |
 
-On this synthetic test period the selected model's MAE is 12.06 meals (38.4%) lower than persistence and 39.54 meals (67.1%) lower than the 7-day mean. The other ML candidates had lower test MAE than Random Forest (see `reports/metrics/model_comparison.csv`), but test results were not used to choose the model. Validation MAE varies strongly between folds (the first fold, trained on only ~3 months, is much worse than the rest), so the ranking is fragile.
+On this synthetic test period the selected model's MAE is 11.19 meals (48.8%) lower than persistence and 17.71 meals (60.1%) lower than the 7-day mean. Tuned Random Forest had a slightly lower test MAE (11.38) than the selected Decision Tree (see `reports/metrics/model_comparison.csv`), but test results were not used to choose the model. Decision Tree and Random Forest are less than one fold standard deviation apart on validation MAE (18.72 ± 5.96 vs 19.51 ± 5.75), so the ranking between them is fragile.
 
 Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-20 (303 rows). The split never puts the same date in both periods.
 

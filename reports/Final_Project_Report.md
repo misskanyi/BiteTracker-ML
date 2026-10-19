@@ -73,7 +73,7 @@ re-run independently and its output inspected before moving to the next.
 
 > SYNTHETIC DEVELOPMENT RESULTS — not Food4Education or other real school data.
 
-**Random Forest** (tuned) — selected by lowest TimeSeriesSplit validation MAE (55.43) among
+**Decision Tree** (tuned) — selected by lowest TimeSeriesSplit validation MAE (18.72) among
 the four candidates. The current validation ranking, hyperparameters and all metrics are
 regenerated on every run in `reports/Hyperparameter_Tuning_Report.md`,
 `reports/metrics/validation_model_selection.csv` and `models/final_best_model_metadata.json`;
@@ -85,9 +85,9 @@ Selected model vs naive baselines (test period, synthetic data):
 
 | Method | Type | Test MAE | Test RMSE | Test R² |
 |---|---|---|---|---|
-| Persistence / Last Observation | Naive baseline | 31.43 | 81.19 | 0.849 |
-| 7-Day Historical Mean | Naive baseline | 58.91 | 122.92 | 0.653 |
-| **Random Forest (selected)** | ML model | **19.37** | **47.07** | **0.949** |
+| Persistence / Last Observation | Naive baseline | 22.94 | 41.79 | 0.876 |
+| 7-Day Historical Mean | Naive baseline | 29.45 | 51.71 | 0.810 |
+| **Decision Tree (selected)** | ML model | **11.74** | **21.08** | **0.968** |
 
 The other ML candidates' test metrics are in `reports/metrics/model_comparison.csv` for
 research comparison; they were not used to select the model.

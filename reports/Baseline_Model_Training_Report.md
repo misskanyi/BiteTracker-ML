@@ -13,8 +13,8 @@ Four ML regressors were trained with untuned, library-default hyperparameters (n
 
 ## Chronological Split
 
-- Train records: **574** (2025-01-24 to 2025-09-09)
-- Test records: **148** (2025-09-10 to 2025-11-03)
+- Train records: **1200** (2023-01-20 to 2024-08-01)
+- Test records: **303** (2024-08-02 to 2024-12-20)
 - Split ratio: **80%** train / **20%** test, by row order after date-sorting (no shuffling).
 - The test set is strictly the last 20% of chronologically-ordered observations, so every test-set prediction is made using only information from earlier in time.
 
@@ -22,21 +22,21 @@ Four ML regressors were trained with untuned, library-default hyperparameters (n
 
 | Model             |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 |   Training Time (s) |
 |:------------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|--------------------:|
-| Linear Regression |      68.369 |     53.242 |      109.380 |      84.620 |      0.985 |     0.991 |               0.011 |
-| Decision Tree     |       0.000 |     53.805 |        0.000 |     104.369 |      1.000 |     0.986 |               0.003 |
-| Random Forest     |      23.945 |     46.917 |       41.656 |      85.429 |      0.998 |     0.990 |               0.063 |
-| XGBoost           |       1.118 |     56.954 |        1.586 |      96.180 |      1.000 |     0.988 |               0.117 |
+| Linear Regression |      20.352 |     18.898 |       27.384 |      26.152 |      0.945 |     0.951 |               0.001 |
+| Decision Tree     |       0.000 |     14.025 |        0.000 |      25.135 |      1.000 |     0.955 |               0.014 |
+| Random Forest     |       5.612 |     11.094 |        8.525 |      19.131 |      0.995 |     0.974 |               0.166 |
+| XGBoost           |       0.960 |     12.026 |        1.413 |      20.200 |      1.000 |     0.971 |               0.190 |
 
 - Best by Test MAE: **Random Forest**
-- Best by Test RMSE: **Linear Regression**
-- Best by Test R²: **Linear Regression**
+- Best by Test RMSE: **Random Forest**
+- Best by Test R²: **Random Forest**
 
 ## Generalization / Overfitting Check
 
 - **Linear Regression**: Train/test performance are close — no strong evidence of overfitting.
-- **Decision Tree**: Potential overfitting: test MAE is 5380489864865% higher than train MAE and train R² exceeds test R² by 0.014. The model may be fitting training-period noise that doesn't generalize to the held-out period.
-- **Random Forest**: Potential overfitting: test MAE is 96% higher than train MAE and train R² exceeds test R² by 0.008. The model may be fitting training-period noise that doesn't generalize to the held-out period.
-- **XGBoost**: Potential overfitting: test MAE is 4993% higher than train MAE and train R² exceeds test R² by 0.012. The model may be fitting training-period noise that doesn't generalize to the held-out period.
+- **Decision Tree**: Potential overfitting: test MAE is 14.0 meals higher than train MAE (14.0 vs 0.0) and train R² exceeds test R² by 0.045. The model may be fitting training-period noise that doesn't generalize to the held-out period.
+- **Random Forest**: Potential overfitting: test MAE is 5.5 meals higher than train MAE (11.1 vs 5.6) and train R² exceeds test R² by 0.021. The model may be fitting training-period noise that doesn't generalize to the held-out period.
+- **XGBoost**: Potential overfitting: test MAE is 11.1 meals higher than train MAE (12.0 vs 1.0) and train R² exceeds test R² by 0.029. The model may be fitting training-period noise that doesn't generalize to the held-out period.
 
 ## Why Tuning Is Still Required
 

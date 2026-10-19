@@ -1,24 +1,24 @@
 # BiteTracker — Hyperparameter Tuning Report (Phase 5)
 
-> **FOOD4EDUCATION RESEARCH RESULTS.** Results below are from the anonymised Food4Education dataset, read live from its Google Sheet. Weather, cost and exam/event fields are not in that sheet and were held constant.
+> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** (`data/sample/synthetic_school_meals.csv`), not Food4Education or any real school records. They are measured, not fabricated.
 
 ## Why Tuning Was Required
 
-Phase 4 models used library-default hyperparameters, which lets tree-based models fit training noise. Measured default-hyperparameter results: Decision Tree: test R²=0.986 (Overfitting); Random Forest: test R²=0.990 (Overfitting); XGBoost: test R²=0.988 (Overfitting). This phase tunes depth, leaf-size, regularization, and sampling parameters to reduce the train/test gap, not just to chase a lower training error.
+Phase 4 models used library-default hyperparameters, which lets tree-based models fit training noise. Measured default-hyperparameter results: Decision Tree: test R²=0.955 (Overfitting); Random Forest: test R²=0.974 (Overfitting); XGBoost: test R²=0.971 (Overfitting). This phase tunes depth, leaf-size, regularization, and sampling parameters to reduce the train/test gap, not just to chase a lower training error.
 
 ## Why TimeSeriesSplit
 
 Meal demand is a time series — a school's future demand must never be predicted using information from its own future. `TimeSeriesSplit` builds growing folds where every validation fold occurs strictly after its training fold, unlike standard k-fold which would shuffle rows and let the model "see" the future during cross-validation.
 
-5 folds were used over the 574 training rows carried over from Phase 4 (the final 20% test set was held out entirely and never passed to GridSearchCV/RandomizedSearchCV). Exact fold ranges:
+5 folds were used over the 1200 training rows carried over from Phase 4 (the final 20% test set was held out entirely and never passed to GridSearchCV/RandomizedSearchCV). Exact fold ranges:
 
 | Fold | Train Rows | Train Index Range | Val Rows | Val Index Range |
 |---|---|---|---|---|
-| 1 | 99 | (0, 98) | 95 | (99, 193) |
-| 2 | 194 | (0, 193) | 95 | (194, 288) |
-| 3 | 289 | (0, 288) | 95 | (289, 383) |
-| 4 | 384 | (0, 383) | 95 | (384, 478) |
-| 5 | 479 | (0, 478) | 95 | (479, 573) |
+| 1 | 200 | (0, 199) | 200 | (200, 399) |
+| 2 | 400 | (0, 399) | 200 | (400, 599) |
+| 3 | 600 | (0, 599) | 200 | (600, 799) |
+| 4 | 800 | (0, 799) | 200 | (800, 999) |
+| 5 | 1000 | (0, 999) | 200 | (1000, 1199) |
 
 ## Scoring Strategy
 
@@ -39,10 +39,10 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 ```json
 {
-  "max_depth": 5,
+  "max_depth": 8,
   "max_features": null,
-  "min_samples_leaf": 10,
-  "min_samples_split": 2
+  "min_samples_leaf": 1,
+  "min_samples_split": 10
 }
 ```
 
@@ -51,10 +51,10 @@ Meal demand is a time series — a school's future demand must never be predicte
 ```json
 {
   "n_estimators": 100,
-  "min_samples_split": 5,
-  "min_samples_leaf": 1,
+  "min_samples_split": 2,
+  "min_samples_leaf": 2,
   "max_features": 0.7,
-  "max_depth": 15,
+  "max_depth": 10,
   "bootstrap": true
 }
 ```
@@ -65,11 +65,11 @@ Meal demand is a time series — a school's future demand must never be predicte
 {
   "subsample": 0.85,
   "reg_lambda": 10,
-  "reg_alpha": 0,
-  "n_estimators": 100,
+  "reg_alpha": 0.1,
+  "n_estimators": 200,
   "min_child_weight": 5,
-  "max_depth": 3,
-  "learning_rate": 0.1,
+  "max_depth": 2,
+  "learning_rate": 0.05,
   "colsample_bytree": 0.7
 }
 ```
@@ -78,23 +78,23 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 | Model         |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 | Generalization Gap Status   |   Tuning Time (s) |   Prediction Time (s) |   Best CV RMSE |
 |:--------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|:----------------------------|------------------:|----------------------:|---------------:|
-| Decision Tree |      55.457 |     61.233 |       90.859 |     110.196 |      0.990 |     0.984 | Moderate Gap                |             2.238 |                 0.000 |        129.286 |
-| Random Forest |      28.297 |     47.778 |       49.923 |      87.003 |      0.997 |     0.990 | Overfitting                 |             2.297 |                 0.003 |        133.327 |
-| XGBoost       |      42.779 |     45.068 |       70.485 |      81.139 |      0.994 |     0.991 | Good Generalization         |             0.590 |                 0.002 |        136.219 |
+| Decision Tree |      11.994 |     11.744 |       18.100 |      21.076 |      0.976 |     0.968 | Good Generalization         |             6.633 |                 0.001 |         29.221 |
+| Random Forest |      10.307 |     11.377 |       15.046 |      18.974 |      0.983 |     0.974 | Moderate Gap                |            11.796 |                 0.010 |         30.102 |
+| XGBoost       |      15.860 |     13.676 |       22.771 |      21.070 |      0.962 |     0.969 | Good Generalization         |             3.607 |                 0.005 |         33.542 |
 
 ## Default-Hyperparameter vs Tuned Comparison (test set, research only)
 
 | Model         |   Baseline Test MAE |   Tuned Test MAE |   MAE Improvement |   Baseline Test RMSE |   Tuned Test RMSE |   RMSE Improvement |   Baseline Test R2 |   Tuned Test R2 |   R2 Improvement | Baseline Overfitting Status   | Tuned Overfitting Status   |
 |:--------------|--------------------:|-----------------:|------------------:|---------------------:|------------------:|-------------------:|-------------------:|----------------:|-----------------:|:------------------------------|:---------------------------|
-| Decision Tree |              53.805 |           61.233 |            -7.429 |              104.369 |           110.196 |             -5.827 |              0.986 |           0.984 |           -0.002 | Overfitting                   | Moderate Gap               |
-| Random Forest |              46.917 |           47.778 |            -0.861 |               85.429 |            87.003 |             -1.574 |              0.990 |           0.990 |           -0.000 | Overfitting                   | Overfitting                |
-| XGBoost       |              56.954 |           45.068 |            11.887 |               96.180 |            81.139 |             15.041 |              0.988 |           0.991 |            0.004 | Overfitting                   | Good Generalization        |
+| Decision Tree |              14.025 |           11.744 |             2.281 |               25.135 |            21.076 |              4.059 |              0.955 |           0.968 |            0.013 | Overfitting                   | Good Generalization        |
+| Random Forest |              11.094 |           11.377 |            -0.283 |               19.131 |            18.974 |              0.157 |              0.974 |           0.974 |            0.000 | Overfitting                   | Moderate Gap               |
+| XGBoost       |              12.026 |           13.676 |            -1.650 |               20.200 |            21.070 |             -0.870 |              0.971 |           0.969 |           -0.003 | Overfitting                   | Good Generalization        |
 
 ## Did Tuning Reduce Overfitting?
 
-- **Decision Tree**: Test MAE did not improve (tuned model performed worse) by -7.43 meals (Overfitting → Moderate Gap).
-- **Random Forest**: Test MAE did not improve (tuned model performed worse) by -0.86 meals (Overfitting → Overfitting).
-- **XGBoost**: Test MAE improved by 11.89 meals (Overfitting → Good Generalization).
+- **Decision Tree**: Test MAE improved by 2.28 meals (Overfitting → Good Generalization).
+- **Random Forest**: Test MAE did not improve (tuned model performed worse) by -0.28 meals (Overfitting → Moderate Gap).
+- **XGBoost**: Test MAE did not improve (tuned model performed worse) by -1.65 meals (Overfitting → Good Generalization).
 
 ## Final Model Selection (validation only)
 
@@ -102,19 +102,19 @@ Selection criterion: **lowest TimeSeriesSplit validation MAE**, with lowest Time
 
 | Rank | Model | Validation MAE | Validation MAE Std | Validation RMSE | Folds |
 |---|---|---|---|---|---|
-| 1 | Random Forest | 78.445 | 14.904 | 133.327 | 5 |
-| 2 | Decision Tree | 80.279 | 13.782 | 129.286 | 5 |
-| 3 | XGBoost | 80.547 | 12.996 | 136.219 | 5 |
-| 4 | Linear Regression | 98.451 | 26.957 | 141.636 | 5 |
+| 1 | Decision Tree | 18.716 | 5.961 | 29.221 | 5 |
+| 2 | Random Forest | 19.509 | 5.754 | 30.102 | 5 |
+| 3 | XGBoost | 23.806 | 9.751 | 33.542 | 5 |
+| 4 | Linear Regression | 43.441 | 33.923 | 50.807 | 5 |
 
-**Selected final model: Random Forest** (validation MAE=78.445).
+**Selected final model: Decision Tree** (validation MAE=18.716).
 
 ## Final Test Evaluation (selected model, evaluated once)
 
-- Test MAE: **47.778** meals
-- Test RMSE: **87.003** meals
-- Test R²: **0.990**
-- Train/test generalization: Overfitting
+- Test MAE: **11.744** meals
+- Test RMSE: **21.076** meals
+- Test R²: **0.968**
+- Train/test generalization: Good Generalization
 
 ## Naive Forecasting Baselines
 
@@ -131,19 +131,30 @@ Validation columns are empty for the naive baselines: they were not evaluated on
 
 | Method                         | Type           |   Validation MAE |   Validation RMSE |   Selection Rank | Selected   |   Test MAE |   Test RMSE |   Test R2 |
 |:-------------------------------|:---------------|-----------------:|------------------:|-----------------:|:-----------|-----------:|------------:|----------:|
-| Persistence / Last Observation | Naive baseline |          nan     |           nan     |          nan     | False      |     40.633 |      74.005 |     0.993 |
-| 7-Day Historical Mean          | Naive baseline |          nan     |           nan     |          nan     | False      |     59.989 |     123.876 |     0.980 |
-| Random Forest                  | ML candidate   |           78.445 |           133.327 |            1.000 | True       |     47.778 |      87.003 |     0.990 |
-| Decision Tree                  | ML candidate   |           80.279 |           129.286 |            2.000 | False      |     61.233 |     110.196 |     0.984 |
-| XGBoost                        | ML candidate   |           80.547 |           136.219 |            3.000 | False      |     45.068 |      81.139 |     0.991 |
-| Linear Regression              | ML candidate   |           98.451 |           141.636 |            4.000 | False      |     53.242 |      84.620 |     0.991 |
+| Persistence / Last Observation | Naive baseline |          nan     |           nan     |          nan     | False      |     22.936 |      41.794 |     0.876 |
+| 7-Day Historical Mean          | Naive baseline |          nan     |           nan     |          nan     | False      |     29.454 |      51.712 |     0.810 |
+| Decision Tree                  | ML candidate   |           18.716 |            29.221 |            1.000 | True       |     11.744 |      21.076 |     0.968 |
+| Random Forest                  | ML candidate   |           19.509 |            30.102 |            2.000 | False      |     11.377 |      18.974 |     0.974 |
+| XGBoost                        | ML candidate   |           23.806 |            33.542 |            3.000 | False      |     13.676 |      21.070 |     0.969 |
+| Linear Regression              | ML candidate   |           43.441 |            50.807 |            4.000 | False      |     18.898 |      26.152 |     0.951 |
 
 ### Selected Model vs Naive Baselines (test period)
 
 | Selected Model   | Naive Baseline                 |   Baseline Test MAE |   Model Test MAE |   MAE Improvement |   MAE Improvement (%) |   Baseline Test RMSE |   Model Test RMSE |   RMSE Improvement | Model Beats Baseline (MAE)   |
 |:-----------------|:-------------------------------|--------------------:|-----------------:|------------------:|----------------------:|---------------------:|------------------:|-------------------:|:-----------------------------|
-| Random Forest    | Persistence / Last Observation |              40.633 |           47.778 |            -7.146 |               -17.586 |               74.005 |            87.003 |            -12.998 | False                        |
-| Random Forest    | 7-Day Historical Mean          |              59.989 |           47.778 |            12.211 |                20.356 |              123.876 |            87.003 |             36.873 | True                         |
+| Decision Tree    | Persistence / Last Observation |              22.936 |           11.744 |            11.191 |                48.794 |               41.794 |            21.076 |             20.718 | True                         |
+| Decision Tree    | 7-Day Historical Mean          |              29.454 |           11.744 |            17.710 |                60.127 |               51.712 |            21.076 |             30.636 | True                         |
 
-- vs **Persistence / Last Observation**: Random Forest does NOT beat it: MAE is worse by 7.15 meals (-17.6%).
-- vs **7-Day Historical Mean**: Random Forest beats it by 12.21 meals MAE (20.4%).
+- vs **Persistence / Last Observation**: Decision Tree beats it by 11.19 meals MAE (48.8%).
+- vs **7-Day Historical Mean**: Decision Tree beats it by 17.71 meals MAE (60.1%).
+
+## Limitations of Synthetic Data
+
+All tuning and evaluation above used the synthetic dataset generated for development (`src/synthetic_data.py`). Relationships between rainfall, holidays, exams, and attendance were hand-designed to be plausible, not fit to any real county's records. Hyperparameters selected here are only known to be good for this synthetic data's noise structure and scale.
+
+## What to Repeat With Real Data
+
+1. Re-run `run_pipeline.py` and `run_eda.py` against the real dataset once available (point `BITETRACKER_DATA_PATH`/`ACTIVE_DATA_PATH` at it).
+2. Re-run `run_training.py` for fresh baselines — real data's noise level and feature relationships will differ from the synthetic generator's assumptions.
+3. Re-run this tuning phase (`run_tuning.py`) from scratch — do not reuse the hyperparameters found here; they were fit to synthetic patterns.
+4. Re-check the TimeSeriesSplit fold sizes — a real dataset with different row counts or a longer history may warrant more or fewer folds.
