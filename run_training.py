@@ -247,9 +247,15 @@ def write_report(metrics_df: pd.DataFrame, split_metadata: dict) -> None:
     lines = [
         "# BiteTracker — Baseline Model Training Report",
         "",
-        "> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** "
-        "(`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, not fabricated — "
-        "they will change once a real dataset is used.",
+        (
+            "> **FOOD4EDUCATION RESEARCH RESULTS.** Results below are from the anonymised "
+            "Food4Education dataset, read live from its Google Sheet. Weather, cost and "
+            "exam/event fields are not in that sheet and were held constant."
+            if settings.USE_GOOGLE_SHEET
+            else "> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** "
+            "(`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, "
+            "not fabricated — they will change once a real dataset is used."
+        ),
         "",
         "## Training Process",
         "",
@@ -307,15 +313,18 @@ def write_report(metrics_df: pd.DataFrame, split_metadata: dict) -> None:
         "leaking future data into cross-validation folds. Whichever model looks best here "
         "may or may not remain best after tuning.",
         "",
-        "## Synthetic Data Caveat",
-        "",
-        "All figures in this report come from the synthetic dataset generated for development "
-        "(see `src/synthetic_data.py`), not real school records. Relationships (e.g. rainfall's "
-        "effect on attendance) were designed to be plausible but are not calibrated to any real "
-        "county's data. Treat these results as a pipeline validation exercise, not a claim about "
-        "real-world model performance.",
-        "",
     ]
+    if not settings.USE_GOOGLE_SHEET:
+        lines += [
+            "## Synthetic Data Caveat",
+            "",
+            "All figures in this report come from the synthetic dataset generated for development "
+            "(see `src/synthetic_data.py`), not real school records. Relationships (e.g. rainfall's "
+            "effect on attendance) were designed to be plausible but are not calibrated to any real "
+            "county's data. Treat these results as a pipeline validation exercise, not a claim about "
+            "real-world model performance.",
+            "",
+        ]
 
     out_path = settings.REPORTS_DIR / "Baseline_Model_Training_Report.md"
     out_path.write_text("\n".join(lines))
