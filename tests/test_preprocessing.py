@@ -1,4 +1,13 @@
-"""Tests for src/preprocessing.py."""
+"""Tests for src/preprocessing.py — date parsing, chronological sorting, duplicate removal,
+missing-value imputation, outlier handling and non-negative enforcement.
+
+What this file checks:
+- Dates are parsed into datetime; rows with unreadable dates are dropped.
+- Rows are sorted by school, then by date.
+- Duplicate rows (same school, same date) are removed.
+- Negative values are clipped to 0, missing values (NaN) are filled, and extreme
+  outliers are capped.
+"""
 
 from __future__ import annotations
 

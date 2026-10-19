@@ -1,4 +1,10 @@
-"""upload_service: validation summaries for uploaded files (no Django involved)."""
+"""upload_service: validation summaries for uploaded files (no Django involved).
+
+What this file checks:
+- The upload summary contains totals, not raw rows.
+- Missing columns make an upload invalid; Excel is supported.
+- Unreadable files are reported instead of crashing.
+"""
 
 from __future__ import annotations
 

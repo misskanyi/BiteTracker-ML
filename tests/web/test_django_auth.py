@@ -2,6 +2,14 @@
 
 Run with the rest of the suite via `pytest` (pytest-django reads
 DJANGO_SETTINGS_MODULE from pyproject.toml).
+
+What this file checks:
+- Login is required for pages, and the 'next' redirect works.
+- Email login is case-insensitive and rejects a wrong password, an email shared by
+  several accounts, and inactive users.
+- Logout only accepts POST.
+- The synthetic-data banner appears on every page.
+- SECRET_KEY is required when DEBUG is off.
 """
 
 from __future__ import annotations

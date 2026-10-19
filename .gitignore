@@ -235,6 +235,11 @@ reports/metrics/*
 !reports/metrics/.gitkeep
 data/uploads/*
 !data/uploads/.gitkeep
+# Only the committed synthetic sample belongs in data/sample/; any other file
+# dropped there (e.g. a real export) stays local.
+data/sample/*
+!data/sample/synthetic_school_meals.csv
+!data/sample/.gitkeep
 
 # Django collected static files (db.sqlite3 is already ignored above)
 staticfiles/
@@ -287,3 +292,15 @@ run_[0-9]*_[0-9]*/
 *.xlsx
 *.xls
 *[Ff]ood4[Ee]ducation*.csv
+*[Ff]4[Ee]*.csv
+*.ods
+*.numbers
+# Google Drive for desktop shortcut files (they contain the sheet/document ID)
+*.gsheet
+*.gdoc
+*.gslides
+*.gdraw
+*.gform
+*.gsite
+# Local exports of Google Sheets / downloaded workbooks
+*.tsv

@@ -215,18 +215,26 @@ def generate_charts(metrics_df: pd.DataFrame, predictions: pd.DataFrame) -> None
 
 
 def _overfitting_note(row: pd.Series) -> str:
+    # The gap is reported in meals, not as a percentage: a model that memorises the
+    # training period (e.g. an unpruned Decision Tree) has train MAE ≈ 0, which would
+    # make a percentage meaningless. The percentage is still used for the thresholds.
     mae_gap_pct = (row["Test MAE"] - row["Train MAE"]) / max(row["Train MAE"], 1e-9) * 100
+    mae_gap_meals = row["Test MAE"] - row["Train MAE"]
+    mae_gap_text = (
+        f"test MAE is {mae_gap_meals:.1f} meals higher than train MAE "
+        f"({row['Test MAE']:.1f} vs {row['Train MAE']:.1f})"
+    )
     r2_gap = row["Train R2"] - row["Test R2"]
     if mae_gap_pct > 50 or r2_gap > 0.15:
         return (
-            f"Potential overfitting: test MAE is {mae_gap_pct:.0f}% higher than train MAE and "
+            f"Potential overfitting: {mae_gap_text} and "
             f"train R² exceeds test R² by {r2_gap:.3f}. The model may be fitting training-period "
             "noise that doesn't generalize to the held-out period."
         )
     if mae_gap_pct < 10 and abs(r2_gap) < 0.05:
         return "Train/test performance are close — no strong evidence of overfitting."
     return (
-        f"Moderate generalization gap (test MAE {mae_gap_pct:.0f}% higher than train MAE, "
+        f"Moderate generalization gap ({mae_gap_text}, "
         f"R² gap {r2_gap:.3f}) — worth monitoring but not a clear overfitting signal on its own."
     )
 
@@ -239,9 +247,15 @@ def write_report(metrics_df: pd.DataFrame, split_metadata: dict) -> None:
     lines = [
         "# BiteTracker — Baseline Model Training Report",
         "",
-        "> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** "
-        "(`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, not fabricated — "
-        "they will change once a real dataset is used.",
+        (
+            "> **FOOD4EDUCATION RESEARCH RESULTS.** Results below are from the anonymised "
+            "Food4Education dataset, read live from its Google Sheet. Weather, cost and "
+            "exam/event fields are not in that sheet and were held constant."
+            if settings.USE_GOOGLE_SHEET
+            else "> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** "
+            "(`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, "
+            "not fabricated — they will change once a real dataset is used."
+        ),
         "",
         "## Training Process",
         "",
@@ -299,15 +313,18 @@ def write_report(metrics_df: pd.DataFrame, split_metadata: dict) -> None:
         "leaking future data into cross-validation folds. Whichever model looks best here "
         "may or may not remain best after tuning.",
         "",
-        "## Synthetic Data Caveat",
-        "",
-        "All figures in this report come from the synthetic dataset generated for development "
-        "(see `src/synthetic_data.py`), not real school records. Relationships (e.g. rainfall's "
-        "effect on attendance) were designed to be plausible but are not calibrated to any real "
-        "county's data. Treat these results as a pipeline validation exercise, not a claim about "
-        "real-world model performance.",
-        "",
     ]
+    if not settings.USE_GOOGLE_SHEET:
+        lines += [
+            "## Synthetic Data Caveat",
+            "",
+            "All figures in this report come from the synthetic dataset generated for development "
+            "(see `src/synthetic_data.py`), not real school records. Relationships (e.g. rainfall's "
+            "effect on attendance) were designed to be plausible but are not calibrated to any real "
+            "county's data. Treat these results as a pipeline validation exercise, not a claim about "
+            "real-world model performance.",
+            "",
+        ]
 
     out_path = settings.REPORTS_DIR / "Baseline_Model_Training_Report.md"
     out_path.write_text("\n".join(lines))

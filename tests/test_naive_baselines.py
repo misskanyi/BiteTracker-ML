@@ -1,4 +1,13 @@
-"""Tests for src/naive_baselines.py — per-school, strictly-past naive forecasts."""
+"""Tests for src/naive_baselines.py — per-school, strictly-past naive forecasts.
+
+What this file checks:
+- Persistence forecast = the same school's previous value.
+- The 7-day mean leaves out the target day and needs 7 observations.
+- Future data never changes past forecasts; missing observations are skipped.
+- Duplicate school/date rows are rejected.
+- On real pipeline data, persistence equals the lag_1 feature.
+- When the model loses to a baseline, the comparison reports it.
+"""
 
 from __future__ import annotations
 

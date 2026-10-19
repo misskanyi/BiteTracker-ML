@@ -1,0 +1,5 @@
+{# Data-status banner on every page: synthetic results must never be mistaken for real Food4Education results. #}
+<div class="bt-data-banner bt-data-banner--{{ DATA_STATUS.kind }}" role="note" data-testid="synthetic-banner">
+  {% if DATA_STATUS.kind == "synthetic" %}<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>{% elif DATA_STATUS.kind == "unknown" %}<i class="bi bi-question-circle-fill" aria-hidden="true"></i>{% else %}<i class="bi bi-database-check" aria-hidden="true"></i>{% endif %}
+  <span>{{ DATA_LABEL }}{% if DATA_STATUS.detail %} &middot; {{ DATA_STATUS.detail }}{% endif %}</span>
+</div>

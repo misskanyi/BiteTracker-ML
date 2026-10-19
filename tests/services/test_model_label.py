@@ -3,6 +3,11 @@
 `build_decision_support_result` used to default to "Tuned XGBoost" while the
 selected model was Random Forest. The label must now come from the saved
 model metadata, never from a hardcoded name.
+
+What this file checks:
+- The model name shown in the app comes from the saved metadata (e.g. never 'Tuned
+  XGBoost' when random forest was selected).
+- Unreadable metadata gives a neutral label; an explicit label still wins.
 """
 
 from __future__ import annotations

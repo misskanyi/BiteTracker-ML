@@ -97,15 +97,15 @@ Not rebuilt from the Streamlit prototype (deferred): specific-date Predict & Com
 - The count fell from 407 to 373 only because the 34 Streamlit UI tests were removed with the Streamlit app. No ML test was removed.
 - `manage.py check`: no issues. `makemigrations --check`: no changes.
 - Production-mode smoke test with gunicorn and DEBUG off, and a fresh-install check following the README, both passed.
-- GitHub Actions: workflow updated (adds `manage.py check` and the migration check). It has **not** run on these changes, because nothing has been committed.
+- GitHub Actions: workflow updated (adds `manage.py check` and the migration check). At the time of the migration nothing had been committed; the changes have since been pushed (commit `7baa9d9`), see `reports/SPRINT_II_TESTING.md` for the CI result.
 
 Full table: `reports/SPRINT_II_TESTING.md`.
 
 ## 9. Dataset status
 
-- **Active dataset:** synthetic (`data/sample/synthetic_school_meals.csv`; 3 fictional schools; school days 2023-01-02 to 2024-12-20; processed rows start 2023-01-20 after the 14-day lag window). Every page shows "SYNTHETIC DEVELOPMENT DATA", and Model Performance shows "SYNTHETIC DEVELOPMENT RESULTS".
-- **Active model:** tuned Random Forest, selected by the lowest mean TimeSeriesSplit validation MAE (55.43; standard deviation across folds 48.76). Single held-out test evaluation: MAE 19.37, RMSE 47.07, R² 0.949. Persistence baseline test MAE 31.43; 7-Day Historical Mean test MAE 58.91. Because validation MAE varied widely between folds, the selection does not show that Random Forest is unequivocally the best model. R² is not an accuracy percentage.
-- **Food4Education data:** no workbook has been placed in `data/raw/`, so it has **not** been audited, mapped or used. Its field names (`deidentified_school`, `activity_date`, `daily_unique_students_tapped`, `projected_students`, `actual_students`) are known only from the project brief.
+- **Active dataset (19 October 2026):** the anonymised Food4Education Google Sheet, read live via `BITETRACKER_GOOGLE_SHEET_URL` (5 schools; 722 usable school-day records, 2025-01-24 to 2025-11-03, after the 14-day lag window; target `daily_unique_students_tapped`). Pages show the Food4Education label and Model Performance shows "FOOD4EDUCATION RESEARCH RESULTS". Without the link (CI, tests) the synthetic dataset `data/sample/synthetic_school_meals.csv` is used and pages show "SYNTHETIC DEVELOPMENT DATA".
+- **Active model (19 October 2026, Food4Education Google Sheet):** tuned XGBoost, selected by the lowest mean TimeSeriesSplit validation MAE (75.92; standard deviation across folds 13.49). Single held-out test evaluation: MAE 51.64, RMSE 88.80, R² 0.989. Persistence baseline test MAE 39.07; 7-Day Historical Mean test MAE 58.10. **The selected model does not beat persistence.** Linear Regression (78.49) and Random Forest (79.23) were within one fold standard deviation on validation MAE. R² is not an accuracy percentage. (The 6 October migration run used the synthetic dataset and selected Random Forest with validation MAE 55.43.)
+- **Food4Education data:** loaded read-only from the Google Sheet by `src/google_sheet_loader.py`; not committed. Weather, cost and exam/event fields are not in the sheet and are held constant.
 
 **Provisional** availability of the current 20 features in the real data, based only on those field names. To be confirmed by the audit.
 

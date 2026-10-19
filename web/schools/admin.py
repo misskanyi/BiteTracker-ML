@@ -2,6 +2,10 @@ from django.contrib import admin
 
 from web.schools.models import DatasetUpload, ForecastRun, School
 
+admin.site.site_header = "BiteTracker administration"
+admin.site.site_title = "BiteTracker admin"
+admin.site.index_title = "Site administration"
+
 
 @admin.register(School)
 class SchoolAdmin(admin.ModelAdmin):

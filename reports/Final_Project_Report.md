@@ -1,10 +1,9 @@
 # BiteTracker — Final Project Report
 
-> All performance figures in this report were measured on the **synthetic development
-> dataset** (`src/synthetic_data.py`). They demonstrate that the full pipeline — data
-> generation, cleaning, feature engineering, training, tuning, forecasting, and the
-> Streamlit app — works correctly end to end. They are not a claim about real-world
-> forecasting accuracy; see [Known Limitations](#known-limitations).
+> All performance figures in this report were measured on the **anonymised Food4Education
+> research dataset**, read live from its Google Sheet (5 schools, 722 usable school-day
+> records, 24 January to 3 November 2025). Weather, cost and exam/event fields are not in
+> that sheet and were held constant. See [Known Limitations](#known-limitations).
 
 ## Project Summary
 
@@ -18,7 +17,7 @@ and exposes next-day/7-day/30-day forecasts through a Streamlit dashboard.
 ## Final Architecture
 
 ```
-synthetic_data.py / real CSV
+google_sheet_loader.py (Food4Education) / synthetic_data.py
         │
         ▼
 data_loader.py (schema validation)
@@ -71,26 +70,32 @@ re-run independently and its output inspected before moving to the next.
 
 ## Final Selected Model
 
-> SYNTHETIC DEVELOPMENT RESULTS — not Food4Education or other real school data.
+> FOOD4EDUCATION RESEARCH RESULTS.
 
-**Random Forest** (tuned) — selected by lowest TimeSeriesSplit validation MAE (55.43) among
-the four candidates. The current validation ranking, hyperparameters and all metrics are
+**XGBoost** (tuned) — selected by lowest TimeSeriesSplit validation MAE (75.92 ± 13.49)
+among the four candidates. Linear Regression (78.49 ± 13.26) and Random Forest
+(79.23 ± 18.57) are within one fold standard deviation, so the ranking is fragile. The current validation ranking, hyperparameters and all metrics are
 regenerated on every run in `reports/Hyperparameter_Tuning_Report.md`,
 `reports/metrics/validation_model_selection.csv` and `models/final_best_model_metadata.json`;
 treat those files as the source of truth.
 
 ## Performance Metrics
 
-Selected model vs naive baselines (test period, synthetic data):
+Selected model vs naive baselines (test period 10 September to 3 November 2025, 148 rows):
 
 | Method | Type | Test MAE | Test RMSE | Test R² |
 |---|---|---|---|---|
-| Persistence / Last Observation | Naive baseline | 31.43 | 81.19 | 0.849 |
-| 7-Day Historical Mean | Naive baseline | 58.91 | 122.92 | 0.653 |
-| **Random Forest (selected)** | ML model | **19.37** | **47.07** | **0.949** |
+| Persistence / Last Observation | Naive baseline | 39.07 | 69.10 | 0.994 |
+| 7-Day Historical Mean | Naive baseline | 58.10 | 119.79 | 0.981 |
+| **XGBoost (selected)** | ML model | **51.64** | **88.80** | **0.989** |
 
-The other ML candidates' test metrics are in `reports/metrics/model_comparison.csv` for
-research comparison; they were not used to select the model.
+**The selected model does not beat the persistence baseline**: its test MAE is 12.57 meals
+(32.2%) worse than repeating each school's previous day. It beats the 7-day mean by 6.46
+meals (11.1%). No ML candidate beat persistence on the test period (best: Random Forest,
+test MAE 49.54). The other candidates' test metrics are in
+`reports/metrics/model_comparison.csv` for research comparison; they were not used to select
+the model. R² is above 0.98 for every method, including persistence, so it does not
+separate the models.
 
 ## Forecasting Workflow
 
@@ -145,7 +150,7 @@ Six Streamlit pages, all reading live from `data/processed/` and `models/`:
 - App entry point confirmed to run with exactly `streamlit run app/Home.py`.
 
 **Not yet production-ready for real deployment** — see Known Limitations below;
-principally, the model has only ever seen synthetic data.
+principally, on the Food4Education data the model does not yet beat the persistence baseline.
 
 ## Decision-Support Capabilities (Phase 2)
 
@@ -182,15 +187,14 @@ prediction — they do not change what the model was trained on or how it predic
 
 ## Known Limitations
 
-- Synthetic data only — no real-world accuracy claim.
+- On the Food4Education test period no ML model beats the persistence baseline.
 - Forecast error compounds over longer horizons (recursive multi-step prediction).
 - No true future weather/attendance forecast — day 2+ always uses a historical average.
 - The safety buffer (`src/decision_support.py`) is a documented heuristic based on recent
   volatility and horizon, not a statistically fitted prediction interval.
-- Only 3 synthetic schools, ~2 years of history — limited data for the longer lag
-  features and cross-school generalization.
-- Kenyan school calendar in the synthetic generator is approximated, not sourced from an
-  authoritative gazette.
+- Only 5 Food4Education schools and under one school year of history — limited data for
+  the longer lag features and cross-school generalization.
+- The Food4Education sheet has no weather, cost or exam/event fields; they are held constant.
 - PostgreSQL support is prepared in `config/settings.py` but not wired into the pipeline —
   the app runs entirely on CSV files.
 - Uploaded schools need 14+ daily records before any prediction is possible (lag-14 feature
@@ -200,8 +204,8 @@ prediction — they do not change what the model was trained on or how it predic
 
 ## Future Improvements
 
-- Replace synthetic data with real school records and re-run baseline + tuning from
-  scratch — hyperparameters found here are fit to synthetic noise, not real patterns.
+- Add a real school calendar, weather source and exam/event dates for the Food4Education
+  schools, collect a longer history, and re-run baseline + tuning against persistence.
 - Add genuine weather/attendance forecast inputs instead of historical-average fallbacks.
 - Fit the safety buffer to each model's measured residual spread instead of the current
   volatility/horizon heuristic.

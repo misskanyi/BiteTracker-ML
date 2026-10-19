@@ -5,6 +5,11 @@ Training (src/feature_engineering.py) makes one row per target date T. Inference
 the same school and T, every feature in FEATURE_COLUMNS must be equal; if the
 two paths drift apart again (e.g. one of them shifts calendar features by a
 day), these tests fail.
+
+What this file checks:
+- The feature row built at forecast time matches the training row for every date,
+  including Mondays and holidays.
+- The day-1 forecast uses exactly the training row.
 """
 
 from __future__ import annotations

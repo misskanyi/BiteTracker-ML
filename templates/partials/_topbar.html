@@ -1,0 +1,36 @@
+{# Slim header: drawer button (mobile), current location, theme toggle, account menu. #}
+<header class="bt-topbar bt-glass-nav">
+  <button type="button" class="bt-icon-btn bt-glass-button d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#bt-sidebar"
+          aria-controls="bt-sidebar" aria-label="Open navigation">
+    <i class="bi bi-list" aria-hidden="true"></i>
+  </button>
+
+  <nav class="bt-crumb" aria-label="Breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item d-none d-sm-inline"><a href="{% url 'core:dashboard' %}">BiteTracker</a></li>
+      {% if NAV_CURRENT %}<li class="breadcrumb-item active" aria-current="page">{{ NAV_CURRENT }}</li>{% endif %}
+    </ol>
+  </nav>
+
+  <div class="bt-topbar__actions">
+    <button type="button" class="bt-icon-btn bt-glass-button" id="bt-theme-toggle" aria-label="Switch to dark theme" aria-pressed="false">
+      <i class="bi bi-moon-stars bt-theme-icon--light" aria-hidden="true"></i>
+      <i class="bi bi-sun bt-theme-icon--dark" aria-hidden="true"></i>
+    </button>
+
+    <div class="dropdown">
+      <button type="button" class="bt-avatar bt-avatar--button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
+        {{ user.get_username|slice:":2"|upper }}
+      </button>
+      <div class="dropdown-menu dropdown-menu-end bt-menu">
+        <div class="px-3 py-2 small text-body-secondary">Signed in as {{ user.get_username }}</div>
+        <div class="dropdown-divider"></div>
+        {% if user.is_staff %}<a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Django admin</a>{% endif %}
+        <form method="post" action="{% url 'accounts:logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Log out</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>

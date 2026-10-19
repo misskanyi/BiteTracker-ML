@@ -4,6 +4,18 @@ model performance, dataset upload, data-status labels, permissions and error han
 Most tests use `stub_artifacts` (a small synthetic dataset + fixed-weight model in a temp
 directory). Tests marked with `real_artifacts` use the saved development pipeline outputs
 and skip if they have not been generated.
+
+What this file checks:
+- Every page requires login, and forms need a CSRF token.
+- Dashboard: content, recent runs, and a sensible fallback when there's no data or
+  model.
+- History: filters, date validation, pagination.
+- Forecast form: horizons, results, the run is recorded, friendly error messages, no
+  training during a request.
+- Performance page: shows the saved metrics and never calls R² 'accuracy'.
+- Upload: permissions, validation, file type and size limits.
+- Banner label is correct; error messages don't show file paths.
+- Custom 404 page and production security settings (allowed hosts, secure cookies).
 """
 
 from __future__ import annotations
@@ -34,7 +46,7 @@ pytestmark = pytest.mark.django_db
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PASSWORD = "Str0ng-test-passw0rd!"
 
-PAGES = ["core:dashboard", "core:history", "core:forecast", "core:forecast_history", "core:performance", "schools:upload"]
+PAGES = ["core:dashboard", "core:history", "core:forecast", "core:forecast_history", "core:performance", "core:donors", "schools:upload"]
 
 
 @pytest.fixture

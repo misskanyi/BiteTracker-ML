@@ -4,7 +4,8 @@ Record of tests and checks actually run during the Streamlit → Django migratio
 
 - **Environment:** macOS (Darwin 25.6.0), Python 3.11.16, Django 5.2.17, pytest 8.4.2, pytest-django 4.14.0.
 - **Data:** all results use the **SYNTHETIC DEVELOPMENT DATA** (`data/sample/synthetic_school_meals.csv`) and the saved development model (tuned Random Forest, artifacts dated 2026-09-28). No Food4Education data was used.
-- **CI:** GitHub Actions has **not** been run on these changes, because nothing has been committed or pushed. Every result below is from local runs.
+- **CI:** at the time of this record (6 October 2026) nothing had been committed, so every result below is from local runs. The changes have since been committed and pushed; GitHub Actions result for commit `7baa9d9` on `feature/ui-redesign` (pushed 19 October 2026): **TODO — fill in from the Actions tab**. Every CI step was also replicated locally on a clean checkout of `7baa9d9` (pipeline, artifact check, `manage.py check`, `makemigrations --check`, `pytest -q`: 508 passed, 19 warnings).
+- **Model numbers below** (Random Forest, validation MAE 55.43, test MAE 19.37) are from the 6 October code on the synthetic dataset. The reported results now come from the Food4Education Google Sheet (19 October 2026: tuned XGBoost, validation MAE 75.92, test MAE 51.64, which does not beat the persistence baseline's 39.07); see `reports/Hyperparameter_Tuning_Report.md`.
 
 ## 1. Automated test suite
 

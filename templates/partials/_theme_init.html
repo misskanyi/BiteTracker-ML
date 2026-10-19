@@ -1,0 +1,16 @@
+{% comment %}
+  Runs before any stylesheet paints so the page never flashes the wrong theme.
+  Shares the "theme" localStorage key with Django admin's own toggle, so both stay in sync.
+  Stored value "light"/"dark" is an explicit choice; anything else follows the OS setting.
+{% endcomment %}
+<script>
+  (function () {
+    var root = document.documentElement, stored = null, collapsed = null;
+    try { stored = localStorage.getItem("theme"); collapsed = localStorage.getItem("bt-sidebar"); } catch (e) {}
+    var theme = (stored === "light" || stored === "dark") ? stored
+      : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    root.setAttribute("data-theme", theme);
+    root.setAttribute("data-bs-theme", theme);
+    if (collapsed === "collapsed") root.classList.add("bt-sidebar-collapsed");
+  })();
+</script>

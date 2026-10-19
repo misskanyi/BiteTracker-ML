@@ -1,4 +1,12 @@
-"""Stage 2: model_service — loading, caching, metadata checks and feature alignment."""
+"""Stage 2: model_service — loading, caching, metadata checks and feature alignment.
+
+What this file checks:
+- The model is loaded once and cached, and reloaded if the file on disk changes.
+- Clear errors for a missing or corrupt model and for missing or bad metadata.
+- Strict feature checks: missing, reordered or wrong-count features block prediction.
+- Model class, hyperparameters and target must match the metadata.
+- Forecasting never trains a model; the services import without Django or training code.
+"""
 
 from __future__ import annotations
 

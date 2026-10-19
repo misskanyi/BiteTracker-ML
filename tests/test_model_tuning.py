@@ -1,4 +1,18 @@
-"""Tests for src/model_tuning.py — TimeSeriesSplit chronology, tuning, artifacts."""
+"""Tests for src/model_tuning.py — TimeSeriesSplit chronology, tuning, artifacts.
+
+What this file checks:
+- Time-series cross-validation folds always have train before validation.
+- Parameter grids are well formed.
+- Decision tree, random forest and XGBoost tuning work; random search stays within its
+  budget.
+- The final test set is never passed to the tuner.
+- The tuned model and its best parameters save and load correctly.
+- The baseline-vs-tuned comparison reports real improvements honestly and doesn't hide a
+  worse result.
+- The generalisation gap (train vs test error) is labelled correctly.
+- Searches score on MAE and RMSE and refit on MAE; results are reproducible with a fixed
+  seed.
+"""
 
 from __future__ import annotations
 

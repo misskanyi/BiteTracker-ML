@@ -2,118 +2,162 @@
 {% load humanize bitetracker %}
 {% block title %}Forecast — {{ run.school_name|default:run.school_code }}{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-  <div>
-    <h1 class="h3 mb-1"><i class="bi bi-calendar2-check me-2 text-success"></i>{{ run.school_name|default:run.school_code }}: {{ run.get_horizon_days_display|lower }}</h1>
-    <p class="text-muted mb-0 small">Generated {{ run.created_at|date:"j M Y, H:i" }}{% if run.user %} by {{ run.user.get_username }}{% endif %} · Model: <span data-testid="run-model">{{ run.model_label }}</span> · {{ run.results_label }}</p>
+<div class="bt-page-header bt-page-header--actions">
+  <span class="bt-icon-chip" aria-hidden="true"><i class="bi bi-calendar2-check"></i></span>
+  <div class="flex-grow-1">
+    <h1 class="bt-page-title">{{ run.school_name|default:run.school_code }}: {{ run.get_horizon_days_display|lower }}</h1>
+    <p class="bt-page-subtitle">Generated {{ run.created_at|date:"j M Y, H:i" }}{% if run.user %} by {{ run.user.get_username }}{% endif %} · Model: <span data-testid="run-model">{{ run.model_label }}</span> · {{ run.results_label }}</p>
   </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:forecast_history' %}"><i class="bi bi-clock-history me-1"></i>Forecast history</a>
-    <a class="btn btn-success btn-sm" href="{% url 'core:forecast' %}?school={{ run.school_code }}&amp;horizon={{ run.horizon_days }}"><i class="bi bi-arrow-repeat me-1"></i>New forecast</a>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:forecast_history' %}"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Forecast history</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'core:forecast' %}?school={{ run.school_code }}&amp;horizon={{ run.horizon_days }}"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>New forecast</a>
   </div>
 </div>
 
-<div class="alert alert-info d-flex gap-2 align-items-start" role="status" data-testid="origin-note">
-  <i class="bi bi-calendar-event mt-1"></i>
-  <div><strong>{{ summary.origin_note }}</strong><br>
-  <span class="small">Forecast covers {{ run.first_forecast_date|date:"j M Y" }} – {{ run.last_forecast_date|date:"j M Y" }} ({{ days|length }} school day{{ days|length|pluralize }}). This is not a forecast from today's date.</span></div>
+<div class="bt-callout bt-callout--info mb-3" role="status" data-testid="origin-note">
+  <i class="bi bi-calendar-event" aria-hidden="true"></i>
+  <span><strong>{{ summary.origin_note }}</strong><br>
+  Forecast covers {{ run.first_forecast_date|date:"j M Y" }} – {{ run.last_forecast_date|date:"j M Y" }} ({{ days|length }} school day{{ days|length|pluralize }}). This is not a forecast from today's date.</span>
 </div>
-
 {% for w in summary.warnings %}
-  <div class="alert alert-warning small py-2" role="alert"><i class="bi bi-exclamation-triangle me-1"></i>{{ w }}</div>
+  <div class="bt-callout bt-callout--warning mb-3" role="note"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ w }}</span></div>
 {% endfor %}
 
-<h2 class="h5 mt-4 mb-3">Day 1 · {{ run.first_forecast_date|date:"l j M Y" }}</h2>
-<div class="row g-3 mb-4">
-  <div class="col-md-4">
+{# --- Day 1 headline --------------------------------------------------------------------------- #}
+<h2 class="bt-section-title">Day 1 · {{ run.first_forecast_date|date:"l j M Y" }}</h2>
+<section class="row g-3 mb-2" aria-label="Day 1 forecast">
+  <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card result-card--predicted"><div class="card-body">
       <div class="result-label">Predicted demand</div>
       <div class="result-value" data-testid="predicted-meals">{{ ds.predicted_meals|intcomma }} <span class="result-unit">meals</span></div>
-      <div class="small text-muted">The model's estimate of meals that will be served.</div>
+      <div class="bt-footnote">The model's estimate of meals that will be served.</div>
     </div></div>
   </div>
-  <div class="col-md-4">
+  <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card result-card--recommended"><div class="card-body">
       <div class="result-label">Recommended preparation</div>
       <div class="result-value" data-testid="recommended-meals">{{ ds.recommended_meals|intcomma }} <span class="result-unit">meals</span></div>
-      <div class="small text-muted">Predicted demand + {{ ds.buffer_meals }} meal safety buffer ({{ ds.buffer_pct }}%).</div>
+      <div class="bt-footnote">Predicted demand plus a rule-based safety buffer.</div>
     </div></div>
   </div>
-  <div class="col-md-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100 result-card"><div class="card-body">
+      <div class="result-label">Difference (safety buffer)</div>
+      <div class="result-value">+{{ ds.buffer_meals|intcomma }} <span class="result-unit">meals</span></div>
+      <div class="bt-footnote">{{ ds.buffer_pct }}% of predicted demand, added to cover day-to-day volatility.</div>
+    </div></div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card"><div class="card-body">
       <div class="result-label">Planning risk</div>
       <div class="result-value"><span class="badge risk-badge risk-{{ ds.risk_level|lower }} fs-5">{{ ds.risk_level }}</span></div>
-      <div class="small text-muted">Based on the safety buffer's size: how volatile this school's recent demand is relative to predicted demand.</div>
-      <div class="small mt-1"><strong>Horizon:</strong> {{ ds.uncertainty }}</div>
+      <div class="bt-footnote">Based on the buffer's size relative to predicted demand. Horizon: {{ ds.uncertainty }}</div>
     </div></div>
   </div>
-</div>
-<p class="small text-muted mb-4"><i class="bi bi-info-circle me-1"></i>The safety buffer is a rule-based planning heuristic (recent demand volatility, scaled up for days further ahead, capped at 20% of predicted demand). It is not a statistical confidence interval.</p>
+</section>
+<p class="bt-footnote mb-4"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>The safety buffer is a rule-based planning heuristic (recent demand volatility, scaled up for days further ahead, capped at 20% of predicted demand). It is not a statistical confidence interval.</p>
 
+{# --- Budget + resource planning ---------------------------------------------------------------- #}
 <div class="row g-3 mb-4">
-  <div class="col-lg-6">
-    <div class="card h-100"><div class="card-body">
-      <h3 class="h6"><i class="bi bi-cash-coin me-1"></i>Estimated cost</h3>
-      {% if summary.cost_estimate %}
-        <dl class="row mb-1">
-          <dt class="col-7 fw-normal">Day 1 (predicted demand)</dt><dd class="col-5 text-end">KSh {{ summary.cost_estimate.daily_cost|floatformat:0|intcomma }}</dd>
-          <dt class="col-7 fw-normal">Whole horizon ({{ days|length }} day{{ days|length|pluralize }})</dt><dd class="col-5 text-end">KSh {{ summary.totals.estimated_cost|floatformat:0|intcomma }}</dd>
-        </dl>
-        <p class="small text-muted mb-0">Predicted meals × recent average cost per meal (KSh {{ summary.cost_per_meal }}).</p>
-      {% else %}
-        <p class="small text-muted mb-0">No cost-per-meal data is available for this school.</p>
-      {% endif %}
-    </div></div>
+  <div class="col-xl-7">
+    <section class="card h-100" aria-labelledby="budget-heading" data-testid="meal-budget">
+      <div class="card-header bt-card-header">
+        <h2 class="bt-card-title" id="budget-heading"><i class="bi bi-cash-coin" aria-hidden="true"></i>Meal budget</h2>
+        <span class="badge bt-badge-primary" data-testid="cost-per-meal">{{ budget.cost_per_meal|kes }} per meal · {% if cost_source == "override" %}recalculated{% elif cost_source == "default" %}default assumption{% else %}assumption used{% endif %}</span>
+      </div>
+      <div class="card-body">
+        {% if cost_error %}<div class="alert alert-danger py-2" role="alert" data-testid="cost-error">{{ cost_error }}</div>{% endif %}
+        <div class="table-responsive">
+          <table class="table bt-table bt-budget-table mb-3">
+            <thead><tr><th scope="col"></th><th scope="col" class="text-end">Meals</th><th scope="col" class="text-end">Estimated budget</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" class="fw-normal">Day 1 · predicted demand</th><td class="text-end">{{ ds.predicted_meals|intcomma }}</td><td class="text-end">{{ budget.day1_predicted_cost|kes }}</td></tr>
+              <tr><th scope="row" class="fw-normal">Day 1 · recommended preparation</th><td class="text-end">{{ ds.recommended_meals|intcomma }}</td><td class="text-end fw-semibold" data-testid="day1-budget">{{ budget.day1_recommended_cost|kes }}</td></tr>
+              {% if budget.horizon_days > 1 %}
+              <tr class="bt-row-group"><th scope="row" class="fw-normal">All {{ budget.horizon_days }} school days · predicted demand</th><td class="text-end">{{ budget.horizon_predicted_meals|intcomma }}</td><td class="text-end">{{ budget.horizon_predicted_cost|kes }}</td></tr>
+              <tr><th scope="row" class="fw-normal">All {{ budget.horizon_days }} school days · recommended preparation</th><td class="text-end">{{ budget.horizon_recommended_meals|intcomma }}</td><td class="text-end fw-semibold" data-testid="horizon-budget">{{ budget.horizon_recommended_cost|kes }}</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        <form method="get" class="row g-2 align-items-end" data-testid="cost-form">
+          <div class="col-sm-6 col-md-5">
+            <label class="form-label" for="cost-override">Try a different cost per meal</label>
+            <div class="input-group">
+              <span class="input-group-text">KES</span>
+              <input type="number" class="form-control" id="cost-override" name="cost" min="1" max="10000" step="0.01" inputmode="decimal" value="{{ budget.cost_per_meal|floatformat:'-2' }}">
+            </div>
+          </div>
+          <div class="col-auto"><button type="submit" class="btn btn-outline-secondary">Recalculate</button></div>
+          {% if cost_source == "override" %}<div class="col-auto"><a class="btn btn-link px-0" href="{% url 'core:forecast_run' run.pk %}">Reset</a></div>{% endif %}
+        </form>
+        <p class="bt-footnote mt-3 mb-0">Budget = meals × cost per meal. The cost per meal is a planning assumption (default KES {{ default_cost|floatformat:"-2" }}), not verified Food4Education expenditure. Recalculating only re-prices this saved forecast; predictions are unchanged and no new forecast is created. Multi-day totals add each day's meals once.{% if summary.cost_estimate %} The dataset itself records an average of KSh {{ summary.cost_per_meal }} per meal for this school.{% endif %}</p>
+      </div>
+    </section>
   </div>
-  <div class="col-lg-6">
-    <div class="card h-100"><div class="card-body">
-      <h3 class="h6"><i class="bi bi-box-seam me-1"></i>Resource planning</h3>
-      {% if summary.allocation %}
-        <p class="mb-1"><span class="badge text-bg-{% if summary.allocation.status == 'Shortage' %}danger{% elif summary.allocation.status == 'Surplus' %}warning{% else %}success{% endif %}">{{ summary.allocation.status }}</span>
-        Planned capacity {{ summary.allocation.available_capacity }} vs predicted demand {{ summary.allocation.predicted_demand }}.</p>
-        <p class="small mb-1" data-testid="allocation">{{ summary.allocation.recommendation }}</p>
-      {% endif %}
-      <p class="mb-1">Prepare <strong>{{ summary.totals.recommended_meals|intcomma }}</strong> meals over the horizon for a predicted demand of <strong>{{ summary.totals.predicted_meals|intcomma }}</strong>.</p>
-      <p class="small text-muted mb-0">A decision-support recommendation, not an automatic instruction. Final decisions stay with school and programme staff.</p>
-    </div></div>
+  <div class="col-xl-5">
+    <section class="card h-100" aria-labelledby="resource-heading">
+      <div class="card-body">
+        <h2 class="bt-card-title mb-3" id="resource-heading"><i class="bi bi-box-seam" aria-hidden="true"></i>Resource planning</h2>
+        {% if summary.allocation %}
+          <p class="mb-2"><span class="badge text-bg-{% if summary.allocation.status == 'Shortage' %}danger{% elif summary.allocation.status == 'Surplus' %}warning{% else %}success{% endif %}">{{ summary.allocation.status }}</span>
+          Planned capacity {{ summary.allocation.available_capacity|intcomma }} vs predicted demand {{ summary.allocation.predicted_demand|intcomma }}.</p>
+          <p class="small mb-3" data-testid="allocation">{{ summary.allocation.recommendation }}</p>
+        {% endif %}
+        <p class="mb-2">Prepare <strong>{{ summary.totals.recommended_meals|intcomma }}</strong> meals over the horizon for a predicted demand of <strong>{{ summary.totals.predicted_meals|intcomma }}</strong>.</p>
+        <p class="bt-footnote mb-0">A decision-support recommendation, not an automatic instruction. Final decisions stay with school and programme staff.</p>
+      </div>
+    </section>
   </div>
 </div>
 
-<div class="card mb-4"><div class="card-body">
-  {% include "partials/_chart.html" with chart=chart chart_id="forecast-chart" %}
-</div></div>
+<section class="card mb-4" aria-labelledby="forecast-chart-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="forecast-chart-heading"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i>Recent demand and forecast</h2></div>
+  <div class="card-body">
+    {% include "partials/_chart.html" with chart=chart chart_id="forecast-chart" hide_title=True %}
+    {% if days|length > 1 %}<p class="bt-footnote mb-0">Uncertainty grows with each day further from the last recorded date.</p>{% endif %}
+  </div>
+</section>
 
-<div class="card mb-4">
-  <div class="card-header bg-white"><h3 class="h6 mb-0">Day-by-day forecast</h3></div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0" data-testid="forecast-table">
-      <thead class="table-light"><tr><th>#</th><th>Date</th><th class="text-end">Predicted demand</th><th class="text-end">Recommended preparation</th><th class="text-end">Buffer</th><th>Risk</th><th class="text-end">Est. cost (KSh)</th><th>Attendance basis</th></tr></thead>
+<section class="card mb-4" aria-labelledby="days-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="days-heading"><i class="bi bi-table" aria-hidden="true"></i>Day-by-day forecast</h2></div>
+  <div class="table-responsive bt-table-scroll">
+    <table class="table table-hover align-middle mb-0 bt-table bt-table--sticky" data-testid="forecast-table">
+      <thead><tr>
+        <th scope="col">#</th><th scope="col">Date</th>
+        <th scope="col" class="text-end">Predicted</th><th scope="col" class="text-end">Recommended</th><th scope="col" class="text-end">Buffer</th>
+        <th scope="col">Risk</th><th scope="col" class="text-end">Budget (recommended)</th><th scope="col">Attendance basis</th>
+      </tr></thead>
       <tbody>
         {% for d in days %}
         <tr>
           <td>{{ d.day_number }}</td>
           <td class="text-nowrap">{{ d.date|date:"D j M Y" }}</td>
-          <td class="text-end">{{ d.predicted_meals }}</td>
-          <td class="text-end fw-semibold">{{ d.recommended_meals }}</td>
-          <td class="text-end small">+{{ d.buffer_meals }} ({{ d.buffer_pct }}%)</td>
+          <td class="text-end">{{ d.predicted_meals|intcomma }}</td>
+          <td class="text-end fw-semibold">{{ d.recommended_meals|intcomma }}</td>
+          <td class="text-end bt-cell-sub">+{{ d.buffer_meals }} ({{ d.buffer_pct }}%)</td>
           <td><span class="badge risk-badge risk-{{ d.risk_level|lower }}">{{ d.risk_level }}</span></td>
-          <td class="text-end">{% if d.estimated_cost is not None %}{{ d.estimated_cost|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
-          <td class="small text-muted">{{ d.attendance_assumption }}</td>
+          <td class="text-end">{{ d.budget.recommended_cost|kes }}</td>
+          <td class="bt-cell-sub">{{ d.attendance_assumption }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
+</section>
 
-<div class="card">
-  <div class="card-body small">
-    <h3 class="h6">Assumptions used</h3>
-    <ul class="mb-2">
-      {% for a in ds.assumptions %}<li>{{ a }}</li>{% endfor %}
-    </ul>
-    <p class="mb-0 text-muted">User inputs: {% for k, v in run.assumptions.items %}{{ k|humanize_key }} = {{ v }}{% if not forloop.last %}, {% endif %}{% empty %}none (recent averages used){% endfor %}. Model version: {{ run.model_version|default:"unknown" }}.</p>
+<section class="card">
+  <div class="card-body">
+    <details class="bt-disclosure" open>
+      <summary><i class="bi bi-list-check" aria-hidden="true"></i>Assumptions used</summary>
+      <ul class="small mt-2 mb-2">
+        {% for a in assumptions %}<li>{{ a }}</li>{% endfor %}
+        {% if weather_unrecorded %}<li data-testid="weather-not-recorded">Weather: not recorded in the active dataset, so it does not inform this forecast.</li>{% endif %}
+        <li>Cost per meal: {{ budget.cost_per_meal|kes }} (planning assumption).</li>
+      </ul>
+      <p class="bt-footnote mb-0">User inputs: {% for k, v in run.assumptions.items %}{{ k|humanize_key }} = {{ v }}{% if not forloop.last %}, {% endif %}{% empty %}none (recent averages used){% endfor %}. Model version: {{ run.model_version|default:"unknown" }}.</p>
+    </details>
   </div>
-</div>
+</section>
 {% endblock %}
 {% block extra_js %}{% include "partials/_plotly_js.html" %}{% endblock %}

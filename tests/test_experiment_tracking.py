@@ -2,6 +2,13 @@
 
 Everything runs on a fake repository layout in a temporary directory, so the
 real models/ and reports/ folders are never read or written.
+
+What this file checks:
+- Every run gets a new folder (folders are never reused).
+- Row-level outputs are skipped for real data unless allowed.
+- Missing artifacts are reported, not made up; metrics come only from saved results.
+- The git commit SHA is recorded, and runs can be summarised.
+- The Colab notebook is valid, contains no secrets and has the required sections.
 """
 
 from __future__ import annotations

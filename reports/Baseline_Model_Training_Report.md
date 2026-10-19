@@ -1,6 +1,6 @@
 # BiteTracker — Baseline Model Training Report
 
-> **SYNTHETIC DEVELOPMENT RESULTS.** Results below are from **synthetic development data** (`data/sample/synthetic_school_meals.csv`), not Food4Education records, and are measured, not fabricated — they will change once a real dataset is used.
+> **FOOD4EDUCATION RESEARCH RESULTS.** Results below are from the anonymised Food4Education dataset, read live from its Google Sheet. Weather, cost and exam/event fields are not in that sheet and were held constant.
 
 ## Training Process
 
@@ -22,26 +22,22 @@ Four ML regressors were trained with untuned, library-default hyperparameters (n
 
 | Model             |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 |   Training Time (s) |
 |:------------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|--------------------:|
-| Linear Regression |      68.369 |     53.242 |      109.380 |      84.620 |      0.985 |     0.991 |               0.011 |
-| Decision Tree     |       0.000 |     53.805 |        0.000 |     104.369 |      1.000 |     0.986 |               0.003 |
-| Random Forest     |      23.945 |     46.917 |       41.656 |      85.429 |      0.998 |     0.990 |               0.063 |
-| XGBoost           |       1.118 |     56.954 |        1.586 |      96.180 |      1.000 |     0.988 |               0.117 |
+| Linear Regression |      65.507 |     50.914 |      107.156 |      82.666 |      0.986 |     0.991 |               0.001 |
+| Decision Tree     |       0.000 |     76.846 |        0.000 |     140.834 |      1.000 |     0.973 |               0.004 |
+| Random Forest     |      23.036 |     51.016 |       39.106 |      89.008 |      0.998 |     0.989 |               0.089 |
+| XGBoost           |       1.184 |     60.198 |        1.706 |      99.752 |      1.000 |     0.987 |               0.164 |
 
-- Best by Test MAE: **Random Forest**
+- Best by Test MAE: **Linear Regression**
 - Best by Test RMSE: **Linear Regression**
 - Best by Test R²: **Linear Regression**
 
 ## Generalization / Overfitting Check
 
 - **Linear Regression**: Train/test performance are close — no strong evidence of overfitting.
-- **Decision Tree**: Potential overfitting: test MAE is 5380489864865% higher than train MAE and train R² exceeds test R² by 0.014. The model may be fitting training-period noise that doesn't generalize to the held-out period.
-- **Random Forest**: Potential overfitting: test MAE is 96% higher than train MAE and train R² exceeds test R² by 0.008. The model may be fitting training-period noise that doesn't generalize to the held-out period.
-- **XGBoost**: Potential overfitting: test MAE is 4993% higher than train MAE and train R² exceeds test R² by 0.012. The model may be fitting training-period noise that doesn't generalize to the held-out period.
+- **Decision Tree**: Potential overfitting: test MAE is 76.8 meals higher than train MAE (76.8 vs 0.0) and train R² exceeds test R² by 0.027. The model may be fitting training-period noise that doesn't generalize to the held-out period.
+- **Random Forest**: Potential overfitting: test MAE is 28.0 meals higher than train MAE (51.0 vs 23.0) and train R² exceeds test R² by 0.009. The model may be fitting training-period noise that doesn't generalize to the held-out period.
+- **XGBoost**: Potential overfitting: test MAE is 59.0 meals higher than train MAE (60.2 vs 1.2) and train R² exceeds test R² by 0.013. The model may be fitting training-period noise that doesn't generalize to the held-out period.
 
 ## Why Tuning Is Still Required
 
 These are default-hyperparameter baselines. Tree-based models in particular (Decision Tree, Random Forest, XGBoost) are sensitive to depth, leaf-size, and learning-rate settings — Phase 5 applies `GridSearchCV` with `TimeSeriesSplit` to search a small, practical hyperparameter grid per model without shuffling or leaking future data into cross-validation folds. Whichever model looks best here may or may not remain best after tuning.
-
-## Synthetic Data Caveat
-
-All figures in this report come from the synthetic dataset generated for development (see `src/synthetic_data.py`), not real school records. Relationships (e.g. rainfall's effect on attendance) were designed to be plausible but are not calibrated to any real county's data. Treat these results as a pipeline validation exercise, not a claim about real-world model performance.

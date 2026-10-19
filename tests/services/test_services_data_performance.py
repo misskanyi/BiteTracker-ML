@@ -1,4 +1,12 @@
-"""Stage 2: data_service (CSV-backed history) and performance_service (saved metrics)."""
+"""Stage 2: data_service (CSV-backed history) and performance_service (saved metrics).
+
+What this file checks:
+- School lists, history and date ranges work.
+- Processed data is cached and returned as a copy; missing data or columns raise an
+  error.
+- The performance service reads saved metrics without loading the model, and errors if
+  any artifact is missing.
+"""
 
 from __future__ import annotations
 

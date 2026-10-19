@@ -4,7 +4,7 @@
 
 Final-year project, BSc Informatics and Computer Science, Strathmore University.
 
-> **Important: current dataset.** Every chart, model, metric and forecast in this version of the repository comes from a **synthetic (generated) development dataset**, `data/sample/synthetic_school_meals.csv`, created by `src/synthetic_data.py`. The anonymised Food4Education research dataset is **not** included in this repository, and this version of the code does not load it. See [Dataset](#dataset).
+> **Important: current dataset.** The reported model results come from the **anonymised Food4Education research dataset**, read live and read-only from its Google Sheet when `BITETRACKER_GOOGLE_SHEET_URL` is set. That dataset is **not** included in this repository. Without the link (for example in CI and the test suite), the pipeline falls back to the **synthetic** development dataset, `data/sample/synthetic_school_meals.csv`. See [Dataset](#dataset).
 
 ---
 
@@ -56,7 +56,10 @@ BiteTracker tests whether historical realised meal-demand data can be used to fo
 
 ### What the code uses today
 
-The pipeline and app currently use a **synthetic dataset** that `src/synthetic_data.py` generates. It was built because a real dataset was not available during development. The committed file `data/sample/synthetic_school_meals.csv` contains:
+The pipeline uses one of two sources:
+
+1. **Food4Education Google Sheet** (used for the reported results) when `BITETRACKER_GOOGLE_SHEET_URL` is set in `.env`. See [Food4Education research dataset](#food4education-research-dataset).
+2. **Synthetic dataset** otherwise, for example in CI, the test suite and any fresh clone without the link. `src/synthetic_data.py` generates it; it was built because a real dataset was not available early in development. The committed file `data/sample/synthetic_school_meals.csv` contains:
 
 | Property | Value |
 |---|---|
@@ -111,9 +114,11 @@ Each school's first 14 rows (without a full lag history) are dropped.
 
 ### Food4Education research dataset
 
-The project was designed for use with anonymised historical school-feeding data that Food4Education provided for academic research. That dataset is **not committed to this repository**, and the current code does not load it or reference its field names. The pipeline expects the column schema above. To use a different dataset, set `BITETRACKER_DATA_PATH` to a CSV with the same columns (see [Configuration](#configuration)). A dataset with different column names would need code changes first.
+The project was designed for use with anonymised historical school-feeding data that Food4Education provided for academic research. That dataset is **not committed to this repository**. `src/google_sheet_loader.py` reads it live from its Google Sheets link (set `BITETRACKER_GOOGLE_SHEET_URL` in `.env`; the sheet must be shared as *Anyone with the link → Viewer*) and maps it onto the schema above. The prediction target is `daily_unique_students_tapped`. Weather, cost and exam/event fields are not in the sheet and are held constant.
 
-**Integration status:** no Food4Education workbook has been placed in `data/raw/` yet, so it has not been audited or used. `data/raw/*` is git-ignored. The web application's data label is derived from the active model metadata and dataset path (`services/status_service.py`), so pages switch from **SYNTHETIC DEVELOPMENT DATA** only when a model trained on non-synthetic data is active. A 2025 Kenyan primary-school calendar (terms, half-terms, holidays) is prepared in `services/calendar_service.py` for the real-data pipeline; it is not used by the current synthetic model.
+The current sheet gives **722 usable school-day records for 5 schools, 24 January to 3 November 2025** (after each school's first 14 rows are dropped for the lag window). The processed copy is written to `data/processed/`, which is git-ignored.
+
+**Integration status:** the Google Sheet is integrated and is the source of the reported results. `data/raw/*` is git-ignored. The web application's data label is derived from the active model metadata and dataset path (`services/status_service.py`), so pages switch from **SYNTHETIC DEVELOPMENT DATA** only when a model trained on non-synthetic data is active. A 2025 Kenyan primary-school calendar (terms, half-terms, holidays) is prepared in `services/calendar_service.py` for the real-data pipeline; it is not used by the current synthetic model.
 
 ## Machine Learning
 
@@ -149,30 +154,30 @@ Linear Regression is a candidate ML model. It is **not** the naive forecasting b
 
 `projected_students` is not used as a baseline. The naive baselines are not evaluated on the validation folds, so their validation MAE is reported as empty rather than estimated.
 
-### Selected model (SYNTHETIC DEVELOPMENT RESULTS)
+### Selected model (FOOD4EDUCATION RESEARCH RESULTS)
 
-In the most recent local run, the validation ranking was (TimeSeriesSplit, training period only):
+In the most recent local run on the Food4Education Google Sheet, the validation ranking was (TimeSeriesSplit, training period only):
 
 | Model | Validation MAE | Selection rank |
 |---|---|---|
-| Random Forest (tuned) | 55.43 | 1 |
-| Linear Regression | 60.54 | 2 |
-| XGBoost (tuned) | 71.31 | 3 |
-| Decision Tree (tuned) | 90.89 | 4 |
+| XGBoost (tuned) | 75.92 | 1 |
+| Linear Regression | 78.49 | 2 |
+| Random Forest (tuned) | 79.23 | 3 |
+| Decision Tree (tuned) | 82.86 | 4 |
 
-`models/final_best_model_metadata.json` therefore records **tuned Random Forest** as the selected model. Its single evaluation on the test period, next to the naive baselines:
+`models/final_best_model_metadata.json` therefore records **tuned XGBoost** as the selected model. Its single evaluation on the test period, next to the naive baselines:
 
 | Method | Type | Test MAE | Test RMSE | Test R² |
 |---|---|---|---|---|
-| Persistence / Last Observation | Naive baseline | 31.43 | 81.19 | 0.849 |
-| 7-Day Historical Mean | Naive baseline | 58.91 | 122.92 | 0.653 |
-| Random Forest (selected) | ML model | 19.37 | 47.07 | 0.949 |
+| Persistence / Last Observation | Naive baseline | 39.07 | 69.10 | 0.994 |
+| 7-Day Historical Mean | Naive baseline | 58.10 | 119.79 | 0.981 |
+| XGBoost (selected) | ML model | 51.64 | 88.80 | 0.989 |
 
-On this synthetic test period the selected model's MAE is 12.06 meals (38.4%) lower than persistence and 39.54 meals (67.1%) lower than the 7-day mean. The other ML candidates had lower test MAE than Random Forest (see `reports/metrics/model_comparison.csv`), but test results were not used to choose the model. Validation MAE varies strongly between folds (the first fold, trained on only ~3 months, is much worse than the rest), so the ranking is fragile.
+**The selected model does not beat the persistence baseline**: its test MAE is 12.57 meals (32.2%) worse than simply repeating each school's previous day. It beats the 7-day mean by 6.46 meals (11.1%). None of the four ML candidates beat persistence on the test period (best: Random Forest, test MAE 49.54; see `reports/metrics/model_comparison.csv`). The top three models are within one fold standard deviation of each other on validation MAE (XGBoost 75.92 ± 13.49, Linear Regression 78.49 ± 13.26, Random Forest 79.23 ± 18.57), so the ranking is fragile. R² is above 0.98 for every method, including persistence, so it does not separate the models; compare MAE instead.
 
-Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 2024-12-20 (303 rows). The split never puts the same date in both periods.
+Train period: 2025-01-24 to 2025-09-09 (574 rows). Test period: 2025-09-10 to 2025-11-03 (148 rows). The split never puts the same date in both periods.
 
-> These numbers come from the **synthetic** dataset. They show that the pipeline works end to end, not how accurate the model would be on real school data. `models/` and `reports/metrics/` are git-ignored, so a fresh clone has no trained model. You will get new results after running the pipeline yourself (see [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)).
+> These are **FOOD4EDUCATION RESEARCH RESULTS** from a small dataset (5 schools, under a year), using only lag, rolling-average, month and weekday features (the sheet has no weather, cost, attendance or exam/event fields). `models/` and `reports/metrics/` are git-ignored, so a fresh clone has no trained model. Without the sheet link the pipeline trains on the synthetic dataset and produces different numbers (see [Running the Machine-Learning Pipeline](#running-the-machine-learning-pipeline)).
 
 ## Forecasting
 
@@ -181,8 +186,8 @@ Train period: 2023-01-20 to 2024-08-01 (1,200 rows). Test period: 2024-08-02 to 
 - **Horizons:** next school day, next 7 school days, and next 30 school days (Monday–Friday).
 - **Multi-day method:** forecasts are recursive. Each predicted day is fed back in as if it had been observed, to build the next day's lag and rolling features. Error can therefore build up over longer horizons, and the app says so.
 - **Unknown future inputs:** future attendance, rainfall and temperature are not known. A forecast day's own attendance is never a model input: the attendance features use the previous school day (the last recorded day for day 1, then an assumed value). For weather, the user can enter expected values; otherwise the school's recent 14-day averages are used. Each row of the results says which assumption was used.
-- **Calendar flags:** term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`, the same rules the synthetic model was trained with.
-- **Forecast origin:** forecasts start from the last recorded date in the dataset (20 December 2024 for the synthetic data), not from today. The web pages state this on every forecast. Because the synthetic calendar treats late December as a school holiday, short-horizon forecasts from this origin are low.
+- **Inputs the model actually uses:** the Food4Education model uses only lag, rolling-average, month and weekday features, so attendance and weather assumptions do not change its forecasts. For a synthetic-data model, term, holiday and exam status for future dates come from the calendar rules in `src/synthetic_data.py`, the same rules it was trained with.
+- **Forecast origin:** forecasts start from the last recorded date in the dataset (3 November 2025 for the Food4Education sheet; 20 December 2024 for the synthetic data), not from today. The web pages state this on every forecast.
 
 ## Application Functionality
 
@@ -224,7 +229,7 @@ BiteTracker is a Django web application. Every page except the login page requir
 
 ### Data status label
 
-Every page shows a banner describing the data behind its results. While the synthetic artifacts are active it reads **SYNTHETIC DEVELOPMENT DATA**, and the Model Performance page shows the stored **SYNTHETIC DEVELOPMENT RESULTS** label. The label comes from the active model metadata and dataset path; if either is synthetic the label is synthetic, and if the metadata is missing the status is shown as unknown.
+Every page shows a banner describing the data behind its results. With the Food4Education model active it reads **FOOD4EDUCATION RESEARCH RESULTS** ("Model trained on Food4Education Google Sheet"). While synthetic artifacts are active it reads **SYNTHETIC DEVELOPMENT DATA**, and the Model Performance page shows the stored **SYNTHETIC DEVELOPMENT RESULTS** label. The label comes from the active model metadata and dataset path; if either is synthetic the label is synthetic, and if the metadata is missing the status is shown as unknown.
 
 ### Not carried over from the earlier Streamlit prototype
 
@@ -371,7 +376,7 @@ With the defaults (`DJANGO_DEBUG=True`, no secret key) Django uses a development
 
 ### 5. Generate the development model artifacts (first run only)
 
-A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Build them from the committed synthetic dataset:
+A fresh clone has **no trained model**, because `models/`, `data/processed/` and `reports/metrics/` are git-ignored. Build them with the command below. With `BITETRACKER_GOOGLE_SHEET_URL` set in `.env` it trains on the Food4Education sheet; without it, on the committed synthetic dataset:
 
 ```bash
 python scripts/train_models.py
@@ -409,6 +414,7 @@ Open `http://127.0.0.1:8000/` and log in with the superuser account. To let a no
 | `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_SECURE_HSTS_SECONDS`, `DJANGO_BEHIND_HTTPS_PROXY` | environment / `.env` | HTTPS redirect, HSTS and proxy-header settings for a deployment; off by default because they depend on the hosting setup |
 | `DJANGO_DB_ENGINE` | environment / `.env` | `sqlite` (default) or `postgresql` (then uses `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`) |
 | `DJANGO_SQLITE_PATH` | environment / `.env` | Alternative location for the SQLite file (default `db.sqlite3`, git-ignored) |
+| `BITETRACKER_GOOGLE_SHEET_URL` | environment / `.env` | Share link of the Food4Education Google Sheet (*Anyone with the link → Viewer*). When set, the pipeline and app read it live and it takes priority over `BITETRACKER_DATA_PATH`. Never commit the link. |
 | `BITETRACKER_DATA_PATH` | environment / `.env` | Path to a different input CSV with the same schema for the training pipeline. Defaults to `data/sample/synthetic_school_meals.csv`. |
 | `RANDOM_SEED` | environment / `.env` | Seed used for reproducibility (default `42`) |
 
@@ -424,13 +430,13 @@ Starting or using the Django app does **not** retrain anything. The app loads th
 python scripts/train_models.py
 ```
 
-This runs the whole training process in one go, on the **synthetic** development dataset by default:
+This runs the whole training process in one go, on the Food4Education Google Sheet when `BITETRACKER_GOOGLE_SHEET_URL` is set, otherwise on the **synthetic** development dataset:
 
 | Stage | What happens | Code reused |
 |---|---|---|
 | `[1/9]` Loading data | Load the dataset and check its schema | `src/data_loader.py::load_dataset` |
-| `[2/9]` Preprocessing | Clean the dataset | `src/preprocessing.py::run_preprocessing` |
-| `[3/9]` Engineering features | Build lag, rolling, attendance and calendar features and the target, save the processed CSV | `src/feature_engineering.py::engineer_features`, `src/pipeline.py::save_processed_dataset` |
+| `[2/9]` Preprocessing | Clean the dataset (stateless steps only) | `src/preprocessing.py::clean_raw_data` |
+| `[3/9]` Engineering features | Fit imputation and outlier statistics on the training period only, apply them to every row, build lag, rolling, attendance and calendar features and the target, save the processed CSV | `src/pipeline.py::build_training_data`, `src/pipeline.py::save_processed_dataset` |
 | `[4/9]` Chronological split | Split 80/20 **chronologically** (no shuffling, no shared dates) | `run_training.py::split_train_test` |
 | `[5/9]` Naive baselines | Score Persistence and 7-Day Historical Mean on the test period | `src/naive_baselines.py::evaluate_naive_baselines` |
 | `[6/9]` Training ML candidates | Default-hyperparameter fits of all four models; tune Decision Tree, Random Forest and XGBoost and cross-validate Linear Regression with `TimeSeriesSplit` (5 folds) on the training period only | `run_training.py::train_and_evaluate_baselines`, `run_tuning.py::tune_models`, `run_tuning.py::collect_validation_scores` |
@@ -444,7 +450,9 @@ It uses the same functions as the step scripts, so the results are identical. To
 python scripts/train_models.py --data-path path/to/dataset.csv
 ```
 
-Without `--data-path`, the script uses `BITETRACKER_DATA_PATH` if it is set, otherwise `data/sample/synthetic_school_meals.csv`. When you use a non-default dataset the script prints a warning, because the generated reports, model metadata and app badges still describe the data as synthetic.
+Without `--data-path`, the script uses the Food4Education Google Sheet if `BITETRACKER_GOOGLE_SHEET_URL` is set, then `BITETRACKER_DATA_PATH` if it is set, otherwise `data/sample/synthetic_school_meals.csv`. `--data-path` always overrides the sheet, so `python scripts/train_models.py --data-path data/sample/synthetic_school_meals.csv` gives a synthetic run even with the link in `.env`. Reports and model metadata are labelled **FOOD4EDUCATION RESEARCH RESULTS** or **SYNTHETIC DEVELOPMENT RESULTS** to match. Any other CSV prints a warning, because its reports and app badges are still labelled synthetic.
+
+> Running the pipeline overwrites `reports/Baseline_Model_Training_Report.md` and `reports/Hyperparameter_Tuning_Report.md`. The committed copies are from the Food4Education sheet; do not commit copies regenerated from synthetic data by mistake.
 
 If any stage fails, the script says which stage failed, prints the full error and exits with a non-zero status, so CI can detect the failure. On the synthetic dataset the full run takes about 20 seconds.
 
@@ -599,7 +607,7 @@ pytest
 - **Service tests** (`tests/services/`): model loading and caching, feature-alignment and metadata checks, forecast parity with `src/forecasting.py`, horizons, error handling, data/performance/upload/status/calendar services.
 - **Django tests** (`tests/web/`): authentication and page protection, models, admin, `import_schools`, every page, all three forecast horizons, forecast persistence, uploads, permissions, data labels, error messages and production settings.
 
-Tests that need the saved development model use it if `scripts/train_models.py` has been run and skip otherwise; most service and Django tests use a small synthetic stub dataset and model created in a temporary folder. No test uses real Food4Education data. The Sprint II testing record is in `reports/SPRINT_II_TESTING.md`.
+Tests that need a saved model trained on synthetic data use it if `scripts/train_models.py` has been run on that data and skip otherwise, so with the Food4Education model in `models/` about 29 tests skip locally; most service and Django tests use a small synthetic stub dataset and model created in a temporary folder. No test uses real Food4Education data. The Sprint II testing record is in `reports/SPRINT_II_TESTING.md`.
 
 ## Continuous Integration
 
@@ -630,26 +638,26 @@ A hosted deployment would also need: the model artifacts generated on (or copied
 
 - The project is designed around anonymised, school-level school-feeding data. It never needs individual learner identities; records are daily totals per school.
 - The Food4Education dataset was provided for academic research only, and it is not included in this repository.
-- The committed dataset is fully synthetic. Its school names and locations are made up.
+- The only committed dataset is fully synthetic. Its school names and locations are made up. The Food4Education sheet is read live from its link, which lives only in `.env`; the processed copy in `data/processed/` is git-ignored.
+- The committed Food4Education reports contain only aggregate metrics, row counts and date ranges. Row-level outputs (per-day predictions and actual-vs-predicted charts in `reports/metrics/` and `reports/figures/`) are git-ignored.
 - The Upload page warns users not to include student names, admission numbers, phone numbers or addresses. Upload records store aggregate validation results (counts, column names, scores), not data rows.
-- Raw, processed and uploaded data, trained models, generated metrics, the SQLite database and `.env` are git-ignored (`data/raw/*`, `data/processed/*`, `data/uploads/*`, `models/*`, `reports/figures/*`, `reports/metrics/*`, `db.sqlite3`, `.env`). Keep restricted datasets out of version control.
+- Raw, processed and uploaded data, trained models, generated metrics, the SQLite database and `.env` are git-ignored (`data/raw/*`, `data/processed/*`, `data/uploads/*`, non-synthetic files in `data/sample/`, `models/*`, `reports/figures/*`, `reports/metrics/*`, `db.sqlite3`, `.env`, `*.xlsx`, Google Drive shortcut files such as `*.gsheet`). Keep restricted datasets out of version control.
 
 ## Limitations
 
-- **Synthetic data only.** The current results are SYNTHETIC DEVELOPMENT RESULTS and say nothing about real-world or Food4Education accuracy. The model needs to be retrained and re-evaluated on real data before anyone relies on it.
-- **Forecast origin.** Forecasts start after the last recorded date (20 December 2024), not today, and the synthetic calendar places the next school days in a holiday, so short-horizon forecasts from this origin are low.
-- **Small dataset.** Three synthetic schools over about two school years.
-- **Preprocessing before the split.** Missing-value filling (forward then backward fill, then the per-school median) and IQR outlier capping (including `meals_served`) run on each school's full history before the chronological split, so some test-period information reaches training rows and test targets are capped. This is existing pipeline behaviour, documented in `MIGRATION_NOTES.md`; it was not changed during the web migration because changing it would change the reported results.
-- **Weather.** Training uses observed weather as if it were a perfect forecast; at prediction time users enter expected values or recent averages are used.
-- **Compounding error.** Multi-day forecasts are recursive, and days after day 1 use historical averages for attendance and weather.
+- **ML does not yet beat persistence.** On the Food4Education test period no ML model beats the persistence baseline (repeat the previous day). The dataset is small (5 schools, 722 usable rows, January–November 2025) and lacks weather, cost and exam/event fields.
+- **Forecast origin.** Forecasts start after the last recorded date (3 November 2025 for the Food4Education sheet), not today.
+- **Small dataset.** Five Food4Education schools over less than one school year.
+- **Test-period capping.** Imputation and IQR outlier statistics are fitted on the training period only, but they are then applied to every row, so test-period `meals_served` values outside the training-period fences are capped before evaluation. The pipeline logs how many.
+- **Missing real-data inputs.** The Food4Education sheet has no weather, cost, attendance or exam/event fields, so the model uses only past demand, month and weekday. (On synthetic data, training uses observed weather as if it were a perfect forecast.)
+- **Compounding error.** Multi-day forecasts are recursive: each predicted day feeds the next day's lag and rolling features.
 - **Heuristic uncertainty.** The safety buffer and risk levels are rules of thumb, not statistical confidence intervals.
 - **Estimates, not guarantees.** Every output is meant to support human decisions, not replace them.
 - **Access control** uses Django staff/permission flags; the design's named roles are not yet set up as groups. Uploaded data is validated and recorded but not reviewed or merged into the main dataset.
 
 ## Future Improvements
 
-- Audit and integrate the anonymised Food4Education dataset (schema adapter, real-data target `daily_unique_students_tapped`, real school calendar, weather source), then retrain and re-evaluate.
-- Fit preprocessing statistics on the training period only.
+- Add the missing real-data inputs (real school calendar, weather source, exam/event dates) for the Food4Education dataset, then retrain and re-evaluate against the persistence baseline.
 - Add Django groups for the School Manager, Resource Planning Stakeholder and System Administrator roles.
 - Add an administrator review and approval step so that verified uploads can join the training data.
 - Compare forecasts with verified enrolment as a planning reference.

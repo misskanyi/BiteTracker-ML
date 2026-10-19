@@ -1,0 +1,5 @@
+{# Usage: {% include "core/_trend.html" with s=school %} — month-on-month change in meals served per day. #}
+{% if s.trend == "up" %}<span class="bt-trend bt-trend--up"><i class="bi bi-arrow-up-right" aria-hidden="true"></i>+{{ s.trend_pct|floatformat:1 }}%</span>
+{% elif s.trend == "down" %}<span class="bt-trend bt-trend--down"><i class="bi bi-arrow-down-right" aria-hidden="true"></i>{{ s.trend_pct|floatformat:1 }}%</span>
+{% elif s.trend == "steady" %}<span class="bt-trend"><i class="bi bi-arrow-right" aria-hidden="true"></i>Steady</span>
+{% else %}<span class="bt-cell-sub">Not enough history</span>{% endif %}

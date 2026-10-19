@@ -99,6 +99,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "web.core.context_processors.data_provenance",
+                "web.core.context_processors.navigation",
             ],
         },
     },

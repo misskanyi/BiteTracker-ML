@@ -1,4 +1,12 @@
-"""Stage 3: School / DatasetUpload / ForecastRun models, Django Admin and import_schools."""
+"""Stage 3: School / DatasetUpload / ForecastRun models, Django Admin and import_schools.
+
+What this file checks:
+- School model: the ID is unique and no enrolment numbers are made up.
+- Upload filenames are sanitised.
+- import_schools command: safe to run twice, keeps manual edits, reports schools missing
+  from the dataset, and supports a dry run.
+- Admin pages load; admin is staff-only, and audit records can't be added by hand.
+"""
 
 from __future__ import annotations
 

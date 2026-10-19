@@ -1,6 +1,8 @@
-<div class="page-header d-flex flex-wrap align-items-end justify-content-between gap-2 mb-4">
+{# Usage: {% include "partials/_page_header.html" with title="…" icon="bi-…" subtitle="…" %} #}
+<div class="bt-page-header">
+  <span class="bt-icon-chip" aria-hidden="true"><i class="bi {{ icon }}"></i></span>
   <div>
-    <h1 class="h3 mb-1"><i class="bi {{ icon }} me-2 text-success"></i>{{ title }}</h1>
-    {% if subtitle %}<p class="text-muted mb-0">{{ subtitle }}</p>{% endif %}
+    <h1 class="bt-page-title">{{ title }}</h1>
+    {% if subtitle %}<p class="bt-page-subtitle">{{ subtitle }}</p>{% endif %}
   </div>
 </div>
