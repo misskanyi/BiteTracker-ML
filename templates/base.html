@@ -6,6 +6,7 @@
   {% if user.is_authenticated %}<meta name="bt-theme-url" content="{% url 'accounts:theme' %}">{% endif %}
   <title>{% block title %}BiteTracker{% endblock %} · BiteTracker</title>
   {% include "partials/_theme_init.html" %}
+  {% include "partials/_debug_log.html" %}
   <meta name="color-scheme" content="light dark">
   <link rel="icon" type="image/png" sizes="256x256" href="{% static 'images/branding/favicons/favicon-simple.png' %}">
   <link rel="icon" type="image/svg+xml" href="{% static 'images/branding/favicons/favicon-simple.svg' %}">

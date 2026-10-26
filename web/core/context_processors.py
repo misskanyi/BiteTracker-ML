@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from django.conf import settings
 from django.urls import reverse
 
 from services import status_service
@@ -116,6 +117,11 @@ def account(request) -> dict:
         "NOTIFICATIONS_UNREAD": Notification.objects.filter(recipient=user, is_read=False).count(),
         "NOTIFICATIONS_RECENT": list(Notification.objects.filter(recipient=user)[:6]),
     }
+
+
+def debug(request) -> dict:
+    """Whether browser-console debug logging (static/js/debug.js) is on by default."""
+    return {"BT_DEBUG": settings.DEBUG}
 
 
 def data_provenance(request) -> dict:

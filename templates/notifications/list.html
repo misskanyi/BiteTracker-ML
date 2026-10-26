@@ -5,14 +5,22 @@
   <span class="bt-icon-chip" aria-hidden="true"><i class="bi bi-bell"></i></span>
   <div class="me-auto">
     <h1 class="bt-page-title">Notifications</h1>
-    <p class="bt-page-subtitle">Updates about your forecasts, uploads, schools and account.</p>
+    <p class="bt-page-subtitle">Forecasts, uploads, schools and account.</p>
   </div>
-  {% if NOTIFICATIONS_UNREAD %}
-  <form method="post" action="{% url 'notifications:mark_all_read' %}">
-    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-    <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Mark all as read</button>
-  </form>
-  {% endif %}
+  <div class="d-flex flex-wrap gap-2">
+    {% if NOTIFICATIONS_UNREAD %}
+    <form method="post" action="{% url 'notifications:mark_all_read' %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Mark all as read</button>
+    </form>
+    {% endif %}
+    {% if has_any %}
+    <form method="post" action="{% url 'notifications:clear_all' %}" data-confirm="Clear all notifications? This can't be undone.">
+      {% csrf_token %}<input type="hidden" name="next" value="{% url 'notifications:list' %}">
+      <button type="submit" class="btn btn-outline-danger btn-sm" data-testid="clear-all"><i class="bi bi-trash3 me-1" aria-hidden="true"></i>Clear all</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
 <div class="bt-chips mb-3" role="group" aria-label="Filter notifications">
@@ -41,6 +49,9 @@
           <input type="hidden" name="next" value="{{ request.get_full_path }}">
           <button type="submit" class="btn btn-outline-secondary btn-sm">Mark as read</button></form>
         {% endif %}
+        <form method="post" action="{% url 'notifications:delete' n.pk %}">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="btn btn-outline-secondary btn-sm bt-btn-icon" aria-label="Remove notification: {{ n.title }}" title="Remove"><i class="bi bi-trash3" aria-hidden="true"></i></button></form>
       </div>
     </li>
     {% endfor %}
@@ -49,7 +60,7 @@
   {% else %}
   <div class="card-body"><div class="empty-state"><i class="bi bi-bell-slash"></i>
     <p class="mb-1">{% if show == "unread" %}No unread notifications.{% else %}No notifications yet.{% endif %}</p>
-    <p class="small mb-0">You'll be notified when forecasts finish, uploads are validated and your schools' calendars change. <a href="{% url 'accounts:settings' %}?tab=notifications">Notification preferences</a></p>
+    <p class="small mb-0"><a href="{% url 'accounts:settings' %}?tab=notifications">Notification preferences</a></p>
   </div></div>
   {% endif %}
 </div>

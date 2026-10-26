@@ -300,3 +300,54 @@ def test_calendar_is_not_a_model_input():
     for folder in ("src", "services"):
         for path in (root / folder).rglob("*.py"):
             assert "CalendarEvent" not in path.read_text() and "schoolcalendar" not in path.read_text(), path
+
+
+# --- Removing notifications -------------------------------------------------------------------------
+
+
+def test_delete_removes_one_notification(client, amina):
+    keep, remove = (notify([amina], Type.ANNOUNCEMENT, title)[0] for title in ("Keep", "Remove"))
+    response = client.post(reverse("notifications:delete", args=[remove.pk]), {"next": reverse("notifications:list")})
+    assert response.url == reverse("notifications:list")
+    assert list(Notification.objects.filter(recipient=amina)) == [keep]
+
+
+def test_clear_all_removes_read_and_unread(client, amina):
+    for title in ("A", "B", "C"):
+        notify([amina], Type.ANNOUNCEMENT, title)
+    Notification.objects.filter(recipient=amina, title="A").update(is_read=True)
+    response = client.post(reverse("notifications:clear_all"), follow=True)
+    assert not Notification.objects.filter(recipient=amina).exists()
+    assert "Cleared 3 notifications." in response.content.decode()
+
+
+def test_clear_all_and_delete_are_offered_with_confirmation(client, amina):
+    n = notify([amina], Type.ANNOUNCEMENT, "Hello")[0]
+    html = client.get(reverse("notifications:list")).content.decode()
+    assert f'action="{reverse("notifications:clear_all")}" data-confirm=' in html
+    assert f'action="{reverse("notifications:delete", args=[n.pk])}"' in html
+    Notification.objects.all().delete()
+    assert 'data-testid="clear-all"' not in client.get(reverse("notifications:list")).content.decode()
+
+
+def test_users_cannot_delete_other_users_notifications(client, amina):
+    other = operator("other")
+    theirs = notify([other], Type.ANNOUNCEMENT, "Private")[0]
+    assert client.post(reverse("notifications:delete", args=[theirs.pk])).status_code == 404
+    notify([amina], Type.ANNOUNCEMENT, "Mine")
+    client.post(reverse("notifications:clear_all"))
+    assert Notification.objects.filter(pk=theirs.pk).exists()
+    assert not Notification.objects.filter(recipient=amina).exists()
+
+
+def test_delete_and_clear_require_post(client, amina):
+    n = notify([amina], Type.ANNOUNCEMENT, "x")[0]
+    assert client.get(reverse("notifications:delete", args=[n.pk])).status_code == 405
+    assert client.get(reverse("notifications:clear_all")).status_code == 405
+    assert Notification.objects.filter(pk=n.pk).exists()
+
+
+def test_delete_never_redirects_off_site(client, amina):
+    n = notify([amina], Type.ANNOUNCEMENT, "x")[0]
+    response = client.post(reverse("notifications:delete", args=[n.pk]), {"next": "https://evil.example/"})
+    assert response.url == reverse("notifications:list")

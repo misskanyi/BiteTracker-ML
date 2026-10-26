@@ -6,6 +6,7 @@
   var desktop = window.matchMedia("(min-width: 992px)");
   var canHover = window.matchMedia("(hover: hover)");
   var tooltips = [];
+  var log = window.BTLog;  // static/js/debug.js, loaded by base.html
 
   /* Desktop sidebar state. Two inputs, kept apart:
      - pinned: the saved preference (html.bt-sidebar-pinned, also set before paint by _theme_init.html);
@@ -216,6 +217,18 @@
       });
     });
 
+    // Irreversible actions (forms with data-confirm) ask first. Registered before the loading-state
+    // handler below, so a cancelled submit never disables its buttons.
+    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+      form.addEventListener("submit", function (event) {
+        if (!window.confirm(form.dataset.confirm)) {
+          log.info("Cancelled: " + form.dataset.confirm);
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      });
+    });
+
     // Disable submit buttons and show progress while a form is being processed.
     document.querySelectorAll("form[data-loading]").forEach(function (form) {
       form.addEventListener("submit", function () {
@@ -250,7 +263,10 @@
             if (status) status.textContent = message;
           });
           // A stopped or failed navigation fires no event; never leave the page behind an endless loader.
-          loaderTimers.push(window.setTimeout(hideLoaders, PAGE_LOADER_TIMEOUT));
+          loaderTimers.push(window.setTimeout(function () {
+            log.warn("Still waiting for " + link.href + " after " + PAGE_LOADER_TIMEOUT / 1000 + " s; loader hidden");
+            hideLoaders();
+          }, PAGE_LOADER_TIMEOUT));
         });
       });
       // Escape is how users usually stop a load.

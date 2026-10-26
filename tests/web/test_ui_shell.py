@@ -78,6 +78,28 @@ def test_shell_uses_shared_glass_components(client, planner):
     assert '<header class="bt-topbar bt-glass-nav">' in html
 
 
+def test_console_logger_loads_before_other_scripts(client, planner):
+    html = _page(client, planner)
+    head = html.split("</head>")[0]
+    assert "js/debug.js" in head  # in <head>, so it catches errors thrown by later scripts
+    assert html.index("js/debug.js") < html.index("js/theme.js") < html.index("js/layout.js")
+
+
+@pytest.mark.parametrize("debug, flag", [(True, "1"), (False, "0")])
+def test_console_logging_is_on_by_default_only_in_debug(client, planner, settings, debug, flag):
+    settings.DEBUG = debug
+    assert f'<meta name="bt-debug" content="{flag}">' in _page(client, planner)
+
+
+def test_django_messages_carry_their_level_for_the_console_logger():
+    from django.contrib.messages import constants
+    from django.contrib.messages.storage.base import Message
+    from django.template.loader import render_to_string
+
+    html = render_to_string("partials/_messages.html", {"messages": [Message(constants.ERROR, "Upload failed")]})
+    assert 'data-bt-message="error"' in html and "alert-danger" in html
+
+
 def test_theme_init_also_runs_on_login_page(client, db):
     html = client.get(reverse("accounts:login")).content.decode()
     assert 'localStorage.getItem("theme")' in html

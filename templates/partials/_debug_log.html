@@ -1,0 +1,3 @@
+{% load static %}{# Browser-console debug logging (static/js/debug.js): on by default only when DEBUG is true. #}
+<meta name="bt-debug" content="{% if BT_DEBUG %}1{% else %}0{% endif %}">
+<script src="{% static 'js/debug.js' %}"></script>

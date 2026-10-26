@@ -757,6 +757,23 @@ a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
 .bt-notify-row__body { flex: 1 1 auto; min-width: 0; }
 .bt-notify-row__actions { display: flex; flex-wrap: wrap; gap: var(--bt-space-2); justify-content: flex-end; }
 @media (max-width: 575.98px) { .bt-notify-row { flex-wrap: wrap; } .bt-notify-row__actions { width: 100%; justify-content: flex-start; padding-left: 46px; } }
+/* Remove one / clear all. The bell's × sits over the item's top-right corner; it shows on hover or
+   keyboard focus, and always on touch screens, which can't hover. */
+.bt-notify-menu__actions { display: flex; align-items: center; gap: var(--bt-space-3); }
+.bt-link-danger { color: var(--bt-danger); }
+.bt-link-danger:hover { color: var(--bt-danger); text-decoration: underline; }
+.bt-notify-item { position: relative; }
+.bt-notify-item__button { padding-right: 2.4rem; }
+.bt-notify-item__dismiss { position: absolute; top: 0.5rem; right: 0.5rem; }
+.bt-dismiss {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--bt-text-subtle); font-size: 0.75rem; cursor: pointer; opacity: 0;
+  transition: opacity var(--bt-dur-fast) var(--bt-ease), background-color var(--bt-dur-fast) var(--bt-ease), color var(--bt-dur-fast) var(--bt-ease);
+}
+.bt-notify-item:hover .bt-dismiss, .bt-dismiss:focus-visible { opacity: 1; }
+.bt-dismiss:hover { background: var(--bt-danger-soft); color: var(--bt-danger); }
+@media (hover: none) { .bt-dismiss { opacity: 1; } }
+.bt-btn-icon { display: inline-grid; place-items: center; min-width: 31px; }
 
 /* Profile header. */
 .bt-profile-header .card-body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--bt-space-4); }

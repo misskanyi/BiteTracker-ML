@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from django.contrib import messages
 from django.core.paginator import Paginator
+from django.template.defaultfilters import pluralize
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -20,12 +22,13 @@ def _back(request, fallback="notifications:list"):
 
 def notification_list(request):
     notifications = Notification.objects.filter(recipient=request.user)
+    has_any = notifications.exists()
     show = request.GET.get("show")
     if show == "unread":
         notifications = notifications.filter(is_read=False)
     page = Paginator(notifications, 20).get_page(request.GET.get("page"))
     return render(request, "notifications/list.html", {
-        "page": page, "show": show, "querystring": "show=unread" if show == "unread" else "",
+        "page": page, "show": show, "has_any": has_any, "querystring": "show=unread" if show == "unread" else "",
     })
 
 
@@ -41,6 +44,21 @@ def mark_read(request, pk: int):
 @require_POST
 def mark_all_read(request):
     Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True, read_at=timezone.now())
+    return _back(request)
+
+
+@require_POST
+def delete_notification(request, pk: int):
+    get_object_or_404(Notification, pk=pk, recipient=request.user).delete()
+    return _back(request)
+
+
+@require_POST
+def clear_all(request):
+    """Delete every notification the user has (read or not). Asked to confirm in the page first."""
+    deleted, _ = Notification.objects.filter(recipient=request.user).delete()
+    if deleted:
+        messages.success(request, f"Cleared {deleted} notification{pluralize(deleted)}.")
     return _back(request)
 
 

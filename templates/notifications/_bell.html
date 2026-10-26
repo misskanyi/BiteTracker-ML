@@ -8,12 +8,20 @@
   <div class="dropdown-menu dropdown-menu-end bt-menu bt-notify-menu">
     <div class="bt-notify-menu__head">
       <span class="fw-semibold">Notifications</span>
-      {% if NOTIFICATIONS_UNREAD %}
-      <form method="post" action="{% url 'notifications:mark_all_read' %}">
-        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-        <button type="submit" class="btn btn-link btn-sm p-0">Mark all as read</button>
-      </form>
-      {% endif %}
+      <div class="bt-notify-menu__actions">
+        {% if NOTIFICATIONS_UNREAD %}
+        <form method="post" action="{% url 'notifications:mark_all_read' %}">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="btn btn-link btn-sm p-0">Mark all read</button>
+        </form>
+        {% endif %}
+        {% if NOTIFICATIONS_RECENT %}
+        <form method="post" action="{% url 'notifications:clear_all' %}" data-confirm="Clear all notifications? This can't be undone.">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="btn btn-link btn-sm p-0 bt-link-danger" data-testid="clear-all">Clear all</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
     {% if NOTIFICATIONS_RECENT %}
     <ul class="list-unstyled mb-0 bt-notify-list">
@@ -30,11 +38,15 @@
             </span>
           </button>
         </form>
+        <form method="post" action="{% url 'notifications:delete' n.pk %}" class="bt-notify-item__dismiss">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="bt-dismiss" aria-label="Remove notification: {{ n.title }}" title="Remove"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </form>
       </li>
       {% endfor %}
     </ul>
     {% else %}
-    <div class="empty-state py-4"><i class="bi bi-bell-slash"></i><p class="mb-0 small">You're all caught up. Notifications about forecasts, uploads and your schools' calendars appear here.</p></div>
+    <div class="empty-state py-4"><i class="bi bi-bell-slash"></i><p class="mb-0 small">You're all caught up.</p></div>
     {% endif %}
     <div class="bt-notify-menu__foot"><a href="{% url 'notifications:list' %}">View all notifications</a> · <a href="{% url 'accounts:settings' %}?tab=notifications">Preferences</a></div>
   </div>

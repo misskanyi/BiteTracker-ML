@@ -12,6 +12,8 @@
   var root = document.documentElement;
   var STORAGE_KEY = "theme";
   var media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  var noop = function () {};
+  var log = window.BTLog || { success: noop, info: noop, error: noop };  // static/js/debug.js
 
   function stored() {
     try { return localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
@@ -44,6 +46,7 @@
     root.setAttribute("data-theme", theme);
     root.setAttribute("data-bs-theme", theme);
     syncToggle();
+    log.info("Theme switched to " + theme);
     document.dispatchEvent(new CustomEvent("bt:themechange", { detail: { theme: theme } }));
   }
 
@@ -61,7 +64,12 @@
       method: "POST", credentials: "same-origin",
       headers: { "X-CSRFToken": csrfToken(), "Content-Type": "application/x-www-form-urlencoded" },
       body: "theme=" + encodeURIComponent(theme)
-    }).catch(function () {});
+    }).then(function (response) {
+      if (response.ok) log.success("Theme \"" + theme + "\" saved to account");
+      else log.error("Saving theme to account failed: HTTP " + response.status);
+    }).catch(function (error) {
+      log.error("Saving theme to account failed:", error);
+    });
   }
 
   document.addEventListener("DOMContentLoaded", function () {
