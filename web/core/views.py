@@ -189,9 +189,22 @@ def forecast(request):
         # inform the forecast. Server-side validation is unchanged.
         for name in ("expected_rainfall_mm", "expected_temperature_c"):
             form.fields[name].widget.attrs.update(disabled=True, **{"aria-describedby": "weather-note"})
+    attendance_unused = _model_ignores_attendance()
+    if attendance_unused:
+        form.fields["expected_attendance"].widget.attrs.update(disabled=True)
     return render(request, "core/forecast.html", {
         "form": form, "defaults": defaults_json, "weather_unrecorded": weather_unrecorded,
+        "attendance_unused": attendance_unused,
     })
+
+
+def _model_ignores_attendance() -> bool:
+    """True when the saved model has no attendance features (e.g. a Food4Education model)."""
+    try:
+        features = set(model_service.load_model_metadata()["features_used"])
+    except ServiceError:
+        return False  # the forecast itself reports the model problem
+    return not features & {"previous_attendance", "previous_attendance_rate"}
 
 
 def forecast_run(request, pk: int):

@@ -4,6 +4,7 @@ What this file checks:
 - The model is loaded once and cached, and reloaded if the file on disk changes.
 - Clear errors for a missing or corrupt model and for missing or bad metadata.
 - Strict feature checks: missing, reordered or wrong-count features block prediction.
+- A Food4Education model is checked against, and forecasts with, its own 11-feature set.
 - Model class, hyperparameters and target must match the metadata.
 - Forecasting never trains a model; the services import without Django or training code.
 """
@@ -28,7 +29,7 @@ from services.model_service import (
     ModelMetadataError,
     ModelNotFoundError,
 )
-from src.feature_engineering import FEATURE_COLUMNS
+from src.feature_engineering import FEATURE_COLUMNS, FOOD4EDUCATION_FEATURE_COLUMNS, FOOD4EDUCATION_SOURCE
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -155,6 +156,33 @@ def test_model_trained_on_different_feature_order_raises(stub_artifacts, make_mo
 def test_saved_feature_columns_file_mismatch_raises(stub_artifacts):
     stub_artifacts.feature_columns_path.write_text(json.dumps(FEATURE_COLUMNS + ["extra_feature"]))
     with pytest.raises(FeatureAlignmentError, match="feature_columns.json"):
+        model_service.get_model()
+
+
+def test_food4education_model_uses_its_own_feature_set(stub_artifacts, make_model, make_metadata):
+    stub_artifacts.write_model(make_model(FOOD4EDUCATION_FEATURE_COLUMNS))
+    stub_artifacts.write_metadata(
+        make_metadata(features_used=FOOD4EDUCATION_FEATURE_COLUMNS, data_source=FOOD4EDUCATION_SOURCE)
+    )
+    stub_artifacts.feature_columns_path.write_text(json.dumps(FOOD4EDUCATION_FEATURE_COLUMNS))
+    assert model_service.get_model().feature_columns == FOOD4EDUCATION_FEATURE_COLUMNS
+
+    result = forecast_service.generate_forecast("SCH001", 7)
+    assert len(result.days) == 7
+    assert {d["attendance_assumption"] for d in result.days} == {"not used by this model"}
+    assert {d["rainfall_assumption"] for d in result.days} == {"not used by this model"}
+
+
+def test_food4education_features_with_synthetic_data_source_raises(stub_artifacts, make_model, make_metadata):
+    stub_artifacts.write_model(make_model(FOOD4EDUCATION_FEATURE_COLUMNS))
+    stub_artifacts.write_metadata(make_metadata(features_used=FOOD4EDUCATION_FEATURE_COLUMNS))
+    with pytest.raises(FeatureAlignmentError, match="metadata: 11, inference: 20"):
+        model_service.get_model()
+
+
+def test_unknown_data_source_raises(stub_artifacts, make_metadata):
+    stub_artifacts.write_metadata(make_metadata(data_source="somewhere_else"))
+    with pytest.raises(FeatureAlignmentError, match="unknown data source"):
         model_service.get_model()
 
 

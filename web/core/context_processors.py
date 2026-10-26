@@ -32,6 +32,16 @@ NAV_SECTIONS = [
     ]),
 ]
 
+# Pages the server takes noticeably longer to prepare; their links show the branded page loader
+# (layout.js) with this message if the next page has not arrived after a short delay.
+NAV_LOADING_MESSAGES = {
+    "core:dashboard": "Loading dashboard…",
+    "core:history": "Loading school records…",
+    "core:forecast_history": "Loading forecast results…",
+    "core:performance": "Analysing model performance…",
+    "core:donors": "Loading donor insights…",
+}
+
 
 def navigation(request) -> dict:
     """Sidebar items the signed-in user may see, with the active page marked."""
@@ -49,7 +59,8 @@ def navigation(request) -> dict:
             active = current in active_on
             if active:
                 current_label = label
-            items.append({"label": label, "icon": icon, "url": reverse(url_name), "active": active})
+            items.append({"label": label, "icon": icon, "url": reverse(url_name), "active": active,
+                          "loading": NAV_LOADING_MESSAGES.get(url_name)})
         if items:
             sections.append({"heading": heading, "items": items})
     return {"NAV_SECTIONS": sections, "NAV_CURRENT": current_label}

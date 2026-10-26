@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="27" fill="#EDE9FE"/><g fill="none" stroke-linejoin="round" stroke-linecap="round">
+<!-- students -->
+<circle cx="29" cy="32" r="7" fill="#5B21B6"/><circle cx="64" cy="23" r="9" fill="#5B21B6"/><circle cx="99" cy="32" r="7" fill="#5B21B6"/>
+<path d="M18 53 Q18 43 29 43 Q40 43 40 53 L40 59 L18 59Z" fill="#5B21B6"/>
+<path d="M49 53 Q49 36 64 36 Q79 36 79 53 L79 60 L49 60Z" fill="#5B21B6"/>
+<path d="M88 53 Q88 43 99 43 Q110 43 110 53 L110 59 L88 59Z" fill="#5B21B6"/>
+<!-- spoon -->
+<ellipse cx="64" cy="63" rx="6" ry="10" fill="#7C3AED"/><path d="M64 73 V100" stroke="#7C3AED" stroke-width="5"/>
+<!-- open book, unmistakable rectangular pages -->
+<path d="M14 65 L14 104 Q39 101 61 115 L64 118 L67 115 Q89 101 114 104 L114 65 Q88 62 64 80 Q40 62 14 65Z" fill="#C4B5FD" stroke="#5B21B6" stroke-width="4"/>
+<path d="M19 70 L19 99 Q41 98 61 111 L61 83 Q41 68 19 70Z" fill="#C4B5FD" stroke="#5B21B6" stroke-width="2"/>
+<path d="M109 70 L109 99 Q87 98 67 111 L67 83 Q87 68 109 70Z" fill="#C4B5FD" stroke="#5B21B6" stroke-width="2"/>
+<path d="M24 80 Q41 80 55 89 M24 88 Q41 88 55 97 M104 80 Q87 80 73 89 M104 88 Q87 88 73 97" stroke="#6D28D9" stroke-width="2.6"/>
+<path d="M64 81 V118" stroke="#5B21B6" stroke-width="3"/>
+<path d="M12 107 Q38 105 64 122 Q90 105 116 107" stroke="#5B21B6" stroke-width="3"/>
+<!-- rays -->
+<path d="M64 5 V10 M42 11 L38 6 M86 11 L90 6" stroke="#7C3AED" stroke-width="4"/>
+</g></svg>

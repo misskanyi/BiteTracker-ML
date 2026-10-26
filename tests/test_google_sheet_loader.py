@@ -105,6 +105,14 @@ def test_enrolment_never_below_present_students():
     assert df.loc[df["school_id"] == "SCHOOL_2", "enrolled_students"].iloc[0] == 5
 
 
+def test_school_day_data_sheet_name_is_accepted():
+    # The 2023-2025 export calls the school-day sheet "School Day Data" and has no tap sheets.
+    workbook = _workbook()
+    df = to_bitetracker_schema({"School Day Data": workbook[MEALS_SHEET]})
+    assert df["meals_served"].tolist() == [8, 10, 5]
+    assert (df["enrolled_students"] >= df["students_present"]).all()
+
+
 def test_missing_meals_sheet_raises():
     with pytest.raises(GoogleSheetError):
         to_bitetracker_schema({"school_1": pd.DataFrame()})

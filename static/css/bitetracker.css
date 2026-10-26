@@ -111,14 +111,25 @@ aside.bt-sidebar {
 }
 
 .bt-sidebar__brand { display: flex; align-items: center; gap: var(--bt-space-2); padding: var(--bt-space-4) var(--bt-space-4) var(--bt-space-3); min-height: var(--bt-topbar-h); }
-.bt-brand { display: inline-flex; align-items: center; gap: 0.6rem; text-decoration: none; color: var(--bt-text); }
+.bt-brand { display: inline-flex; align-items: center; gap: 0.6rem; line-height: 0; border-radius: var(--bt-radius-sm); text-decoration: none; color: var(--bt-text); }
 .bt-brand:hover { color: var(--bt-text); }
-.bt-brand__name { font-weight: var(--bt-weight-heading); font-size: 1.2rem; letter-spacing: -0.005em; color: var(--bt-primary); white-space: nowrap; }
-.bt-logo { flex: 0 0 auto; }
-.bt-logo__tile { fill: var(--bt-primary-soft); }
-.bt-logo__bowl { fill: var(--bt-primary); }
-.bt-logo__line { stroke: var(--bt-primary); }
-.bt-logo__dot { fill: var(--bt-chart-series-3); }
+
+/* Brand marks (partials/_brand.html): light and dark files are both in the page; the theme picks one.
+   Widths only — heights follow each file's own aspect ratio, so marks are never stretched or cropped. */
+.bt-brand-mark { display: inline-flex; flex: 0 0 auto; line-height: 0; max-width: 100%; }
+.bt-brand-mark img { display: block; width: 100%; height: auto; }
+.bt-brand-mark .bt-brand-mark__dark { display: none; }
+[data-theme="dark"] .bt-brand-mark .bt-brand-mark__light { display: none; }
+[data-theme="dark"] .bt-brand-mark .bt-brand-mark__dark { display: block; }
+.bt-brand-mark--horizontal { width: 176px; }
+.bt-brand-mark--stacked { width: min(240px, 72vw); }
+.bt-brand-mark--icon { width: 40px; }
+.bt-brand-mark.bt-collapse-show { display: none; }
+@media (min-width: 992px) {
+  .bt-sidebar-collapsed .bt-brand-mark.bt-collapse-show { display: inline-flex; }
+}
+.bt-topbar__brand { display: inline-flex; line-height: 0; border-radius: var(--bt-radius-sm); }
+.bt-topbar__brand .bt-brand-mark--icon { width: 34px; }
 
 .bt-sidebar__nav { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: var(--bt-space-2) var(--bt-space-3); }
 .bt-nav-section + .bt-nav-section { margin-top: var(--bt-space-3); }
@@ -286,6 +297,32 @@ b, strong { font-weight: var(--bt-weight-heading); }
 .form-text { color: var(--bt-text-muted); font-size: var(--bt-text-xs); }
 .form-check-input:checked { background-color: var(--bt-btn-primary-bg); border-color: var(--bt-btn-primary-bg); }
 [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+
+/* Password field with an inline show/hide toggle inside the input's right edge. */
+.bt-password-field { position: relative; }
+.bt-password-field .form-control { padding-right: 2.75rem; }
+.bt-password-field .form-control::-ms-reveal { display: none; }
+.bt-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--bt-radius-sm);
+  background: transparent;
+  color: var(--bt-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.bt-password-toggle:hover, .bt-password-toggle[aria-pressed="true"] { color: var(--bt-primary); background-color: rgba(var(--bt-primary-rgb), 0.08); }
+.bt-password-toggle:focus-visible { outline: none; box-shadow: var(--bt-focus-ring); }
 .text-danger { color: var(--bt-danger) !important; }
 
 /* Tables */
@@ -660,6 +697,37 @@ html.bt-theme-transition, html.bt-theme-transition *, html.bt-theme-transition *
 .chart-box.is-animating .barlayer .point text,
 .chart-box.is-animating .errorbars { animation: bt-fade 350ms var(--bt-ease) both; animation-delay: calc(var(--bt-delay, 0ms) + 450ms); }
 .chart-box.is-animating .legend { animation: bt-rise var(--bt-dur-slow) var(--bt-ease) both; }
+
+/* Branded loaders (partials/_loader.html). The icon itself never rotates: "pulse" breathes gently,
+   "ring" keeps the icon still while an indeterminate violet ring turns around it. */
+@keyframes bt-logo-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.72; transform: scale(1.06); } }
+@keyframes bt-ring-spin { to { transform: rotate(360deg); } }
+.bt-loader { display: flex; flex-direction: column; align-items: center; gap: var(--bt-space-3); text-align: center; }
+.bt-loader__mark { position: relative; display: grid; place-items: center; width: 76px; height: 76px; }
+.bt-loader__mark .bt-brand-mark--icon { width: 56px; }
+.bt-loader__message { font-size: var(--bt-text-sm); font-weight: var(--bt-weight-label); color: var(--bt-text); }
+.bt-loader--pulse .bt-brand-mark { animation: bt-logo-pulse 1.8s ease-in-out infinite; }
+.bt-loader--ring .bt-loader__mark .bt-brand-mark--icon { width: 44px; }
+.bt-loader--ring .bt-loader__mark::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid rgba(var(--bt-primary-rgb), 0.16); border-top-color: var(--bt-primary);
+  animation: bt-ring-spin 1s linear infinite;
+}
+
+/* Overlays cover only what is busy (a form, or the page while the next one loads); absolutely
+   positioned so showing them never shifts the layout. Hidden with the [hidden] attribute. */
+.bt-loader-host { position: relative; }
+.bt-loader-overlay {
+  position: absolute; inset: 0; z-index: 5; display: block;
+  border-radius: var(--bt-radius);
+  background: color-mix(in srgb, var(--bt-glass-menu) 88%, transparent);
+  -webkit-backdrop-filter: var(--bt-glass-blur); backdrop-filter: var(--bt-glass-blur);
+  animation: bt-fade var(--bt-dur) var(--bt-ease) both;
+}
+/* Tall forms: keep the loader in view rather than centred off-screen. */
+.bt-loader-overlay > .bt-loader { position: sticky; top: calc(50vh - 60px); padding: var(--bt-space-6) var(--bt-space-4); }
+.bt-loader-overlay--page { position: fixed; z-index: 1060; border-radius: 0; display: grid; place-items: center; }
+.bt-loader-overlay--page > .bt-loader { position: static; }
 
 /* --- 8. Motion preferences ------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {

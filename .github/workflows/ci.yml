@@ -56,8 +56,10 @@ jobs:
       # Uses the committed SYNTHETIC dataset (data/sample/synthetic_school_meals.csv).
       # No real Food4Education data is used or needed. The full run, tuning
       # included, takes well under a minute on this dataset.
+      # The real Food4Education sheet is private and not available here, so the
+      # synthetic sample is named explicitly (training no longer falls back to it).
       - name: Run ML pipeline (synthetic data)
-        run: python scripts/train_models.py
+        run: python scripts/train_models.py --data-path data/sample/synthetic_school_meals.csv
 
       # Make sure training produced every expected file and none is empty.
       # Fails the run if any file is missing.

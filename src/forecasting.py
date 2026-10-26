@@ -15,6 +15,11 @@ web UI, not hidden.
 A forecast day's own attendance is never a model input (it isn't known in
 advance). Attendance features use the previous school day: the last recorded
 day for day 1, and an assumed attendance for each later day.
+
+`_build_feature_row` always builds the full synthetic feature set
+(`FEATURE_COLUMNS`); each model is given only the columns it was trained on.
+A Food4Education model uses a subset (no weather, term, holiday or
+attendance features), so those inputs are reported as not used.
 """
 
 # In simple terms: uses the trained model to predict meal demand for the
@@ -41,6 +46,16 @@ def load_forecasting_model():
     if not path.exists():
         raise FileNotFoundError(f"No final best model found at {path}. Run run_tuning.py first.")
     return joblib.load(path)
+
+
+_NOT_USED = "not used by this model"
+_ATTENDANCE_FEATURES = {"previous_attendance", "previous_attendance_rate"}
+
+
+def model_feature_columns(model) -> list[str]:
+    """The feature columns `model` was fitted on, in order; `FEATURE_COLUMNS` if it doesn't record them."""
+    names = getattr(model, "feature_names_in_", None)
+    return list(FEATURE_COLUMNS) if names is None else [str(name) for name in names]
 
 
 def get_school_history(df: pd.DataFrame, school_id: str) -> pd.DataFrame:
@@ -151,6 +166,7 @@ def forecast_school_demand(
     expected_temperature_c: float | None = None,
     school_events: set[date] | None = None,
     model=None,
+    feature_columns: list[str] | None = None,
 ) -> pd.DataFrame:
     """Forecast the next `horizon_days` school days of meal demand for one school.
 
@@ -163,10 +179,17 @@ def forecast_school_demand(
     last recorded day's actual attendance; days after day 2 use the 14-day
     average.
 
+    `feature_columns`: the columns the model was trained on; defaults to
+    `model_feature_columns(model)`.
+
     The `*_assumption` columns say which basis each row used, so the UI can
     label it honestly.
     """
     model = model or load_forecasting_model()
+    features = list(feature_columns) if feature_columns is not None else model_feature_columns(model)
+    uses_attendance = bool(_ATTENDANCE_FEATURES & set(features))
+    uses_rainfall = "rainfall_mm" in features
+    uses_temperature = "temperature_c" in features
     history = get_school_history(df, school_id)
     if history.empty:
         raise ValueError(f"No history found for school_id={school_id}")
@@ -196,7 +219,9 @@ def forecast_school_demand(
         # Attendance features describe the previous school day: the last
         # recorded day for day 1, then the attendance assumed for the
         # previous forecast day.
-        if i == 0:
+        if not uses_attendance:
+            attendance_basis = _NOT_USED
+        elif i == 0:
             attendance_basis = "last recorded day (observed)"
         elif i == 1 and not attendance_assumed:
             attendance_basis = "user-provided (day 1)"
@@ -212,7 +237,7 @@ def forecast_school_demand(
             temperature_c=temperature,
             is_school_event=forecast_date in school_events,
         )
-        X = pd.DataFrame([feature_row])[FEATURE_COLUMNS]
+        X = pd.DataFrame([feature_row])[features]
         predicted_meals = float(model.predict(X)[0])
         predicted_meals = max(0.0, predicted_meals)
 
@@ -222,8 +247,10 @@ def forecast_school_demand(
                 "school_id": school_id,
                 "predicted_meals_served": predicted_meals,
                 "attendance_assumption": attendance_basis,
-                "rainfall_assumption": "user-provided" if not rainfall_assumed else "recent 14-day average",
-                "temperature_assumption": "user-provided" if not temperature_assumed else "recent 14-day average",
+                "rainfall_assumption": _NOT_USED if not uses_rainfall
+                else "user-provided" if not rainfall_assumed else "recent 14-day average",
+                "temperature_assumption": _NOT_USED if not uses_temperature
+                else "user-provided" if not temperature_assumed else "recent 14-day average",
             }
         )
 
@@ -247,6 +274,7 @@ def predict_specific_date(
     is_exam_period: bool,
     is_school_event: bool = False,
     model=None,
+    feature_columns: list[str] | None = None,
 ) -> dict:
     """Predict meal demand for one specific, user-chosen future date.
 
@@ -294,7 +322,8 @@ def predict_specific_date(
         holiday_override=is_holiday,
         exam_override=is_exam_period,
     )
-    X = pd.DataFrame([feature_row])[FEATURE_COLUMNS]
+    features = list(feature_columns) if feature_columns is not None else model_feature_columns(model)
+    X = pd.DataFrame([feature_row])[features]
     predicted_meals = max(0.0, float(model.predict(X)[0]))
 
     days_ahead = (target_date - last_date).days

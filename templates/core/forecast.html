@@ -8,7 +8,7 @@
 {% else %}
 <div class="row g-4">
   <div class="col-xl-8">
-    <form method="post" novalidate data-loading="Generating forecast…" data-testid="forecast-form" class="d-flex flex-column gap-3">
+    <form method="post" novalidate data-loading="Generating forecast…" data-testid="forecast-form" class="bt-loader-host d-flex flex-column gap-3">
       {% csrf_token %}
       {% if form.non_field_errors %}
         <div class="alert alert-danger mb-0" role="alert" data-testid="forecast-error">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
@@ -45,7 +45,7 @@
             <div class="col-md-4">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
-              <div class="form-text" data-hint="{{ field.name }}">{{ field.help_text }}</div>
+              <div class="form-text" data-hint="{{ field.name }}" data-testid="attendance-hint">{% if attendance_unused %}Not used: the current model forecasts from meal history and the calendar only.{% else %}{{ field.help_text }}{% endif %}</div>
               {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             {% endwith %}
@@ -92,7 +92,10 @@
 
       <div class="bt-submit-bar">
         <button type="submit" class="btn btn-primary btn-lg w-100"><i class="bi bi-magic me-1" aria-hidden="true"></i>Generate forecast</button>
-        <p class="bt-footnote text-center mt-2 mb-0" aria-live="polite" data-loading-status></p>
+        <p class="bt-footnote text-center mt-2 mb-0" role="status" aria-live="polite" data-loading-status></p>
+      </div>
+      <div class="bt-loader-overlay" data-loader-overlay hidden>
+        {% include "partials/_loader.html" with variant="ring" message="Generating forecast…" decorative=True %}
       </div>
     </form>
   </div>
@@ -149,9 +152,11 @@
     var defaults = JSON.parse(el.textContent);
     var select = document.getElementById("id_school");
     var weatherUnrecorded = {{ weather_unrecorded|yesno:"true,false" }};
-    var fields = {
-      expected_attendance: function (d) { return "Last recorded day: " + d.last_recorded_attendance + " students. Recent 14-day average: " + d.recent_attendance + ". A day's own attendance is not a model input, so this only affects day 2 onwards."; }
-    };
+    var attendanceUnused = {{ attendance_unused|yesno:"true,false" }};
+    var fields = {};
+    if (!attendanceUnused) {
+      fields.expected_attendance = function (d) { return "Last recorded day: " + d.last_recorded_attendance + " students. Recent 14-day average: " + d.recent_attendance + ". A day's own attendance is not a model input, so this only affects day 2 onwards."; };
+    }
     if (!weatherUnrecorded) {
       fields.expected_rainfall_mm = function (d) { return "Blank = recent 14-day average (" + d.recent_rainfall_mm + " mm)."; };
       fields.expected_temperature_c = function (d) { return "Blank = recent 14-day average (" + d.recent_temperature_c + " °C)."; };

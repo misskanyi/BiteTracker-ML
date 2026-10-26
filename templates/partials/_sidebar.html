@@ -1,8 +1,8 @@
 {# Left navigation. Desktop (lg+): fixed column, collapsible to icons. Below lg: Bootstrap offcanvas drawer. #}
 <aside class="bt-sidebar bt-glass-panel offcanvas-lg offcanvas-start" id="bt-sidebar" tabindex="-1" aria-label="Main navigation">
   <div class="bt-sidebar__brand">
-    <a class="bt-brand" href="{% url 'core:dashboard' %}">
-      {% include "partials/_logo.html" %}<span class="bt-brand__name bt-collapse-hide">BiteTracker</span>
+    <a class="bt-brand" href="{% url 'core:dashboard' %}" data-loading-nav="Loading dashboard…">
+      {% include "partials/_brand.html" with variant="horizontal" class="bt-collapse-hide" %}{% include "partials/_brand.html" with variant="icon" class="bt-collapse-show" %}
     </a>
     <button type="button" class="btn-close d-lg-none ms-auto" data-bs-dismiss="offcanvas" data-bs-target="#bt-sidebar" aria-label="Close navigation"></button>
   </div>
@@ -15,7 +15,7 @@
           {% for item in section.items %}
           <li>
             <a class="bt-nav__link{% if item.active %} is-active{% endif %}" href="{{ item.url }}"
-               {% if item.active %}aria-current="page"{% endif %} data-bt-tooltip="{{ item.label }}">
+               {% if item.active %}aria-current="page"{% endif %}{% if item.loading %} data-loading-nav="{{ item.loading }}"{% endif %} data-bt-tooltip="{{ item.label }}">
               <i class="bi {{ item.icon }}" aria-hidden="true"></i><span class="bt-nav__label bt-collapse-hide">{{ item.label }}</span>
             </a>
           </li>

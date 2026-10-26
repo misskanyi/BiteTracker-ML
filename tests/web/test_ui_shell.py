@@ -184,6 +184,46 @@ def test_static_assets_exist(path):
     assert finders.find(path)
 
 
+# --- Brand marks and loaders ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", [
+    f"images/branding/{folder}/{name}-{theme}.svg"
+    for folder, names in {"logos": ["logo-horizontal", "logo-stacked"], "icons": ["icon"]}.items()
+    for name in names for theme in ("light", "dark")
+] + ["images/branding/favicons/favicon-simple.svg", "images/branding/favicons/favicon-simple.png",
+     "images/branding/icons/app-light.png"])
+def test_brand_assets_exist(path):
+    assert finders.find(path)
+
+
+def test_login_shows_stacked_logo_for_both_themes_and_no_green_branding(client, db):
+    html = client.get(reverse("accounts:login")).content.decode()
+    assert "logo-stacked-light.svg" in html and "logo-stacked-dark.svg" in html
+    assert "favicon-simple.svg" in html
+    assert "text-success" not in html and "btn-success" not in html and "bi-basket2" not in html
+
+
+def test_sidebar_uses_horizontal_logo_and_icon_for_collapsed_state(client, planner):
+    brand = _sidebar(_page(client, planner)).split("</a>")[0]
+    assert "logo-horizontal-light.svg" in brand and "logo-horizontal-dark.svg" in brand
+    assert "icon-light.svg" in brand and "bt-collapse-show" in brand
+
+
+def test_slow_pages_get_a_page_loader_message(client, planner):
+    html = _page(client, planner)
+    assert 'id="bt-page-loader"' in html and "bt-loader--pulse" in html
+    assert f'href="{reverse("core:performance")}"' in html and 'data-loading-nav="Analysing model performance…"' in html
+
+
+def test_forecast_form_has_ring_loader_hidden_until_submit(client, planner):
+    html = _page(client, planner, "core:forecast")
+    if 'data-testid="forecast-form"' not in html:
+        pytest.skip("no active dataset in this environment, so the forecast form is not rendered")
+    overlay = re.search(r'<div class="bt-loader-overlay" data-loader-overlay hidden>.*?</div>\s*</div>', html, re.S)
+    assert overlay and "bt-loader--ring" in overlay.group(0) and "Generating forecast" in overlay.group(0)
+
+
 # --- Chart colour roles --------------------------------------------------------------------
 
 

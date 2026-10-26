@@ -116,11 +116,12 @@ body:not(.popup) #header {
   display: inline-flex; align-items: center; gap: var(--bt-space-2);
   color: var(--bt-text); text-decoration: none; letter-spacing: -0.01em;
 }
-#site-name .bt-logo { width: 30px; height: 30px; flex: none; }
-.bt-logo__tile { fill: var(--bt-primary-soft); }
-.bt-logo__bowl { fill: var(--bt-primary); }
-.bt-logo__line { stroke: var(--bt-primary); }
-.bt-logo__dot { fill: var(--bt-chart-series-3); }
+/* Brand mark (partials/_brand.html): the theme shows the matching light or dark file. */
+#site-name .bt-brand-mark { display: inline-flex; flex: none; width: 32px; line-height: 0; }
+.bt-brand-mark img { display: block; width: 100%; height: auto; }
+.bt-brand-mark .bt-brand-mark__dark { display: none; }
+[data-theme="dark"] .bt-brand-mark .bt-brand-mark__light { display: none; }
+[data-theme="dark"] .bt-brand-mark .bt-brand-mark__dark { display: block; }
 #header a:focus, #header a:hover { text-decoration: none; color: var(--bt-link-hover); }
 #user-tools {
   display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 0 var(--bt-space-2);

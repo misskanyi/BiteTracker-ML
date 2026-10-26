@@ -4,6 +4,10 @@
           aria-controls="bt-sidebar" aria-label="Open navigation">
     <i class="bi bi-list" aria-hidden="true"></i>
   </button>
+  {# Compact mark for small screens, where the sidebar (and its logo) is a closed drawer. #}
+  <a class="bt-topbar__brand d-lg-none" href="{% url 'core:dashboard' %}" data-loading-nav="Loading dashboard…">
+    {% include "partials/_brand.html" with variant="icon" %}
+  </a>
 
   <nav class="bt-crumb" aria-label="Breadcrumb">
     <ol class="breadcrumb mb-0">

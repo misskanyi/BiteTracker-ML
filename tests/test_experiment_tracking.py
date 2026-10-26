@@ -163,7 +163,8 @@ def test_notebook_is_valid_and_has_no_secrets():
         compile(_source(cell), "<notebook cell>", "exec")
     for marker in ("ghp_", "github_pat_", "/spreadsheets/d/1"):
         assert marker not in text
-    assert any('DATA_SOURCE = "synthetic"' in _source(c) for c in code_cells)
+    # Real data is the default; synthetic is opt-in for end-to-end tests only.
+    assert any('DATA_SOURCE = "food4education"' in _source(c) for c in code_cells)
 
 
 @pytest.mark.parametrize("heading", [

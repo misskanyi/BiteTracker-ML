@@ -19,7 +19,7 @@ import pytest
 from sklearn.tree import DecisionTreeRegressor
 
 from config import settings
-from src.feature_engineering import FEATURE_COLUMNS
+from src.feature_engineering import FEATURE_COLUMNS, FOOD4EDUCATION_FEATURE_COLUMNS
 from src.forecasting import (
     _build_feature_row,
     _next_school_days,
@@ -225,6 +225,34 @@ def test_predict_specific_date_returns_expected_keys():
     assert result["target_date"] == target
     assert result["days_ahead"] > 0
     assert set(FEATURE_COLUMNS).issubset(result["feature_row"].keys())
+
+
+def test_model_fitted_on_food4education_features_gets_only_those_columns():
+    """A model trained on the 11 Food4Education features is given exactly those, in order."""
+    df = _fake_processed_df(n_days=40)
+    hist = get_school_history(df, "SCH001")
+    train_df = pd.DataFrame([
+        _build_feature_row(
+            forecast_date=hist.iloc[i][settings.DATE_COLUMN].date(),
+            meals_history=hist["meals_served"].iloc[:i].tolist(),
+            students_present_history=hist["students_present"].iloc[:i].tolist(),
+            enrolled_students=float(hist["enrolled_students"].iloc[i]),
+            rainfall_mm=float("nan"),
+            temperature_c=float("nan"),
+        )
+        for i in range(14, len(hist))
+    ])
+    model = DecisionTreeRegressor(random_state=42).fit(
+        train_df[FOOD4EDUCATION_FEATURE_COLUMNS], hist["meals_served"].iloc[14:]
+    )
+    seen = []
+    real_predict = model.predict
+    model.predict = lambda X: seen.append(list(X.columns)) or real_predict(X)
+
+    result = forecast_school_demand(df, "SCH001", horizon_days=3, model=model)
+    assert seen == [FOOD4EDUCATION_FEATURE_COLUMNS] * 3
+    assert (result["attendance_assumption"] == "not used by this model").all()
+    assert (result["temperature_assumption"] == "not used by this model").all()
 
 
 def test_predict_specific_date_rejects_past_or_current_date():

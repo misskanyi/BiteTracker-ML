@@ -14,13 +14,17 @@
       <strong>Privacy:</strong> upload only aggregated, school-level daily records. Do not include student names, admission numbers, phone numbers, addresses or any other personal information.
     </div>
     <div class="card"><div class="card-body p-4">
-      <form method="post" enctype="multipart/form-data" novalidate data-loading="Validating…">
+      <form method="post" enctype="multipart/form-data" novalidate data-loading="Validating…" class="bt-loader-host">
         {% csrf_token %}
         <label class="form-label fw-semibold" for="{{ form.file.id_for_label }}">{{ form.file.label }}</label>
         {{ form.file }}
         {% for e in form.file.errors %}<div class="text-danger small mt-1" data-testid="upload-form-error">{{ e }}</div>{% endfor %}
         <div class="form-text">Maximum {{ max_size_mb }} MB. Required columns: <code>date</code>, <code>school_id</code>, <code>school_name</code>, <code>meals_served</code>. Other BiteTracker columns are optional.</div>
-        <button type="submit" class="btn btn-success mt-3"><i class="bi bi-check2-square me-1"></i>Upload and validate</button>
+        <button type="submit" class="btn btn-primary mt-3"><i class="bi bi-check2-square me-1"></i>Upload and validate</button>
+        <p class="visually-hidden" role="status" data-loading-status></p>
+        <div class="bt-loader-overlay" data-loader-overlay hidden>
+          {% include "partials/_loader.html" with variant="ring" message="Uploading and validating records…" decorative=True %}
+        </div>
       </form>
     </div></div>
   </div>

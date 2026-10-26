@@ -45,6 +45,7 @@ HORIZONS: dict[int, str] = {
 
 # The longest look-back any feature needs (lag_14_meals / rolling_mean_14).
 # With less history those features would be NaN and the prediction meaningless.
+# FEATURE_COLUMNS includes every Food4Education feature, so this covers both sets.
 MIN_HISTORY_RECORDS = max(int(n) for column in FEATURE_COLUMNS for n in re.findall(r"_(\d+)", column))
 
 # Same 14-day window the former Streamlit pages used for volatility and cost.
@@ -200,6 +201,7 @@ def generate_forecast(
         expected_rainfall_mm=expected_rainfall_mm,
         expected_temperature_c=expected_temperature_c,
         model=loaded.model,
+        feature_columns=loaded.feature_columns,
     )
 
     recent = history.tail(_RECENT_WINDOW)
