@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{% if creating %}Add event{% else %}Edit event{% endif %}{% endblock %}
+{% block content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% if event %}{% url 'schoolcalendar:event_detail' event.pk %}{% else %}{% url 'schoolcalendar:calendar' %}{% endif %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>{% if event %}Back to event{% else %}Back to calendar{% endif %}</a></nav>
+{% if creating %}
+  {% include "partials/_page_header.html" with title="Add calendar event" icon="bi-calendar-plus" subtitle="Record term dates, holidays, closures or events for one of your schools." %}
+{% else %}
+  {% include "partials/_page_header.html" with title="Edit calendar event" icon="bi-pencil-square" subtitle=event.title %}
+{% endif %}
+
+<div class="card bt-form-card"><div class="card-body">
+  <form method="post" novalidate data-loading="Saving…" data-testid="event-form">
+    {% csrf_token %}
+    {% include "partials/_form_errors.html" %}
+    {% include "partials/_field.html" with field=form.title %}
+    <div class="row g-3">
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.event_type %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.school %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.start_date %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.end_date %}</div>
+    </div>
+    {% include "partials/_field.html" with field=form.feeding_status %}
+    {% include "partials/_field.html" with field=form.description %}
+    {% if form.needs_overlap_confirmation %}{% include "partials/_field.html" with field=form.confirm_overlap %}{% endif %}
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>{% if creating %}Add event{% else %}Save changes{% endif %}</button>
+      <a class="btn btn-outline-secondary" href="{% if event %}{% url 'schoolcalendar:event_detail' event.pk %}{% else %}{% url 'schoolcalendar:calendar' %}{% endif %}">Cancel</a>
+    </div>
+    <p class="visually-hidden" role="status" data-loading-status></p>
+  </form>
+</div></div>
+{% endblock %}

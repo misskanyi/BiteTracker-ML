@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<div class="bt-page-header bt-page-header--actions">
+  <span class="bt-icon-chip" aria-hidden="true"><i class="bi bi-bell"></i></span>
+  <div class="me-auto">
+    <h1 class="bt-page-title">Notifications</h1>
+    <p class="bt-page-subtitle">Updates about your forecasts, uploads, schools and account.</p>
+  </div>
+  {% if NOTIFICATIONS_UNREAD %}
+  <form method="post" action="{% url 'notifications:mark_all_read' %}">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-check2-all me-1" aria-hidden="true"></i>Mark all as read</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="bt-chips mb-3" role="group" aria-label="Filter notifications">
+  <a class="bt-chip{% if show != 'unread' %} is-active{% endif %}" href="{% url 'notifications:list' %}"{% if show != 'unread' %} aria-current="true"{% endif %}>All</a>
+  <a class="bt-chip{% if show == 'unread' %} is-active{% endif %}" href="?show=unread"{% if show == 'unread' %} aria-current="true"{% endif %}>Unread ({{ NOTIFICATIONS_UNREAD }})</a>
+</div>
+
+<div class="card">
+  {% if page.object_list %}
+  <ul class="list-unstyled mb-0 bt-notify-list bt-notify-list--page" data-testid="notification-list">
+    {% for n in page %}
+    <li class="bt-notify-row{% if not n.is_read %} is-unread{% endif %}">
+      <span class="bt-notify-item__icon" aria-hidden="true"><i class="bi {{ n.icon }}"></i></span>
+      <div class="bt-notify-row__body">
+        <div class="bt-notify-item__title">{% if not n.is_read %}<span class="badge bt-badge-primary me-1">New</span>{% endif %}{{ n.title }}</div>
+        {% if n.message %}<div class="bt-notify-item__message">{{ n.message }}</div>{% endif %}
+        <div class="bt-notify-item__time">{{ n.get_type_display }} · <time datetime="{{ n.created_at|date:'c' }}">{{ n.created_at|date:"j M Y, H:i" }}</time></div>
+      </div>
+      <div class="bt-notify-row__actions">
+        {% if n.url %}
+        <form method="post" action="{% url 'notifications:open' n.pk %}">{% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-sm">Open</button></form>
+        {% endif %}
+        {% if not n.is_read %}
+        <form method="post" action="{% url 'notifications:mark_read' n.pk %}">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" class="btn btn-outline-secondary btn-sm">Mark as read</button></form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="card-footer">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+  <div class="card-body"><div class="empty-state"><i class="bi bi-bell-slash"></i>
+    <p class="mb-1">{% if show == "unread" %}No unread notifications.{% else %}No notifications yet.{% endif %}</p>
+    <p class="small mb-0">You'll be notified when forecasts finish, uploads are validated and your schools' calendars change. <a href="{% url 'accounts:settings' %}?tab=notifications">Notification preferences</a></p>
+  </div></div>
+  {% endif %}
+</div>
+{% endblock %}

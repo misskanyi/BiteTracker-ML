@@ -91,23 +91,77 @@ aside.bt-sidebar {
   border-right: 1px solid var(--bt-border);
   color: var(--bt-text);
 }
+/* Desktop sidebar states (layout.js):
+   - collapsed (default): icons only;
+   - peek (aside.is-peek): expanded while hovered or keyboard-focused, floating over the page so
+     nothing underneath resizes;
+   - pinned (html.bt-sidebar-pinned, saved per browser): expanded, and the page makes room.
+   Icons keep the same position in every state: only the width animates and labels fade in, so
+   nothing jumps. Below 992px the sidebar is the Bootstrap offcanvas drawer instead. */
 @media (min-width: 992px) {
-  aside.bt-sidebar {
-    position: sticky; top: 0; height: 100vh; flex: 0 0 auto;
-    width: var(--bt-sidebar-w);
-    transition: width var(--bt-transition);
-    overflow: hidden;
+  :root {
+    --bt-sidebar-gap: 12px;
+    /* Centres a 1.25rem icon in the collapsed rail (2px of border, nav padding either side). */
+    --bt-nav-inset: calc((var(--bt-sidebar-w-collapsed) - 2px - 2 * var(--bt-space-3) - 1.25rem) / 2);
   }
-  .bt-sidebar-collapsed aside.bt-sidebar { width: var(--bt-sidebar-w-collapsed); }
-  .bt-sidebar-collapsed .bt-collapse-hide { display: none !important; }
-  .bt-sidebar-collapsed .bt-nav__link { justify-content: center; padding-left: 0; padding-right: 0; }
-  .bt-sidebar-collapsed .bt-sidebar__brand { justify-content: center; padding-left: 0; padding-right: 0; }
-  .bt-sidebar-collapsed .bt-user { justify-content: center; }
-  .bt-sidebar-collapsed .bt-collapse-toggle .bi { transform: rotate(180deg); }
-  .bt-sidebar-collapsed .bt-nav-section + .bt-nav-section { border-top: 1px solid var(--bt-border); padding-top: var(--bt-space-2); }
+  aside.bt-sidebar {
+    position: fixed; z-index: 1030; top: var(--bt-sidebar-gap); bottom: var(--bt-sidebar-gap); left: var(--bt-sidebar-gap);
+    width: var(--bt-sidebar-w-collapsed); overflow: hidden;
+    transition: width 260ms var(--bt-ease), box-shadow 260ms var(--bt-ease);
+  }
+  .bt-sidebar-pinned aside.bt-sidebar, aside.bt-sidebar.is-peek { width: var(--bt-sidebar-w); transition-duration: 300ms; }
+  .bt-main { margin-left: calc(var(--bt-sidebar-w-collapsed) + var(--bt-sidebar-gap)); transition: margin-left 300ms var(--bt-ease); }
+  .bt-sidebar-pinned .bt-main { margin-left: calc(var(--bt-sidebar-w) + var(--bt-sidebar-gap)); }
+
+  aside.bt-sidebar .bt-nav__link { padding-left: var(--bt-nav-inset); padding-right: var(--bt-nav-inset); }
+  .bt-sidebar__brand { padding-left: calc((var(--bt-sidebar-w-collapsed) - 2px - 40px) / 2); padding-right: var(--bt-space-3); }
+  .bt-user { padding-left: calc((var(--bt-sidebar-w-collapsed) - 2px - 2 * var(--bt-space-3) - 36px) / 2); }
+
+  /* Labels, headings and the full logo fade and slide in once the sidebar has started to widen,
+     and fade out straight away when it narrows. Opacity only, so screen readers still get the labels. */
+  aside.bt-sidebar .bt-collapse-hide {
+    opacity: 0; transform: translateX(-6px);
+    transition: opacity 160ms var(--bt-ease), transform 160ms var(--bt-ease);
+  }
+  .bt-sidebar-pinned aside.bt-sidebar .bt-collapse-hide, aside.bt-sidebar.is-peek .bt-collapse-hide {
+    opacity: 1; transform: none;
+    transition: opacity 200ms var(--bt-ease) 80ms, transform 280ms var(--bt-ease) 40ms;
+  }
+  /* The compact logo sits where the full one starts and cross-fades with it. */
+  .bt-sidebar__brand .bt-brand { position: relative; }
+  .bt-sidebar__brand .bt-brand-mark.bt-collapse-show {
+    display: inline-flex; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    transition: opacity 200ms var(--bt-ease);
+  }
+  .bt-sidebar-pinned .bt-sidebar__brand .bt-brand-mark.bt-collapse-show,
+  aside.bt-sidebar.is-peek .bt-brand-mark.bt-collapse-show { opacity: 0; }
+
+  /* Pin control: only reachable while the sidebar is expanded (hidden, not just transparent, so it
+     never takes a Tab stop in the rail). */
+  aside.bt-sidebar .bt-sidebar-pin {
+    width: 32px; height: 32px; margin-left: auto; font-size: 0.95rem;
+    opacity: 0; transform: translateX(-6px); visibility: hidden;
+    transition: opacity 160ms var(--bt-ease), transform 160ms var(--bt-ease), visibility 0s linear 160ms,
+                background-color var(--bt-dur-fast) var(--bt-ease), color var(--bt-dur-fast) var(--bt-ease);
+  }
+  .bt-sidebar-pinned aside.bt-sidebar .bt-sidebar-pin, aside.bt-sidebar.is-peek .bt-sidebar-pin {
+    opacity: 1; transform: none; visibility: visible;
+    transition: opacity 200ms var(--bt-ease) 80ms, transform 280ms var(--bt-ease) 40ms, visibility 0s,
+                background-color var(--bt-dur-fast) var(--bt-ease), color var(--bt-dur-fast) var(--bt-ease);
+  }
+  aside.bt-sidebar .bt-sidebar-pin[aria-pressed="true"] { color: var(--bt-primary); background: var(--bt-primary-soft); }
+  .bt-sidebar-pin .bi { transition: transform 280ms var(--bt-ease); }
+  .bt-sidebar-pin[aria-pressed="false"] .bi { transform: rotate(45deg); }
+}
+/* Touch screens wide enough for the desktop layout cannot hover, so the topbar gets a visible
+   expand/collapse button that pins the sidebar. */
+.bt-icon-btn.bt-sidebar-toggle { display: none; }
+@media (min-width: 992px) and (hover: none) {
+  .bt-icon-btn.bt-sidebar-toggle { display: inline-grid; }
 }
 @media (max-width: 991.98px) {
   aside.bt-sidebar { --bs-offcanvas-width: 280px; }
+  aside.bt-sidebar .bt-sidebar-pin { display: none; }  /* the drawer opens and closes from the topbar */
 }
 
 .bt-sidebar__brand { display: flex; align-items: center; gap: var(--bt-space-2); padding: var(--bt-space-4) var(--bt-space-4) var(--bt-space-3); min-height: var(--bt-topbar-h); }
@@ -125,9 +179,6 @@ aside.bt-sidebar {
 .bt-brand-mark--stacked { width: min(240px, 72vw); }
 .bt-brand-mark--icon { width: 40px; }
 .bt-brand-mark.bt-collapse-show { display: none; }
-@media (min-width: 992px) {
-  .bt-sidebar-collapsed .bt-brand-mark.bt-collapse-show { display: inline-flex; }
-}
 .bt-topbar__brand { display: inline-flex; line-height: 0; border-radius: var(--bt-radius-sm); }
 .bt-topbar__brand .bt-brand-mark--icon { width: 34px; }
 
@@ -415,6 +466,13 @@ b, strong { font-weight: var(--bt-weight-heading); }
 .bt-card-link:hover { text-decoration: underline; }
 .bt-footnote { font-size: var(--bt-text-xs); color: var(--bt-text-muted); line-height: 1.5; }
 .card-footer.bt-footnote { background: var(--bt-table-head-bg); padding: 0.65rem var(--bt-space-4); }
+/* Method notes and caveats stay on the page but collapsed, so cards lead with figures. */
+.bt-notes > summary { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; list-style: none; font-weight: var(--bt-weight-label); color: var(--bt-text-muted); }
+.bt-notes > summary::-webkit-details-marker { display: none; }
+.bt-notes > summary:hover { color: var(--bt-primary); }
+.bt-notes > summary:focus-visible { outline: 2px solid var(--bt-focus); outline-offset: 2px; border-radius: 0.3rem; }
+.bt-notes[open] > summary { margin-bottom: var(--bt-space-2); }
+.bt-notes p, .bt-notes ul { margin-bottom: var(--bt-space-1); }
 .bt-eyebrow { font-size: var(--bt-text-xs); font-weight: var(--bt-weight-label); letter-spacing: 0.06em; text-transform: uppercase; color: var(--bt-text-muted); }
 
 /* KPI tile with icon */
@@ -569,15 +627,15 @@ body::before {
   }
 }
 
-/* Floating glass sidebar (desktop): inset from the window edge with rounded corners. */
+/* Floating glass sidebar (desktop): inset from the window edge with rounded corners (position and
+   width live with the sidebar states, section 4). While it peeks over the page it casts a deeper shadow. */
 aside.bt-sidebar { background: var(--bt-glass-sheen), var(--bt-glass-chrome) !important; }
 @media (min-width: 992px) {
   aside.bt-sidebar {
-    position: sticky; top: 12px; height: calc(100vh - 24px); margin: 12px 0 12px 12px;
     border: 1px solid var(--bt-glass-border); border-radius: var(--bt-radius-lg);
     box-shadow: var(--bt-glass-shadow), var(--bt-glass-highlight);
   }
-  .bt-sidebar-collapsed aside.bt-sidebar { width: var(--bt-sidebar-w-collapsed); }
+  aside.bt-sidebar.is-peek { box-shadow: var(--bt-shadow-lg), var(--bt-glass-shadow), var(--bt-glass-highlight); }
 }
 @media (max-width: 991.98px) {
   aside.bt-sidebar { background: var(--bt-glass-sheen), var(--bt-glass-menu) !important; border-right: 1px solid var(--bt-glass-border); }
@@ -646,6 +704,147 @@ aside.bt-sidebar { background: var(--bt-glass-sheen), var(--bt-glass-chrome) !im
 .table { --bs-table-border-color: var(--bt-glass-edge); --bs-table-hover-bg: rgba(var(--bt-primary-rgb), 0.07); }
 .bt-table--sticky thead th { --bs-table-bg: var(--bt-sticky-head-bg); -webkit-backdrop-filter: var(--bt-glass-blur); backdrop-filter: var(--bt-glass-blur); }
 .bt-footer { border-top: 0; }
+
+/* --- 6b. Account, notifications, calendar and administration pages --------------------- */
+/* Sidebar account block is a link to My profile. */
+a.bt-user { text-decoration: none; color: inherit; border-radius: 0.75rem; }
+a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
+.bt-sidebar__footer .bt-nav { margin: 0; }
+
+/* Avatars: initials or a private profile photo. */
+.bt-avatar { overflow: hidden; }
+.bt-avatar--photo { background: var(--bt-surface-muted); }
+.bt-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bt-avatar--lg { width: 56px; height: 56px; font-size: 1.1rem; }
+.bt-avatar--xl { width: 84px; height: 84px; font-size: 1.6rem; }
+.bt-avatar-button { padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; line-height: 0; }
+.bt-avatar-button:hover .bt-avatar { filter: brightness(1.08); }
+.bt-avatar-button:focus-visible { outline: 2px solid var(--bt-focus); outline-offset: 2px; }
+
+/* Notification bell and panel. */
+.bt-bell { position: relative; }
+.bt-bell__count {
+  position: absolute; top: -5px; right: -5px; min-width: 19px; height: 19px; padding: 0 5px;
+  display: inline-grid; place-items: center; border-radius: var(--bt-radius-pill);
+  background: var(--bt-danger); color: #fff; font-size: 0.6875rem; font-weight: var(--bt-weight-heading); line-height: 1;
+  box-shadow: 0 0 0 2px var(--bt-surface);
+}
+[data-theme="dark"] .bt-bell__count { color: #1B1729; }
+.bt-notify-menu { width: min(380px, calc(100vw - 24px)); padding: 0; }
+.bt-notify-menu__head, .bt-notify-menu__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--bt-space-2); padding: 0.7rem 0.9rem; }
+.bt-notify-menu__head { border-bottom: 1px solid var(--bt-glass-edge); }
+.bt-notify-menu__foot { border-top: 1px solid var(--bt-glass-edge); justify-content: center; font-size: var(--bt-text-sm); }
+.bt-notify-list { max-height: min(60vh, 420px); overflow-y: auto; }
+.bt-notify-list--page { max-height: none; }
+.bt-notify-item__button {
+  display: flex; gap: var(--bt-space-3); width: 100%; padding: 0.7rem 0.9rem; border: 0; background: transparent;
+  text-align: left; color: var(--bt-text); border-radius: 0.6rem;
+}
+.bt-notify-item__button:hover { background: var(--bt-primary-soft); }
+.bt-notify-item__icon {
+  flex: 0 0 auto; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--bt-surface-muted); color: var(--bt-text-muted); font-size: 1rem;
+}
+.is-unread .bt-notify-item__icon { background: var(--bt-primary-soft); color: var(--bt-primary); }
+.bt-notify-item__body { display: flex; flex-direction: column; min-width: 0; gap: 0.1rem; }
+.bt-notify-item__title { font-size: var(--bt-text-sm); font-weight: var(--bt-weight-label); }
+.is-unread .bt-notify-item__title { font-weight: var(--bt-weight-heading); }
+.bt-notify-item__message { font-size: var(--bt-text-xs); color: var(--bt-text-muted); }
+.bt-notify-item__time { font-size: 0.6875rem; color: var(--bt-text-subtle); }
+.bt-notify-row { display: flex; align-items: flex-start; gap: var(--bt-space-3); padding: var(--bt-space-3) var(--bt-space-4); border-bottom: 1px solid var(--bt-glass-edge); }
+.bt-notify-row:last-child { border-bottom: 0; }
+.bt-notify-row.is-unread { background: color-mix(in srgb, var(--bt-primary-soft) 45%, transparent); }
+.bt-notify-row__body { flex: 1 1 auto; min-width: 0; }
+.bt-notify-row__actions { display: flex; flex-wrap: wrap; gap: var(--bt-space-2); justify-content: flex-end; }
+@media (max-width: 575.98px) { .bt-notify-row { flex-wrap: wrap; } .bt-notify-row__actions { width: 100%; justify-content: flex-start; padding-left: 46px; } }
+
+/* Profile header. */
+.bt-profile-header .card-body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--bt-space-4); }
+.bt-profile-header__text { flex: 1 1 220px; min-width: 0; }
+.bt-profile-header__actions { display: flex; flex-wrap: wrap; gap: var(--bt-space-2); }
+.bt-school-list li { padding: 0.3rem 0; border-bottom: 1px dashed var(--bt-border); font-size: 0.875rem; }
+.bt-school-list li:last-child { border-bottom: 0; }
+.bt-activity li { display: flex; justify-content: space-between; gap: var(--bt-space-3); padding: 0.3rem 0; border-bottom: 1px dashed var(--bt-border); }
+.bt-activity li:last-child { border-bottom: 0; }
+.bt-activity time { color: var(--bt-text-muted); white-space: nowrap; }
+
+/* Settings: section list beside the panel; stacks into a scrollable tab row on small screens. */
+.bt-settings { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--bt-space-5); align-items: start; }
+.bt-settings__nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(var(--bt-topbar-h) + 28px); }
+.bt-settings__link, .bt-tabs__link {
+  display: flex; align-items: center; gap: var(--bt-space-2); padding: 0.55rem var(--bt-space-3); border-radius: 0.75rem;
+  color: var(--bt-text-muted); font-weight: var(--bt-weight-label); font-size: 0.9rem; text-decoration: none; white-space: nowrap;
+}
+.bt-settings__link:hover, .bt-tabs__link:hover { background: var(--bt-glass-hover); color: var(--bt-text); }
+.bt-settings__link.is-active, .bt-tabs__link.is-active { background: var(--bt-nav-active-bg); color: var(--bt-primary); box-shadow: var(--bt-nav-active-glow); }
+@media (max-width: 767.98px) {
+  .bt-settings { grid-template-columns: minmax(0, 1fr); gap: var(--bt-space-3); }
+  .bt-settings__nav { position: static; flex-direction: row; overflow-x: auto; padding-bottom: 2px; }
+}
+.bt-tabs { display: flex; gap: var(--bt-space-1); overflow-x: auto; padding: 0.3rem; border-radius: var(--bt-radius);
+  background: var(--bt-glass-tile); border: 1px solid var(--bt-glass-border); box-shadow: var(--bt-glass-highlight); }
+.bt-theme-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--bt-space-3); }
+.bt-theme-option {
+  position: relative; display: flex; flex-direction: column; gap: var(--bt-space-2); padding: var(--bt-space-3);
+  border: 1px solid var(--bt-border-strong); border-radius: var(--bt-radius-sm); background: var(--bt-glass-tile); cursor: pointer;
+}
+.bt-theme-option input { position: absolute; top: 0.75rem; right: 0.75rem; accent-color: var(--bt-btn-primary-bg); }
+.bt-theme-option:has(input:checked) { border-color: var(--bt-primary); box-shadow: var(--bt-focus-ring); }
+.bt-theme-option:has(input:focus-visible) { outline: 2px solid var(--bt-focus); outline-offset: 2px; }
+.bt-theme-option__swatch { height: 56px; border-radius: 0.5rem; border: 1px solid var(--bt-border); }
+.bt-theme-option__swatch--light { background: linear-gradient(135deg, #FFFFFF 0 55%, #EDE9FE 55%); }
+.bt-theme-option__swatch--dark { background: linear-gradient(135deg, #241E35 0 55%, #A78BFA 55%); }
+.bt-theme-option__swatch--system { background: linear-gradient(135deg, #FFFFFF 0 50%, #241E35 50%); }
+.bt-theme-option__label { font-weight: var(--bt-weight-label); font-size: var(--bt-text-sm); }
+.form-switch .form-check-input { width: 2.4em; height: 1.3em; margin-top: 0.15em; cursor: pointer; }
+.form-switch { padding-left: 3em; }
+.form-switch .form-check-input { margin-left: -3em; }
+
+/* Forms on their own page. */
+.bt-form-card { max-width: 820px; }
+.bt-narrow-form { max-width: 520px; }
+.bt-narrow-card { max-width: 640px; }
+.bt-check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.35rem var(--bt-space-4);
+  max-height: 260px; overflow-y: auto; padding: var(--bt-space-3); border: 1px solid var(--bt-border); border-radius: var(--bt-radius-sm); }
+.btn-danger { --bs-btn-bg: var(--bt-danger); --bs-btn-border-color: var(--bt-danger); --bs-btn-hover-bg: var(--bt-danger-text); --bs-btn-hover-border-color: var(--bt-danger-text); }
+[data-theme="dark"] .btn-danger { --bs-btn-color: #1B1729; --bs-btn-hover-color: #1B1729; --bs-btn-active-color: #1B1729; }
+.bt-screenshot { max-width: 100%; max-height: 480px; border-radius: var(--bt-radius-sm); border: 1px solid var(--bt-border); }
+.bt-toc { position: sticky; top: calc(var(--bt-topbar-h) + 28px); }
+.bt-toc li { padding: 0.2rem 0; font-size: var(--bt-text-sm); }
+.bt-log-details { max-width: 340px; word-break: break-word; }
+
+/* School calendar month grid. */
+.bt-cal { font-size: var(--bt-text-sm); }
+.bt-cal__head, .bt-cal__week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.bt-cal__head > div { padding: 0.5rem; font-size: var(--bt-text-xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--bt-text-muted); text-align: center; border-bottom: 1px solid var(--bt-glass-edge); }
+.bt-cal__day { min-height: 108px; padding: 0.35rem; border-right: 1px solid var(--bt-glass-edge); border-bottom: 1px solid var(--bt-glass-edge); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bt-cal__day:nth-child(7n) { border-right: 0; }
+.bt-cal__week:last-child .bt-cal__day { border-bottom: 0; }
+.bt-cal__day.is-weekend { background: color-mix(in srgb, var(--bt-surface-muted) 55%, transparent); }
+.bt-cal__day.is-outside { opacity: 0.5; }
+.bt-cal__date { display: flex; align-items: center; justify-content: space-between; font-weight: var(--bt-weight-label); color: var(--bt-text-muted); }
+.bt-cal__day.is-today .bt-cal__date > span:first-child { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%; background: var(--bt-btn-primary-bg); color: var(--bt-on-primary); }
+.bt-cal__add { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--bt-text-subtle); text-decoration: none; opacity: 0; }
+.bt-cal__day:hover .bt-cal__add, .bt-cal__add:focus-visible { opacity: 1; }
+.bt-cal__add:hover { background: var(--bt-primary-soft); color: var(--bt-primary); }
+@media (hover: none) { .bt-cal__add { opacity: 1; } }
+.bt-cal__event { display: block; padding: 0.15rem 0.4rem; border-radius: 0.35rem; font-size: var(--bt-text-xs); font-weight: var(--bt-weight-label); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; border-left: 3px solid; }
+.bt-cal__more { font-size: 0.6875rem; color: var(--bt-text-muted); padding-left: 0.4rem; }
+.bt-feed--meals_expected { background: var(--bt-success-soft); color: var(--bt-success-text); border-color: var(--bt-success); }
+.bt-feed--no_meals { background: var(--bt-danger-soft); color: var(--bt-danger-text); border-color: var(--bt-danger); }
+.bt-feed--unknown { background: var(--bt-surface-muted); color: var(--bt-text-muted); border-color: var(--bt-border-strong); }
+.bt-cal__event:hover { filter: brightness(0.96); color: inherit; }
+.bt-feed-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 0.4rem; border: 1px solid; vertical-align: -1px; }
+@media (max-width: 767.98px) {
+  .bt-cal__day { min-height: 64px; padding: 0.2rem; }
+  .bt-cal__event { font-size: 0; padding: 0; height: 6px; border-left: 0; border-radius: 3px; }
+  .bt-cal__more { display: none; }
+  .bt-cal__add { display: none; }
+}
+
+/* Personal preference: compact tables (Settings → Appearance). */
+.bt-compact-tables .table > :not(caption) > * > * { padding: 0.3rem 0.55rem; }
+.bt-compact-tables .table td, .bt-compact-tables .bt-table td { font-size: 0.8125rem; }
 
 /* --- 7. Motion (all of it is switched off by prefers-reduced-motion below) ------------ */
 @keyframes bt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -730,6 +929,13 @@ html.bt-theme-transition, html.bt-theme-transition *, html.bt-theme-transition *
 .bt-loader-overlay--page > .bt-loader { position: static; }
 
 /* --- 8. Motion preferences ------------------------------------------------------ */
+/* The OS setting and the per-user "Reduce animations" setting (html.bt-reduce-motion) do the same thing. */
+html.bt-reduce-motion *, html.bt-reduce-motion *::before, html.bt-reduce-motion *::after {
+  transition-duration: 0.01ms !important; animation-duration: 0.01ms !important;
+  animation-delay: 0s !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important;
+}
+html.bt-reduce-motion.bt-theme-transition, html.bt-reduce-motion.bt-theme-transition * { transition: none !important; }
+html.bt-reduce-motion .kpi-card:hover, html.bt-reduce-motion .btn:active, html.bt-reduce-motion .bt-icon-btn:active { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 0.01ms !important; animation-duration: 0.01ms !important;

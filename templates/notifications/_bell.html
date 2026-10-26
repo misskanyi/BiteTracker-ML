@@ -1,0 +1,41 @@
+{# Notification bell: unread count and the latest few notifications. Rendered with the page; no polling. #}
+<div class="dropdown">
+  <button type="button" class="bt-icon-btn bt-glass-button bt-bell" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+          aria-label="Notifications{% if NOTIFICATIONS_UNREAD %}, {{ NOTIFICATIONS_UNREAD }} unread{% endif %}" data-testid="notification-bell">
+    <i class="bi bi-bell" aria-hidden="true"></i>
+    {% if NOTIFICATIONS_UNREAD %}<span class="bt-bell__count" data-testid="unread-count">{% if NOTIFICATIONS_UNREAD > 99 %}99+{% else %}{{ NOTIFICATIONS_UNREAD }}{% endif %}</span>{% endif %}
+  </button>
+  <div class="dropdown-menu dropdown-menu-end bt-menu bt-notify-menu">
+    <div class="bt-notify-menu__head">
+      <span class="fw-semibold">Notifications</span>
+      {% if NOTIFICATIONS_UNREAD %}
+      <form method="post" action="{% url 'notifications:mark_all_read' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-link btn-sm p-0">Mark all as read</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if NOTIFICATIONS_RECENT %}
+    <ul class="list-unstyled mb-0 bt-notify-list">
+      {% for n in NOTIFICATIONS_RECENT %}
+      <li class="bt-notify-item{% if not n.is_read %} is-unread{% endif %}">
+        <form method="post" action="{% url 'notifications:open' n.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="bt-notify-item__button">
+            <span class="bt-notify-item__icon" aria-hidden="true"><i class="bi {{ n.icon }}"></i></span>
+            <span class="bt-notify-item__body">
+              <span class="bt-notify-item__title">{% if not n.is_read %}<span class="visually-hidden">Unread: </span>{% endif %}{{ n.title }}</span>
+              {% if n.message %}<span class="bt-notify-item__message">{{ n.message|truncatechars:110 }}</span>{% endif %}
+              <span class="bt-notify-item__time">{{ n.created_at|timesince }} ago</span>
+            </span>
+          </button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state py-4"><i class="bi bi-bell-slash"></i><p class="mb-0 small">You're all caught up. Notifications about forecasts, uploads and your schools' calendars appear here.</p></div>
+    {% endif %}
+    <div class="bt-notify-menu__foot"><a href="{% url 'notifications:list' %}">View all notifications</a> · <a href="{% url 'accounts:settings' %}?tab=notifications">Preferences</a></div>
+  </div>
+</div>

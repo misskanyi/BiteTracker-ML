@@ -1,16 +1,26 @@
 {% comment %}
   Runs before any stylesheet paints so the page never flashes the wrong theme.
-  Shares the "theme" localStorage key with Django admin's own toggle, so both stay in sync.
-  Stored value "light"/"dark" is an explicit choice; anything else follows the OS setting.
+  Signed-in users: the theme saved in Settings (html[data-theme-pref], rendered by the server) wins, and is
+  copied to localStorage so the login page and Django admin match after logging out.
+  Signed out: the "theme" localStorage key (shared with Django admin's toggle) decides.
+  "light"/"dark" is an explicit choice; anything else follows the OS setting.
 {% endcomment %}
 <script>
   (function () {
-    var root = document.documentElement, stored = null, collapsed = null;
-    try { stored = localStorage.getItem("theme"); collapsed = localStorage.getItem("bt-sidebar"); } catch (e) {}
+    var root = document.documentElement, stored = null, pinned = null;
+    var pref = root.getAttribute("data-theme-pref");
+    try {
+      if (pref === "light" || pref === "dark") localStorage.setItem("theme", pref);
+      else if (pref === "system") localStorage.removeItem("theme");
+      stored = localStorage.getItem("theme"); pinned = localStorage.getItem("bt-sidebar-pinned");
+      // Carry over the old expand/collapse choice: an explicitly expanded sidebar becomes a pinned one.
+      if (pinned === null && localStorage.getItem("bt-sidebar") === "expanded") pinned = "1";
+    } catch (e) { stored = pref; }
     var theme = (stored === "light" || stored === "dark") ? stored
       : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     root.setAttribute("data-theme", theme);
     root.setAttribute("data-bs-theme", theme);
-    if (collapsed === "collapsed") root.classList.add("bt-sidebar-collapsed");
+    // Set before the first paint, so a pinned sidebar never animates open on page load.
+    if (pinned === "1") root.classList.add("bt-sidebar-pinned");
   })();
 </script>

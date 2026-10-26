@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Forecast &amp; planning{% endblock %}
 {% block content %}
-{% include "partials/_page_header.html" with title="Forecast & planning" icon="bi-calendar2-week" subtitle="Predict meal demand for a school and get a preparation recommendation and meal budget." %}
+{% include "partials/_page_header.html" with title="Forecast & planning" icon="bi-calendar2-week" subtitle="Predict meals, preparation and budget for a school." %}
 
 {% if data_error %}
   <div class="alert alert-warning" role="alert" data-testid="data-error">{{ data_error }}</div>
@@ -31,7 +31,7 @@
           </div>
           <div class="bt-callout bt-callout--info mt-3" id="origin-note" role="status">
             <i class="bi bi-calendar-event" aria-hidden="true"></i>
-            <span>Forecasts start from the last recorded date in the {{ DATA_STATUS.kind }} dataset, not from today. <span id="origin-detail"></span> Horizons count school days (Monday–Friday).</span>
+            <span>Starts from the last recorded date, not from today. <span id="origin-detail"></span> School days only (Mon–Fri).</span>
           </div>
         </div>
       </section>
@@ -39,13 +39,13 @@
       <section class="card" aria-labelledby="planning-heading">
         <div class="card-body">
           <h2 class="bt-card-title mb-1" id="planning-heading"><span class="bt-step" aria-hidden="true">2</span>Planning assumptions</h2>
-          <p class="bt-footnote mb-3">All optional. Blank fields use this school's recent 14-day average or the default, and every result shows which basis was used.</p>
+          <p class="bt-footnote mb-3">Optional. Blank = recent 14-day average or default.</p>
           <div class="row g-3">
             {% with field=form.expected_attendance %}
             <div class="col-md-4">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
-              <div class="form-text" data-hint="{{ field.name }}" data-testid="attendance-hint">{% if attendance_unused %}Not used: the current model forecasts from meal history and the calendar only.{% else %}{{ field.help_text }}{% endif %}</div>
+              <div class="form-text" data-hint="{{ field.name }}" data-testid="attendance-hint">{% if attendance_unused %}Not used by the current model.{% else %}{{ field.help_text }}{% endif %}</div>
               {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             {% endwith %}
@@ -64,7 +64,7 @@
                 <span class="input-group-text">KES</span>
                 {{ field }}
               </div>
-              <div class="form-text">Planning assumption, not verified Food4Education expenditure. Default KES {{ form.cost_per_meal_kes.initial|floatformat:"-2" }}.</div>
+              <div class="form-text">Planning assumption. Default KES {{ form.cost_per_meal_kes.initial|floatformat:"-2" }}.</div>
               {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             {% endwith %}
@@ -74,7 +74,7 @@
           {% if weather_unrecorded %}
             <div class="bt-callout bt-callout--warning mb-3" id="weather-note" role="note" data-testid="weather-not-recorded">
               <i class="bi bi-cloud-slash" aria-hidden="true"></i>
-              <span><strong>Not recorded.</strong> The active dataset has no rainfall or temperature observations, so the model was trained without weather variation and weather inputs cannot inform this forecast. These fields are disabled.</span>
+              <span><strong>Not recorded</strong> in the active dataset, so weather can't inform this forecast.</span>
             </div>
           {% endif %}
           <div class="row g-3">
@@ -82,7 +82,7 @@
             <div class="col-md-6">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
-              <div class="form-text" data-hint="{{ field.name }}">{% if weather_unrecorded %}Not recorded in the active dataset.{% else %}{{ field.help_text }}{% endif %}</div>
+              <div class="form-text" data-hint="{{ field.name }}">{% if weather_unrecorded %}Not recorded.{% else %}{{ field.help_text }}{% endif %}</div>
               {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
             {% endif %}{% endfor %}
@@ -103,12 +103,12 @@
   <div class="col-xl-4 d-flex flex-column gap-3">
     <section class="card" aria-labelledby="results-heading">
       <div class="card-body">
-        <h2 class="bt-card-title mb-2" id="results-heading"><i class="bi bi-clipboard-data" aria-hidden="true"></i>What you will get</h2>
+        <h2 class="bt-card-title mb-2" id="results-heading"><i class="bi bi-clipboard-data" aria-hidden="true"></i>You'll get</h2>
         <ul class="bt-checklist mb-0">
-          <li><strong>Predicted demand</strong> — the model's estimate of meals served.</li>
-          <li><strong>Recommended preparation</strong> — predicted demand plus a rule-based safety buffer.</li>
-          <li><strong>Meal budget</strong> — meals × cost per meal, for day 1 and the whole horizon.</li>
-          <li>A day-by-day table and chart, saved to forecast history.</li>
+          <li><strong>Predicted demand</strong></li>
+          <li><strong>Recommended preparation</strong> (prediction + safety buffer)</li>
+          <li><strong>Meal budget</strong></li>
+          <li>Day-by-day table and chart</li>
         </ul>
       </div>
     </section>
@@ -116,27 +116,22 @@
     <section class="card">
       <div class="card-body">
         <details class="bt-disclosure">
-          <summary><i class="bi bi-diagram-3" aria-hidden="true"></i>How this forecast works</summary>
+          <summary><i class="bi bi-diagram-3" aria-hidden="true"></i>How it works</summary>
           <ol class="small mb-0 ps-3 mt-2">
-            <li>The school's recorded history is loaded from the active dataset.</li>
-            <li>The same features used in training are built for each forecast day.</li>
-            <li>The saved, already-trained model predicts demand. No model is trained here.</li>
-            <li>A rule-based safety buffer turns predicted demand into a recommended preparation quantity.</li>
-            <li>The meal budget multiplies those meal counts by the cost per meal. It never changes the prediction.</li>
-            <li>The result is saved to the forecast history.</li>
+            <li>Load the school's history and build training features.</li>
+            <li>The saved model predicts demand (no retraining).</li>
+            <li>A rule-based buffer gives the preparation quantity.</li>
+            <li>Budget = meals × cost per meal.</li>
           </ol>
         </details>
-      </div>
-    </section>
-
-    <section class="card" aria-labelledby="care-heading">
-      <div class="card-body small">
-        <h2 class="bt-card-title mb-2" id="care-heading"><i class="bi bi-exclamation-diamond" aria-hidden="true"></i>Read results with care</h2>
-        <ul class="mb-0 ps-3">
-          <li>Forecasts are estimates, not guarantees.</li>
-          <li>Multi-day forecasts reuse earlier predictions as if they were observed, so uncertainty grows with the horizon. Treat 30-day forecasts as directional.</li>
-          <li>The safety buffer is a planning heuristic, not a statistical confidence interval.</li>
-        </ul>
+        <details class="bt-disclosure mt-2">
+          <summary><i class="bi bi-exclamation-diamond" aria-hidden="true"></i>Read with care</summary>
+          <ul class="small mb-0 ps-3 mt-2">
+            <li>Estimates, not guarantees.</li>
+            <li>Uncertainty grows with the horizon; treat 30-day forecasts as directional.</li>
+            <li>The buffer is a heuristic, not a statistical confidence interval.</li>
+          </ul>
+        </details>
       </div>
     </section>
   </div>
@@ -155,18 +150,18 @@
     var attendanceUnused = {{ attendance_unused|yesno:"true,false" }};
     var fields = {};
     if (!attendanceUnused) {
-      fields.expected_attendance = function (d) { return "Last recorded day: " + d.last_recorded_attendance + " students. Recent 14-day average: " + d.recent_attendance + ". A day's own attendance is not a model input, so this only affects day 2 onwards."; };
+      fields.expected_attendance = function (d) { return "Blank = 14-day average (" + d.recent_attendance + "). Affects day 2 onwards."; };
     }
     if (!weatherUnrecorded) {
-      fields.expected_rainfall_mm = function (d) { return "Blank = recent 14-day average (" + d.recent_rainfall_mm + " mm)."; };
-      fields.expected_temperature_c = function (d) { return "Blank = recent 14-day average (" + d.recent_temperature_c + " °C)."; };
+      fields.expected_rainfall_mm = function (d) { return "Blank = 14-day average (" + d.recent_rainfall_mm + " mm)."; };
+      fields.expected_temperature_c = function (d) { return "Blank = 14-day average (" + d.recent_temperature_c + " °C)."; };
     }
     function update() {
       var d = defaults[select.value];
       if (!d) return;
       var origin = new Date(d.origin_date + "T00:00:00");
       document.getElementById("origin-detail").textContent =
-        "This school's data ends on " + origin.toLocaleDateString("en-GB", {day: "numeric", month: "long", year: "numeric"}) + ".";
+        "Data ends " + origin.toLocaleDateString("en-GB", {day: "numeric", month: "long", year: "numeric"}) + ".";
       Object.keys(fields).forEach(function (name) {
         var hint = document.querySelector('[data-hint="' + name + '"]');
         if (hint) hint.textContent = fields[name](d);

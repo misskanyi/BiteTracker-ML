@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Delete event{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Delete event" icon="bi-trash" %}
+<div class="card bt-narrow-card"><div class="card-body">
+  <p>Delete “<strong>{{ event.title }}</strong>” ({{ event.start_date|date:"j M Y" }}{% if event.is_multi_day %} – {{ event.end_date|date:"j M Y" }}{% endif %}, {{ event.scope_label }})? This cannot be undone.</p>
+  <form method="post" class="d-flex gap-2">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Delete event</button>
+    <a class="btn btn-outline-secondary" href="{% url 'schoolcalendar:event_detail' event.pk %}">Cancel</a>
+  </form>
+</div></div>
+{% endblock %}

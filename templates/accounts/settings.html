@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Settings" icon="bi-gear" subtitle="Personalise BiteTracker and manage your account security." %}
+
+<div class="bt-settings">
+  <nav class="bt-settings__nav" aria-label="Settings sections">
+    {% for key, label, icon in tabs %}
+    <a class="bt-settings__link{% if key == tab %} is-active{% endif %}" href="?tab={{ key }}"{% if key == tab %} aria-current="page"{% endif %}>
+      <i class="bi {{ icon }}" aria-hidden="true"></i>{{ label }}
+    </a>
+    {% endfor %}
+  </nav>
+
+  <div class="bt-settings__panel">
+  {% if tab == "appearance" %}
+    <section class="card" aria-labelledby="appearance-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="appearance-heading"><i class="bi bi-palette" aria-hidden="true"></i>Appearance &amp; personalisation</h2></div>
+      <div class="card-body">
+        <form method="post" novalidate data-testid="appearance-form">
+          {% csrf_token %}<input type="hidden" name="section" value="appearance">
+          <fieldset class="mb-4">
+            <legend class="form-label">Theme</legend>
+            <div class="bt-theme-options">
+              {% for radio in appearance_form.theme %}
+              <label class="bt-theme-option" for="{{ radio.id_for_label }}">
+                {{ radio.tag }}
+                <span class="bt-theme-option__swatch bt-theme-option__swatch--{{ radio.data.value }}" aria-hidden="true"></span>
+                <span class="bt-theme-option__label">{{ radio.choice_label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="form-text">Saved to your account, so it follows you after refreshing and logging in again. System default follows your device.</div>
+          </fieldset>
+          {% include "partials/_field.html" with field=appearance_form.compact_tables switch=True %}
+          {% include "partials/_field.html" with field=appearance_form.reduce_motion switch=True %}
+          <div class="col-md-6 px-0">{% include "partials/_field.html" with field=appearance_form.landing_page %}</div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save appearance</button>
+        </form>
+      </div>
+    </section>
+
+  {% elif tab == "notifications" %}
+    <section class="card" aria-labelledby="notifications-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="notifications-heading"><i class="bi bi-bell" aria-hidden="true"></i>In-app notifications</h2></div>
+      <div class="card-body">
+        <p class="small text-muted">Choose which optional notifications appear under the bell. BiteTracker does not send email or SMS.</p>
+        <form method="post" novalidate data-testid="notifications-form">
+          {% csrf_token %}<input type="hidden" name="section" value="notifications">
+          {% for field in notifications_form %}{% include "partials/_field.html" with field=field switch=True %}{% endfor %}
+          <div class="bt-callout bt-callout--info mb-3"><i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <span>Security and account notices (password changes, role and school assignment changes) are always delivered.</span></div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save preferences</button>
+        </form>
+      </div>
+    </section>
+
+  {% elif tab == "security" %}
+    <section class="card mb-4" aria-labelledby="password-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="password-heading"><i class="bi bi-key" aria-hidden="true"></i>Change password</h2></div>
+      <div class="card-body">
+        <form method="post" novalidate data-loading="Changing password…" data-testid="password-form" class="bt-narrow-form">
+          {% csrf_token %}<input type="hidden" name="section" value="password">
+          {% include "partials/_form_errors.html" with form=password_form %}
+          {% for field in password_form %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            <div class="bt-password-field">
+              {{ field }}
+              <button type="button" class="bt-password-toggle" data-password-toggle="{{ field.id_for_label }}" aria-label="Show password" aria-pressed="false" aria-controls="{{ field.id_for_label }}"><i class="bi bi-eye" aria-hidden="true"></i></button>
+            </div>
+            {% if field.help_text %}<div class="form-text" id="{{ field.id_for_label }}_helptext">{{ field.help_text|safe }}</div>{% endif %}
+            {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary">Change password</button>
+          <p class="visually-hidden" role="status" data-loading-status></p>
+        </form>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="session-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="session-heading"><i class="bi bi-door-open" aria-hidden="true"></i>Sign-in</h2></div>
+      <div class="card-body">
+        <dl class="bt-metric-list mb-3">
+          <div><dt>Last login</dt><dd>{% if user.last_login %}{{ user.last_login|date:"j M Y, H:i" }}{% else %}—{% endif %}</dd></div>
+          <div><dt>Account created</dt><dd>{{ user.date_joined|date:"j M Y" }}</dd></div>
+        </dl>
+        <form method="post" action="{% url 'accounts:logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i>Log out</button>
+        </form>
+      </div>
+    </section>
+
+  {% else %}
+    {% include "partials/_about.html" %}
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

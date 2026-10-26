@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}School calendar{% endblock %}
+{% block content %}
+<div class="bt-page-header bt-page-header--actions">
+  <span class="bt-icon-chip" aria-hidden="true"><i class="bi bi-calendar3"></i></span>
+  <div class="me-auto">
+    <h1 class="bt-page-title">School calendar</h1>
+    <p class="bt-page-subtitle">Term dates, holidays, closures and events for your schools.</p>
+  </div>
+  {% if can_add %}<a class="btn btn-primary" href="{% url 'schoolcalendar:event_create' %}{% if filters.school %}?school={{ filters.school }}{% endif %}" data-testid="add-event"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add event</a>{% endif %}
+</div>
+
+<div class="bt-callout bt-callout--info mb-3"><i class="bi bi-info-circle" aria-hidden="true"></i>
+  <span>Calendar events are for operational planning and reference. They are <strong>not</strong> used by the forecasting model.</span></div>
+
+<form method="get" class="card mb-3" aria-label="Calendar filters">
+  <div class="card-body row g-2 align-items-end">
+    <input type="hidden" name="view" value="{{ view }}">
+    {% if view == "month" and month %}<input type="hidden" name="month" value="{{ month|date:'Y-m' }}">{% endif %}
+    <div class="col-sm-6 col-lg-4">
+      <label class="form-label small" for="filter-school">School</label>
+      <select name="school" id="filter-school" class="form-select form-select-sm">
+        <option value="">All my schools</option>
+        {% for s in schools %}<option value="{{ s.pk }}"{% if filters.school == s.pk|stringformat:"s" %} selected{% endif %}>{{ s.name|default:s.school_id }} ({{ s.school_id }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label small" for="filter-year">Academic year</label>
+      <select name="year" id="filter-year" class="form-select form-select-sm">
+        <option value="">{% if view == "list" %}All years{% else %}Current{% endif %}</option>
+        {% for y in years %}<option value="{{ y }}"{% if filters.year == y %} selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-3">
+      <label class="form-label small" for="filter-type">Event type</label>
+      <select name="type" id="filter-type" class="form-select form-select-sm">
+        <option value="">All types</option>
+        {% for value, label in event_types %}<option value="{{ value }}"{% if filters.type == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-auto"><button type="submit" class="btn btn-outline-secondary btn-sm">Apply filters</button></div>
+    <div class="col-auto ms-lg-auto">
+      <div class="btn-group btn-group-sm" role="group" aria-label="Calendar view">
+        <a class="btn btn-outline-secondary{% if view == 'month' %} active{% endif %}" href="?view=month{% if filters.school %}&amp;school={{ filters.school }}{% endif %}{% if filters.type %}&amp;type={{ filters.type }}{% endif %}{% if filters.year %}&amp;year={{ filters.year }}{% endif %}"{% if view == "month" %} aria-current="true"{% endif %}><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Month</a>
+        <a class="btn btn-outline-secondary{% if view == 'list' %} active{% endif %}" href="?view=list{% if filters.school %}&amp;school={{ filters.school }}{% endif %}{% if filters.type %}&amp;type={{ filters.type }}{% endif %}{% if filters.year %}&amp;year={{ filters.year }}{% endif %}"{% if view == "list" %} aria-current="true"{% endif %}><i class="bi bi-list-ul me-1" aria-hidden="true"></i>List</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+{% if view == "month" %}
+<section class="card" aria-labelledby="month-heading">
+  <div class="card-header bt-card-header">
+    <h2 class="bt-card-title" id="month-heading"><i class="bi bi-calendar3" aria-hidden="true"></i>{{ month|date:"F Y" }}</h2>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="?{{ prev_query }}" aria-label="Previous month"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+      <a class="btn btn-outline-secondary btn-sm" href="?{{ today_query }}">Today</a>
+      <a class="btn btn-outline-secondary btn-sm" href="?{{ next_query }}" aria-label="Next month"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+    </div>
+  </div>
+  <div class="bt-cal" data-testid="month-grid">
+    <div class="bt-cal__head" aria-hidden="true">{% for d in weekdays %}<div>{{ d }}</div>{% endfor %}</div>
+    {% for week in grid %}
+    <div class="bt-cal__week">
+      {% for day in week %}
+      <div class="bt-cal__day{% if not day.in_month %} is-outside{% endif %}{% if day.is_today %} is-today{% endif %}{% if day.date.weekday >= 5 %} is-weekend{% endif %}">
+        <div class="bt-cal__date">
+          <span>{% if day.is_today %}<span class="visually-hidden">Today, </span>{% endif %}{{ day.date|date:"j" }}<span class="visually-hidden"> {{ day.date|date:"F" }}</span></span>
+          {% if can_add and day.in_month %}<a class="bt-cal__add" href="{% url 'schoolcalendar:event_create' %}?date={{ day.date|date:'Y-m-d' }}{% if filters.school %}&amp;school={{ filters.school }}{% endif %}" aria-label="Add event on {{ day.date|date:'j F Y' }}"><i class="bi bi-plus" aria-hidden="true"></i></a>{% endif %}
+        </div>
+        {% for e in day.events|slice:":3" %}
+        <a class="bt-cal__event bt-feed--{{ e.feeding_status }}" href="{% url 'schoolcalendar:event_detail' e.pk %}" title="{{ e.title }} · {{ e.scope_label }} · {{ e.get_feeding_status_display }}">{{ e.title }}</a>
+        {% endfor %}
+        {% if day.events|length > 3 %}<span class="bt-cal__more">+{{ day.events|length|add:"-3" }} more</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="card-footer bt-footnote d-flex flex-wrap gap-3">
+    {% for value, label in feeding_statuses %}<span><span class="bt-feed-dot bt-feed--{{ value }}" aria-hidden="true"></span>{{ label }}</span>{% endfor %}
+  </div>
+</section>
+
+<section class="card mt-4" aria-labelledby="month-list-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="month-list-heading"><i class="bi bi-list-ul" aria-hidden="true"></i>Events in {{ month|date:"F Y" }}</h2></div>
+  {% if month_events %}
+    {% include "schoolcalendar/_event_table.html" with events=month_events %}
+  {% else %}
+    <div class="card-body"><div class="empty-state"><i class="bi bi-calendar-x"></i><p class="mb-0">No events this month.{% if can_add %} <a href="{% url 'schoolcalendar:event_create' %}">Add one</a>.{% endif %}</p></div></div>
+  {% endif %}
+</section>
+
+{% else %}
+<section class="card" aria-labelledby="list-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="list-heading"><i class="bi bi-list-ul" aria-hidden="true"></i>{% if filters.year %}Events in {{ filters.year }}{% else %}All events{% endif %}</h2>
+    <span class="small text-muted">{{ page.paginator.count }} event{{ page.paginator.count|pluralize }}</span></div>
+  {% if page.object_list %}
+    {% include "schoolcalendar/_event_table.html" with events=page.object_list %}
+    <div class="card-footer">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+    <div class="card-body"><div class="empty-state"><i class="bi bi-calendar-x"></i><p class="mb-0">No events match these filters.</p></div></div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

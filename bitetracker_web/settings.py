@@ -68,6 +68,11 @@ INSTALLED_APPS = [
     "web.accounts",
     "web.core",
     "web.schools",
+    "web.audit",
+    "web.notifications",
+    "web.schoolcalendar",
+    "web.support",
+    "web.administration",
 ]
 
 MIDDLEWARE = [
@@ -100,6 +105,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "web.core.context_processors.data_provenance",
                 "web.core.context_processors.navigation",
+                "web.core.context_processors.account",
             ],
         },
     },
@@ -173,6 +179,10 @@ STORAGES = {
 # deliberately not routed: uploaded files are never served over HTTP.
 MEDIA_ROOT = BASE_DIR / "data" / "uploads"
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+# Profile photos and support screenshots: PNG, JPEG or WebP only, checked by content, not just extension.
+MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024
+MAX_SCREENSHOT_SIZE_BYTES = 5 * 1024 * 1024
+MAX_LETTER_SIZE_BYTES = 5 * 1024 * 1024
 
 # --- Logging -------------------------------------------------------------------------------
 LOGGING = {

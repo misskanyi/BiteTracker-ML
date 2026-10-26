@@ -14,19 +14,18 @@ from decimal import Decimal
 
 import pandas as pd
 import pytest
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from config import settings
 from services import donor_service
+from tests.support.web_fixtures import operator
 
 pytestmark = pytest.mark.django_db
-PASSWORD = "Str0ng-test-passw0rd!"
 
 
 @pytest.fixture
 def logged_in(client):
-    client.force_login(get_user_model().objects.create_user(username="planner", password=PASSWORD))
+    client.force_login(operator(codes=("A", "B", "C", "D")))
     return client
 
 

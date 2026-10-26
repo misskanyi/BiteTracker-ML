@@ -7,17 +7,25 @@ import logging
 from django.urls import reverse
 
 from services import status_service
+from web.accounts import access
+from web.notifications.models import Notification
 
 logger = logging.getLogger(__name__)
 
-# Sidebar sections: (heading, [(label, icon, url name, url names that mark it active, visibility check)]).
-# Visibility mirrors the permissions the views themselves enforce; hiding a link is not access control.
+# Sidebar sections: (heading, [(label, icon, url name, view names that mark it active, visibility check)]).
+# Active sets hold bare url names ("history") or, where names repeat across apps, full view names
+# ("administration:users"). Visibility mirrors the permissions the views themselves enforce; hiding a
+# link is not access control.
 NAV_SECTIONS = [
     ("Main", [
         ("Dashboard", "bi-grid-1x2", "core:dashboard", {"dashboard"}, None),
         ("Historical demand", "bi-graph-up", "core:history", {"history"}, None),
         ("Forecast & planning", "bi-calendar2-week", "core:forecast", {"forecast", "forecast_run"}, None),
         ("Forecast history", "bi-clock-history", "core:forecast_history", {"forecast_history"}, None),
+        ("School calendar", "bi-calendar3", "schoolcalendar:calendar", {
+            "schoolcalendar:calendar", "schoolcalendar:event_detail", "schoolcalendar:event_create",
+            "schoolcalendar:event_update", "schoolcalendar:event_delete",
+        }, None),
         ("Model performance", "bi-bar-chart-line", "core:performance", {"performance"}, None),
         ("Donor insights", "bi-heart", "core:donors", {"donors"}, None),
     ]),
@@ -28,8 +36,24 @@ NAV_SECTIONS = [
          lambda user: user.is_staff and user.has_perm("schools.view_school")),
     ]),
     ("Administration", [
+        ("Administration", "bi-people", "administration:users", {
+            "administration:users", "administration:user_create", "administration:user_detail",
+            "administration:user_edit", "administration:user_password", "administration:schools",
+            "administration:school_detail", "administration:school_edit", "administration:logs",
+            "administration:issues", "administration:issue_detail", "administration:announce",
+            "administration:uploads", "administration:upload_review",
+        }, access.is_admin),
         ("Django admin", "bi-shield-lock", "admin:index", set(), lambda user: user.is_staff),
     ]),
+]
+
+# Personal pages, reached from the topbar menus rather than the sidebar; listed so the topbar
+# still names the current page.
+ACCOUNT_NAV = [
+    ("My profile", {"accounts:profile", "accounts:profile_edit"}),
+    ("Settings", {"accounts:settings"}),
+    ("Help & support", {"support:help", "support:issue_detail"}),
+    ("Notifications", {"notifications:list"}),
 ]
 
 # Pages the server takes noticeably longer to prepare; their links show the branded page loader
@@ -49,21 +73,49 @@ def navigation(request) -> dict:
     if user is None or not user.is_authenticated:
         return {}
     match = getattr(request, "resolver_match", None)
-    current = match.url_name if match else None
+    current = {match.url_name, match.view_name} if match else set()
     sections, current_label = [], None
     for heading, entries in NAV_SECTIONS:
         items = []
         for label, icon, url_name, active_on, visible in entries:
             if visible is not None and not visible(user):
                 continue
-            active = current in active_on
+            active = bool(current & active_on)
             if active:
                 current_label = label
             items.append({"label": label, "icon": icon, "url": reverse(url_name), "active": active,
                           "loading": NAV_LOADING_MESSAGES.get(url_name)})
         if items:
             sections.append({"heading": heading, "items": items})
+    for label, active_on in ACCOUNT_NAV:
+        if current & active_on:
+            current_label = label
     return {"NAV_SECTIONS": sections, "NAV_CURRENT": current_label}
+
+
+def initials(user) -> str:
+    first, last = (user.first_name or "").strip(), (user.last_name or "").strip()
+    if first or last:
+        return ((first[:1] + last[:1]) or first[:2]).upper()
+    return user.get_username()[:2].upper()
+
+
+def account(request) -> dict:
+    """The signed-in user's role, preferences, avatar and unread notifications, for the shell."""
+    user = getattr(request, "user", None)
+    if user is None or not user.is_authenticated:
+        return {}
+    profile = access.get_profile(user)
+    return {
+        "USER_PROFILE": profile,
+        "USER_ROLE": access.role_label(user),
+        "USER_INITIALS": initials(user),
+        "USER_AVATAR_URL": reverse("accounts:avatar", args=[user.pk]) + f"?v={int(profile.updated_at.timestamp())}" if profile.avatar else "",
+        "IS_ADMIN": access.is_admin(user),
+        "IS_SYSTEM_ADMIN": access.is_system_admin(user),
+        "NOTIFICATIONS_UNREAD": Notification.objects.filter(recipient=user, is_read=False).count(),
+        "NOTIFICATIONS_RECENT": list(Notification.objects.filter(recipient=user)[:6]),
+    }
 
 
 def data_provenance(request) -> dict:

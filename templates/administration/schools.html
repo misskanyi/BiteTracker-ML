@@ -1,0 +1,39 @@
+{% extends "administration/_layout.html" %}
+{% block title %}School management{% endblock %}
+{% block admin_content %}
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3" role="search" aria-label="Search schools">
+  <div><label class="form-label small" for="school-q">Search</label>
+    <input type="search" id="school-q" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Name, ID or county"></div>
+  <div><label class="form-label small" for="school-status">Status</label>
+    <select id="school-status" name="status" class="form-select form-select-sm"><option value="">All</option>
+      <option value="active"{% if status == "active" %} selected{% endif %}>Active</option>
+      <option value="inactive"{% if status == "inactive" %} selected{% endif %}>Inactive</option></select></div>
+  <button type="submit" class="btn btn-outline-secondary btn-sm">Search</button>
+</form>
+<p class="small text-muted">School IDs come from the meal-demand dataset and cannot be changed here, so historical records and forecasts stay linked.{% if IS_SYSTEM_ADMIN %} New schools are added with <code>python manage.py import_schools</code> or Django admin.{% endif %}</p>
+<div class="card">
+  {% if page.object_list %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" data-testid="schools-table">
+      <thead class="table-light"><tr><th>School</th><th>ID</th><th>Location</th><th class="text-end">Verified enrolment</th><th class="text-end">Users</th><th>Status</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>
+      {% for s in page %}
+        <tr{% if not s.is_active %} class="bt-row-muted"{% endif %}>
+          <td><a href="{% url 'administration:school_detail' s.pk %}">{{ s.name|default:s.school_id }}</a></td>
+          <td class="small"><code>{{ s.school_id }}</code></td>
+          <td class="small">{{ s.sub_county }}{% if s.sub_county and s.county %}, {% endif %}{{ s.county }}</td>
+          <td class="text-end">{{ s.verified_enrolment|default:"—" }}</td>
+          <td class="text-end">{{ s.n_users }}</td>
+          <td>{% if s.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-light">Inactive</span>{% endif %}</td>
+          <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{% url 'administration:school_detail' s.pk %}">View</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+  <div class="card-body"><div class="empty-state"><i class="bi bi-buildings"></i><p class="mb-0">No schools match.</p></div></div>
+  {% endif %}
+</div>
+{% endblock %}

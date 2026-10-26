@@ -1,8 +1,9 @@
 {% load static %}<!doctype html>
-<html lang="en" data-theme="light" data-bs-theme="light">
+<html lang="en" data-theme="light" data-bs-theme="light"{% if USER_PROFILE %} data-theme-pref="{{ USER_PROFILE.theme }}" class="{% if USER_PROFILE.compact_tables %}bt-compact-tables {% endif %}{% if USER_PROFILE.reduce_motion %}bt-reduce-motion{% endif %}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if user.is_authenticated %}<meta name="bt-theme-url" content="{% url 'accounts:theme' %}">{% endif %}
   <title>{% block title %}BiteTracker{% endblock %} · BiteTracker</title>
   {% include "partials/_theme_init.html" %}
   <meta name="color-scheme" content="light dark">

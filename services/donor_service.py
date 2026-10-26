@@ -48,14 +48,19 @@ def _trend(recent_mean: float, previous_mean: float | None) -> tuple[float | Non
     return round(pct, 1), "up" if pct > 0 else "down"
 
 
-def school_impact(cost_per_meal: Decimal | None = None) -> dict:
-    """Per-school donor metrics, ranked by need, plus programme totals."""
+def school_impact(cost_per_meal: Decimal | None = None, school_ids: set[str] | None = None) -> dict:
+    """Per-school donor metrics, ranked by need, plus programme totals.
+
+    `school_ids` limits the result (and its totals) to those schools; None means every school.
+    """
     cost = planning_service.default_cost_per_meal() if cost_per_meal is None else cost_per_meal
     df = data_service.load_processed_data()
     dataset_end = df[settings.DATE_COLUMN].max().date()
 
     schools = []
     for school in data_service.list_schools():
+        if school_ids is not None and school["school_id"] not in school_ids:
+            continue
         history = _src_get_school_history(df, school["school_id"])
         meals = history["meals_served"]
         recent = meals.tail(WINDOW)

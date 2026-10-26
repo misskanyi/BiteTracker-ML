@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load bitetracker %}
 {% block title %}Validation result{% endblock %}
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
@@ -7,54 +6,31 @@
     <h1 class="h3 mb-1"><i class="bi bi-file-earmark-check me-2 text-primary"></i>Validation result</h1>
     <p class="text-muted mb-0 small">{{ upload.original_filename }} · {{ upload.file_size|filesizeformat }} · uploaded {{ upload.uploaded_at|date:"j M Y H:i" }}{% if upload.uploaded_by %} by {{ upload.uploaded_by.get_username }}{% endif %}</p>
   </div>
-  <a class="btn btn-outline-secondary btn-sm" href="{% url 'schools:upload' %}"><i class="bi bi-arrow-left me-1"></i>Upload another file</a>
+  <a class="btn btn-outline-secondary btn-sm" href="{% url 'schools:upload' %}"><i class="bi bi-arrow-left me-1"></i>Upload another</a>
 </div>
 
 <div class="alert {% if upload.validation_status == 'valid' %}alert-success{% else %}alert-danger{% endif %}" role="status" data-testid="validation-status">
   <strong>{{ upload.get_validation_status_display }}.</strong>
-  {% if upload.validation_status == 'valid' %}The file passed validation and has been stored for review.{% elif upload.validation_status == 'invalid' %}The file was read but failed validation. It was recorded but not stored.{% else %}The file could not be read. It was recorded but not stored.{% endif %}
-  Processing status: {{ upload.get_processing_status_display }}. The active dataset and model are unchanged.
+  {% if upload.validation_status == 'valid' %}Stored for review.{% elif upload.validation_status == 'invalid' %}Failed validation; not stored.{% else %}The file could not be read; not stored.{% endif %}
+  The active dataset and model are unchanged.
 </div>
 
-{% for e in summary.errors %}<div class="alert alert-danger small py-2" role="alert">{{ e }}</div>{% endfor %}
-{% for w in summary.warnings %}<div class="alert alert-warning small py-2" role="alert">{{ w }}</div>{% endfor %}
-
-{% if summary.n_records is not None %}
-<div class="row g-3 mb-4">
-  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Records</div><div class="kpi-value">{{ summary.n_records }}</div><div class="kpi-note">{{ summary.n_columns }} columns{% if summary.n_schools is not None %}, {{ summary.n_schools }} school{{ summary.n_schools|pluralize }}{% endif %}</div></div></div></div>
-  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Date range</div><div class="kpi-value kpi-value--sm">{% if summary.date_range %}{{ summary.date_range.0 }} – {{ summary.date_range.1 }}{% else %}—{% endif %}</div><div class="kpi-note">{{ summary.coverage_months }} months</div></div></div></div>
-  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Data quality score</div><div class="kpi-value">{{ summary.quality_score }}<span class="fs-6 text-muted">/100</span></div></div></div></div>
-  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Forecast readiness</div><div class="kpi-value kpi-value--sm">{{ summary.forecast_readiness }}</div></div></div></div>
-</div>
-
-<div class="row g-3">
-  <div class="col-md-6">
-    <div class="card h-100"><div class="card-header bg-white"><h2 class="h6 mb-0">Checks</h2></div>
-      <ul class="list-group list-group-flush small">
-        <li class="list-group-item d-flex justify-content-between">Missing values <span>{{ summary.missing_values }}</span></li>
-        <li class="list-group-item d-flex justify-content-between">Duplicate rows / (school, date) pairs <span>{{ summary.duplicate_rows }}</span></li>
-        <li class="list-group-item d-flex justify-content-between">Unparsable dates <span>{{ summary.unparsable_dates }}</span></li>
-        <li class="list-group-item d-flex justify-content-between">Invalid numeric values <span>{{ summary.invalid_numeric_values }}</span></li>
-      </ul>
+{% if upload.review_status %}
+<section class="card mb-4" data-testid="review-status"><div class="card-body">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+    <div>
+      <h2 class="h6 mb-1">Administrator review {% include "schools/_review_status.html" with status=upload.review_status label=upload.get_review_status_display %}</h2>
+      {% if upload.review_status == "pending" %}<p class="small text-muted mb-0">An administrator will check the data and the supporting letter. You will be notified of the decision.</p>
+      {% else %}<p class="small text-muted mb-0">{{ upload.get_review_status_display }} by {{ upload.reviewed_by.get_username|default:"a deleted account" }} on {{ upload.reviewed_at|date:"j M Y H:i" }}.</p>
+        {% if upload.review_comment %}<p class="mb-0 mt-2">{{ upload.review_comment|linebreaksbr }}</p>{% endif %}{% endif %}
     </div>
+    {% if can_download %}<div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{% url 'schools:upload_file' upload.pk %}"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Data file</a>
+      {% if upload.supporting_letter %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'schools:upload_letter' upload.pk %}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Supporting letter</a>{% endif %}
+    </div>{% endif %}
   </div>
-  <div class="col-md-6">
-    <div class="card h-100"><div class="card-header bg-white"><h2 class="h6 mb-0">Quality score breakdown</h2></div>
-      <ul class="list-group list-group-flush small">
-        {% for factor, points in summary.score_breakdown.items %}<li class="list-group-item d-flex justify-content-between">{{ factor|humanize_key }} <span>{{ points }}</span></li>{% empty %}<li class="list-group-item">Not scored.</li>{% endfor %}
-      </ul>
-    </div>
-  </div>
-</div>
+</div></section>
+{% endif %}
 
-{% if summary.compatibility_issues %}
-<div class="alert alert-warning small mt-3" role="alert"><strong>The current model may not apply cleanly to this data:</strong>
-  <ul class="mb-0">{% for i in summary.compatibility_issues %}<li>{{ i }}</li>{% endfor %}</ul>
-</div>
-{% endif %}
-{% if summary.optional_columns_missing %}
-<p class="small text-muted mt-3">Optional columns not provided: {{ summary.optional_columns_missing|join:", " }}.</p>
-{% endif %}
-<p class="small text-muted">Columns found: {{ summary.columns|join:", " }}.</p>
-{% endif %}
+{% include "schools/_validation_summary.html" %}
 {% endblock %}

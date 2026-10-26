@@ -1,0 +1,17 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Activity logs{% endblock %}
+{% block admin_content %}
+<form method="get" class="card mb-3" aria-label="Filter activity"><div class="card-body row g-2 align-items-end">
+  {% include "partials/_form_errors.html" %}
+  <div class="col-sm-6 col-lg-3"><label class="form-label small" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>{{ form.q }}</div>
+  <div class="col-sm-6 col-lg-3"><label class="form-label small" for="{{ form.action.id_for_label }}">{{ form.action.label }}</label>{{ form.action }}</div>
+  <div class="col-6 col-lg-2"><label class="form-label small" for="{{ form.start.id_for_label }}">{{ form.start.label }}</label>{{ form.start }}</div>
+  <div class="col-6 col-lg-2"><label class="form-label small" for="{{ form.end.id_for_label }}">{{ form.end.label }}</label>{{ form.end }}</div>
+  <div class="col-auto"><button type="submit" class="btn btn-outline-secondary btn-sm">Filter</button></div>
+</div></form>
+<p class="small text-muted">The activity log is read-only. {% if not IS_SYSTEM_ADMIN %}You see activity for your schools, the operators you manage, and your own actions.{% endif %}</p>
+<div class="card">
+  {% include "administration/_log_table.html" with logs=page.object_list %}
+  {% if page.object_list %}<div class="card-footer">{% include "partials/_pagination.html" %}</div>{% endif %}
+</div>
+{% endblock %}

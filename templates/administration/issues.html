@@ -1,0 +1,23 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Support issues{% endblock %}
+{% block admin_content %}
+<div class="bt-chips mb-3" role="group" aria-label="Filter by status">
+  <a class="bt-chip{% if not status %} is-active{% endif %}" href="{% url 'administration:issues' %}">All</a>
+  {% for value, label in statuses %}<a class="bt-chip{% if status == value %} is-active{% endif %}" href="?status={{ value }}">{{ label }}{% for k, n in counts.items %}{% if k == value %} ({{ n }}){% endif %}{% endfor %}</a>{% endfor %}
+</div>
+<div class="card">
+  {% if page.object_list %}
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0" data-testid="issues-table">
+    <thead class="table-light"><tr><th>#</th><th>Subject</th><th>Category</th><th>Reported by</th><th>Submitted</th><th>Status</th></tr></thead>
+    <tbody>{% for issue in page %}
+      <tr><td>{{ issue.pk }}</td><td><a href="{% url 'administration:issue_detail' issue.pk %}">{{ issue.subject }}</a>{% if issue.screenshot %} <i class="bi bi-image text-muted" aria-label="has screenshot"></i>{% endif %}</td>
+        <td class="small">{{ issue.get_category_display }}</td><td class="small">{{ issue.reporter.get_username|default:"—" }}</td>
+        <td class="small text-nowrap">{{ issue.created_at|date:"j M Y H:i" }}</td><td>{% include "support/_status.html" with status=issue.status label=issue.get_status_display %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <div class="card-footer">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+  <div class="card-body"><div class="empty-state"><i class="bi bi-inbox"></i><p class="mb-0">No reported problems{% if status %} with this status{% endif %}.</p></div></div>
+  {% endif %}
+</div>
+{% endblock %}

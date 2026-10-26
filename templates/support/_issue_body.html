@@ -1,0 +1,16 @@
+<section class="card mb-4"><div class="card-body">
+  <dl class="bt-metric-list mb-3">
+    <div><dt>Report</dt><dd>#{{ issue.pk }}</dd></div>
+    <div><dt>Status</dt><dd>{% include "support/_status.html" with status=issue.status label=issue.get_status_display %}</dd></div>
+    <div><dt>Category</dt><dd>{{ issue.get_category_display }}</dd></div>
+    <div><dt>Reported by</dt><dd>{{ issue.reporter.get_username|default:"Deleted account" }}</dd></div>
+    <div><dt>Submitted</dt><dd>{{ issue.created_at|date:"j M Y, H:i" }}</dd></div>
+    <div><dt>Last updated</dt><dd>{{ issue.updated_at|date:"j M Y, H:i" }}</dd></div>
+  </dl>
+  <h2 class="bt-subheading">Description</h2>
+  <p>{{ issue.description|linebreaksbr }}</p>
+  {% if issue.screenshot %}
+  <h2 class="bt-subheading">Screenshot</h2>
+  <a href="{% url 'support:issue_screenshot' issue.pk %}" target="_blank" rel="noopener"><img class="bt-screenshot" src="{% url 'support:issue_screenshot' issue.pk %}" alt="Screenshot attached to report #{{ issue.pk }}"></a>
+  {% endif %}
+</div></section>

@@ -10,5 +10,9 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("web.accounts.urls")),
     path("data/", include("web.schools.urls")),
+    path("calendar/", include("web.schoolcalendar.urls")),
+    path("notifications/", include("web.notifications.urls")),
+    path("help/", include("web.support.urls")),
+    path("administration/", include("web.administration.urls")),
     path("", include("web.core.urls")),
 ]

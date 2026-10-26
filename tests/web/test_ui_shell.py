@@ -22,6 +22,7 @@ from django.contrib.staticfiles import finders
 from django.urls import reverse
 
 from web.core import charts
+from tests.support.web_fixtures import operator
 
 PASSWORD = "Str0ng-test-passw0rd!"
 
@@ -125,11 +126,21 @@ def test_active_page_is_marked(client, planner, url_name, label):
     assert f'aria-current="page">{label}</li>' in _page(client, planner, url_name)  # breadcrumb
 
 
-def test_sidebar_collapse_control_and_mobile_drawer(client, planner):
+def test_sidebar_pin_toggle_and_mobile_drawer(client, planner):
     html = _page(client, planner)
-    assert 'id="bt-collapse-toggle"' in html and 'aria-controls="bt-sidebar"' in html
+    pin = re.search(r'<button[^>]*id="bt-sidebar-pin"[^>]*>', html).group(0)
+    assert 'aria-controls="bt-sidebar"' in pin and 'aria-pressed="false"' in pin and 'aria-label="Pin sidebar open"' in pin
+    toggle = re.search(r'<button[^>]*id="bt-sidebar-toggle"[^>]*>', html).group(0)  # touch screens, no hover
+    assert 'aria-controls="bt-sidebar"' in toggle and 'aria-expanded="false"' in toggle
     assert 'data-bs-toggle="offcanvas" data-bs-target="#bt-sidebar"' in html
     assert 'aria-label="Open navigation"' in html
+    assert 'id="bt-collapse-toggle"' not in html
+
+
+def test_pinned_sidebar_is_applied_before_first_paint(client, planner):
+    head = _page(client, planner).split("</head>")[0]
+    assert 'localStorage.getItem("bt-sidebar-pinned")' in head
+    assert head.index('classList.add("bt-sidebar-pinned")') < head.index("css/bitetracker.css")
 
 
 def test_logout_controls_are_csrf_protected_post_forms(client, planner):
@@ -216,10 +227,9 @@ def test_slow_pages_get_a_page_loader_message(client, planner):
     assert f'href="{reverse("core:performance")}"' in html and 'data-loading-nav="Analysing model performance…"' in html
 
 
-def test_forecast_form_has_ring_loader_hidden_until_submit(client, planner):
-    html = _page(client, planner, "core:forecast")
-    if 'data-testid="forecast-form"' not in html:
-        pytest.skip("no active dataset in this environment, so the forecast form is not rendered")
+def test_forecast_form_has_ring_loader_hidden_until_submit(client, db, stub_artifacts):
+    html = _page(client, operator("assigned_planner"), "core:forecast")
+    assert 'data-testid="forecast-form"' in html
     overlay = re.search(r'<div class="bt-loader-overlay" data-loader-overlay hidden>.*?</div>\s*</div>', html, re.S)
     assert overlay and "bt-loader--ring" in overlay.group(0) and "Generating forecast" in overlay.group(0)
 

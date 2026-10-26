@@ -1,19 +1,23 @@
-"""Login/logout using Django's built-in authentication views.
+"""Login/logout, My Profile and Settings.
 
-LoginView is already exempt from LoginRequiredMiddleware. LogoutView only
-accepts POST, so logging out always goes through a CSRF-protected form.
+Login uses Django's built-in view (exempt from LoginRequiredMiddleware) with a
+landing-page preference. LogoutView only accepts POST, so logging out always
+goes through a CSRF-protected form.
 """
 
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
+from web.accounts import views
+
 app_name = "accounts"
 
 urlpatterns = [
-    path(
-        "login/",
-        auth_views.LoginView.as_view(template_name="accounts/login.html", redirect_authenticated_user=True),
-        name="login",
-    ),
+    path("login/", views.LoginView.as_view(), name="login"),
     path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("profile/", views.profile, name="profile"),
+    path("profile/edit/", views.profile_edit, name="profile_edit"),
+    path("avatar/<int:user_id>/", views.avatar, name="avatar"),
+    path("settings/", views.settings_view, name="settings"),
+    path("settings/theme/", views.theme_update, name="theme"),
 ]

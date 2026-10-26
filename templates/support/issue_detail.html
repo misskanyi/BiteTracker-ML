@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Report #{{ issue.pk }}{% endblock %}
+{% block content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'support:help' %}#my-reports"><i class="bi bi-arrow-left" aria-hidden="true"></i>Back to Help &amp; support</a></nav>
+{% include "partials/_page_header.html" with title=issue.subject icon="bi-bug" subtitle="Your problem report" %}
+{% include "support/_issue_body.html" %}
+{% endblock %}

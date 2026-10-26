@@ -1,0 +1,32 @@
+{% extends "administration/_layout.html" %}
+{% block title %}{% if creating %}Create user{% else %}Edit {{ target.username }}{% endif %}{% endblock %}
+{% block admin_content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% if target %}{% url 'administration:user_detail' target.pk %}{% else %}{% url 'administration:users' %}{% endif %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>Back</a></nav>
+<div class="card bt-form-card"><div class="card-header bt-card-header"><h2 class="bt-card-title"><i class="bi {% if creating %}bi-person-plus{% else %}bi-pencil-square{% endif %}" aria-hidden="true"></i>{% if creating %}Create user{% else %}Edit {{ target.get_full_name|default:target.username }}{% endif %}</h2></div>
+<div class="card-body">
+  <form method="post" novalidate data-loading="Saving…" data-testid="user-form">
+    {% csrf_token %}
+    {% include "partials/_form_errors.html" %}
+    {% if form.username %}{% include "partials/_field.html" with field=form.username %}{% endif %}
+    <div class="row g-3">
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.first_name %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.last_name %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.email %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.phone %}</div>
+    </div>
+    {% if form.role %}{% include "partials/_field.html" with field=form.role %}{% elif target %}<p class="small text-muted">You cannot change your own role.</p>{% endif %}
+    {% include "partials/_field.html" with field=form.schools %}
+    {% if form.password1 %}
+    <div class="row g-3">
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.password1 %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.password2 %}</div>
+    </div>
+    {% endif %}
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">{% if creating %}Create user{% else %}Save changes{% endif %}</button>
+      <a class="btn btn-outline-secondary" href="{% if target %}{% url 'administration:user_detail' target.pk %}{% else %}{% url 'administration:users' %}{% endif %}">Cancel</a>
+    </div>
+    <p class="visually-hidden" role="status" data-loading-status></p>
+  </form>
+</div></div>
+{% endblock %}

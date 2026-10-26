@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}My profile{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="My profile" icon="bi-person-circle" subtitle="Your personal details and the access your account has." %}
+
+<section class="card mb-4 bt-profile-header" aria-label="Profile summary">
+  <div class="card-body">
+    {% include "partials/_avatar.html" with url=USER_AVATAR_URL initials=USER_INITIALS size="xl" %}
+    <div class="bt-profile-header__text">
+      <h2 class="h4 mb-1" data-testid="profile-name">{{ user.get_full_name|default:user.get_username }}</h2>
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="badge bt-badge-primary"><i class="bi bi-person-badge me-1" aria-hidden="true"></i>{{ role_label }}</span>
+        {% if user.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-danger">Inactive</span>{% endif %}
+        <span class="small text-muted">
+          {% if schools is None %}All schools{% else %}{{ schools|length }} assigned school{{ schools|length|pluralize }}{% endif %}
+        </span>
+      </div>
+    </div>
+    {% if not editing %}
+    <div class="bt-profile-header__actions">
+      <a class="btn btn-primary" href="{% url 'accounts:profile_edit' %}"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edit profile</a>
+      <a class="btn btn-outline-secondary" href="{% url 'accounts:settings' %}?tab=security"><i class="bi bi-key me-1" aria-hidden="true"></i>Change password</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <section class="card h-100" aria-labelledby="personal-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="personal-heading"><i class="bi bi-person-vcard" aria-hidden="true"></i>Personal information</h2></div>
+      <div class="card-body">
+        {% if editing %}
+        <form method="post" enctype="multipart/form-data" novalidate data-loading="Saving…" data-testid="profile-form">
+          {% csrf_token %}
+          {% include "partials/_form_errors.html" %}
+          <div class="row g-3">
+            <div class="col-sm-6">{% include "partials/_field.html" with field=form.first_name %}</div>
+            <div class="col-sm-6">{% include "partials/_field.html" with field=form.last_name %}</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="email-readonly">Email address</label>
+            <input type="email" class="form-control" id="email-readonly" value="{{ user.email }}" readonly aria-describedby="email-note">
+            <div class="form-text" id="email-note">Your email can only be changed by an administrator.</div>
+          </div>
+          {% include "partials/_field.html" with field=form.phone %}
+          {% include "partials/_field.html" with field=form.avatar %}
+          {% if profile.avatar %}{% include "partials/_field.html" with field=form.remove_avatar %}{% endif %}
+          <div class="d-flex gap-2 mt-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save changes</button>
+            <a class="btn btn-outline-secondary" href="{% url 'accounts:profile' %}">Cancel</a>
+          </div>
+          <p class="visually-hidden" role="status" data-loading-status></p>
+        </form>
+        {% else %}
+        <dl class="bt-metric-list">
+          <div><dt>First name</dt><dd>{{ user.first_name|default:"—" }}</dd></div>
+          <div><dt>Last name</dt><dd>{{ user.last_name|default:"—" }}</dd></div>
+          <div><dt>Email address</dt><dd>{{ user.email|default:"—" }}</dd></div>
+          <div><dt>Phone number</dt><dd>{{ profile.phone|default:"—" }}</dd></div>
+          <div><dt>Username</dt><dd>{{ user.get_username }}</dd></div>
+        </dl>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="col-lg-5 d-flex flex-column gap-4">
+    <section class="card" aria-labelledby="org-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="org-heading"><i class="bi bi-buildings" aria-hidden="true"></i>Organisation</h2></div>
+      <div class="card-body">
+        <dl class="bt-metric-list">
+          <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
+          <div><dt>Account status</dt><dd>{% if user.is_active %}Active{% else %}Inactive{% endif %}</dd></div>
+        </dl>
+        <h3 class="bt-subheading mt-3">Assigned schools</h3>
+        {% if schools is None %}
+          <p class="small mb-0">System Admins can work with every school.</p>
+        {% elif schools %}
+          <ul class="list-unstyled mb-0 bt-school-list" data-testid="profile-schools">
+            {% for school in schools %}<li><i class="bi bi-building me-2" aria-hidden="true"></i>{{ school.name|default:school.school_id }} <span class="text-muted small">({{ school.school_id }})</span></li>{% endfor %}
+          </ul>
+        {% else %}
+          <p class="small text-muted mb-0">No schools are assigned to you yet. Ask a Programme Admin or System Admin.</p>
+        {% endif %}
+        <p class="bt-footnote mt-3 mb-0">Role and school assignments are managed by administrators.</p>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="account-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="account-heading"><i class="bi bi-clock-history" aria-hidden="true"></i>Account</h2></div>
+      <div class="card-body">
+        <dl class="bt-metric-list">
+          <div><dt>Account created</dt><dd>{{ user.date_joined|date:"j M Y" }}</dd></div>
+          <div><dt>Last login</dt><dd>{% if user.last_login %}{{ user.last_login|date:"j M Y, H:i" }}{% else %}—{% endif %}</dd></div>
+        </dl>
+        <h3 class="bt-subheading mt-3">Recent activity</h3>
+        {% if recent_activity %}
+        <ul class="list-unstyled mb-0 small bt-activity">
+          {% for log in recent_activity %}<li><span>{{ log.get_action_display }}{% if log.target_label %} · {{ log.target_label }}{% endif %}</span><time datetime="{{ log.created_at|date:'c' }}">{{ log.created_at|date:"j M, H:i" }}</time></li>{% endfor %}
+        </ul>
+        {% else %}
+        <p class="small text-muted mb-0">No recorded activity yet. Changes you make to your profile, password, calendar events and uploads appear here.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

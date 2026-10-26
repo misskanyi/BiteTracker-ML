@@ -2,7 +2,7 @@
 {% load humanize bitetracker %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-{% include "partials/_page_header.html" with title="Dashboard" icon="bi-grid-1x2" subtitle="Monitor school meal demand, forecasts and planning activity." %}
+{% include "partials/_page_header.html" with title="Dashboard" icon="bi-grid-1x2" subtitle="Meal demand and forecasts at a glance." %}
 
 {% if data_error %}
   <div class="alert alert-warning" role="alert" data-testid="data-error"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>{{ data_error }}</div>
@@ -18,7 +18,7 @@
             <span class="bt-kpi__name">{{ DATA_STATUS.dataset_name }}</span>
             <span class="badge status-pill status-pill--{{ DATA_STATUS.kind }}">{{ DATA_STATUS.kind|title }}</span>
           </div>
-          <div class="kpi-note">Records {{ date_range.start|date:"j M Y" }} – {{ date_range.end|date:"j M Y" }}</div>
+          <div class="kpi-note">{{ date_range.start|date:"M Y" }} – {{ date_range.end|date:"M Y" }}</div>
         </div>
       </div></div>
     </div>
@@ -28,7 +28,6 @@
         <div class="bt-kpi__body">
           <div class="kpi-label">Schools monitored</div>
           <div class="kpi-value">{{ schools|length }}</div>
-          <div class="kpi-note">in the active dataset</div>
         </div>
       </div></div>
     </div>
@@ -38,7 +37,7 @@
         <div class="bt-kpi__body">
           <div class="kpi-label">Latest recorded day</div>
           <div class="kpi-value kpi-value--md">{{ date_range.end|date:"j M Y" }}</div>
-          <div class="kpi-note">{{ latest_day_total|meals }} meals served · {{ latest_day_schools }} of {{ schools|length }} school{{ schools|length|pluralize }} reported that day</div>
+          <div class="kpi-note">{{ latest_day_total|meals }} meals · {{ latest_day_schools }}/{{ schools|length }} schools reported</div>
         </div>
       </div></div>
     </div>
@@ -48,7 +47,7 @@
         <div class="bt-kpi__body">
           <div class="kpi-label">Recent daily demand</div>
           <div class="kpi-value">{{ recent_daily_total|intcomma }}</div>
-          <div class="kpi-note">meals/day, all schools (sum of each school's mean over its last 14 records)</div>
+          <div class="kpi-note" title="Sum of each school's mean over its last 14 records">meals/day · 14-day average</div>
         </div>
       </div></div>
     </div>
@@ -66,7 +65,7 @@
       <div class="card-body d-flex flex-column">
         {% if history_chart %}
           {% include "partials/_chart.html" with chart=history_chart chart_id="dashboard-history-chart" hide_title=True fill=True %}
-          <p class="bt-footnote mb-0">Dataset covers {{ date_range.start|date:"j M Y" }} – {{ date_range.end|date:"j M Y" }}. Each line shows a school's last 120 recorded school days; gaps between points are periods with no records (e.g. school holidays).</p>
+          <p class="bt-footnote mb-0">Last 120 school days per school. Gaps = no records (e.g. holidays).</p>
         {% else %}
           <div class="empty-state"><i class="bi bi-graph-up" aria-hidden="true"></i><p>No historical data to chart yet.</p></div>
         {% endif %}
@@ -96,14 +95,13 @@
             {% if model_metadata.final_test_r2 is not None %}<div><dt>Test R²</dt><dd>{{ model_metadata.final_test_r2|floatformat:3 }}</dd></div>{% endif %}
           </dl>
 
-          {% if model_metadata.selection_criterion %}<p class="bt-footnote mt-3 mb-0">Selected by {{ model_metadata.selection_criterion }}; the held-out test period was not used for selection.</p>{% endif %}
           {% with best=baselines_beating_model.0 %}{% if best %}
           <div class="bt-callout bt-callout--warning mt-3" role="note" data-testid="baseline-note">
             <i class="bi bi-info-circle" aria-hidden="true"></i>
             <span>On the held-out test period, <strong>{{ best.name }}</strong> had a lower MAE ({{ best.test_mae|floatformat:1 }} vs {{ best.model_test_mae|floatformat:1 }} meals) than {{ model_metadata.selected_model }}.</span>
           </div>
           {% endif %}{% endwith %}
-          <a href="{% url 'core:performance' %}" class="bt-card-link d-inline-flex mt-3">View full model performance <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          <a href="{% url 'core:performance' %}" class="bt-card-link d-inline-flex mt-3">Model performance <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         {% else %}
           <div class="alert alert-warning small mb-0" role="alert">{{ model_error }}</div>
         {% endif %}
@@ -129,7 +127,6 @@
           </div>
           <div class="col-12 mt-3">
             <button type="submit" class="btn btn-primary w-100">Set up forecast <i class="bi bi-arrow-right" aria-hidden="true"></i></button>
-            <p class="bt-footnote mt-2 mb-0">Opens the forecast form with these choices. Nothing is predicted until you generate it there.</p>
           </div>
         </form>
       </div>
@@ -171,7 +168,6 @@
       </tbody>
     </table>
   </div>
-  <div class="card-footer bt-footnote">Each run keeps the model and dataset label it was generated with. Synthetic-data runs come from development testing and are not Food4Education results.</div>
   {% else %}
     <div class="card-body"><div class="empty-state"><i class="bi bi-calendar2-plus" aria-hidden="true"></i><p>No forecasts yet. <a href="{% url 'core:forecast' %}">Generate the first one</a>.</p></div></div>
   {% endif %}
@@ -214,11 +210,11 @@
       </tbody>
     </table>
   </div>
-  <div class="card-footer bt-footnote" data-testid="processed-values-note">
-    Meal counts come from the processed dataset, not raw observations: during preprocessing, values outside each school's training-period IQR fences were capped.
-    Counts marked <sup class="bt-capped">†</sup> were changed by capping (hover for the original recorded count where the source keeps it); in the range column, only non-integer capped values can be marked.
-    Enrolment is the figure recorded in the active dataset, not verified school enrolment.
-  </div>
+  <details class="card-footer bt-footnote bt-notes" data-testid="processed-values-note">
+    <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Notes</summary>
+    <p><sup class="bt-capped">†</sup> Capped as an outlier during preprocessing (hover for the original count). Range column marks only non-integer capped values.</p>
+    <p>Enrolment is the dataset figure, not verified school enrolment.</p>
+  </details>
 </section>
 {% endif %}
 {% endblock %}

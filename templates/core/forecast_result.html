@@ -16,8 +16,7 @@
 
 <div class="bt-callout bt-callout--info mb-3" role="status" data-testid="origin-note">
   <i class="bi bi-calendar-event" aria-hidden="true"></i>
-  <span><strong>{{ summary.origin_note }}</strong><br>
-  Forecast covers {{ run.first_forecast_date|date:"j M Y" }} – {{ run.last_forecast_date|date:"j M Y" }} ({{ days|length }} school day{{ days|length|pluralize }}). This is not a forecast from today's date.</span>
+  <span><strong>{{ summary.origin_note }}</strong> · {{ run.first_forecast_date|date:"j M" }} – {{ run.last_forecast_date|date:"j M Y" }} ({{ days|length }} school day{{ days|length|pluralize }})</span>
 </div>
 {% for w in summary.warnings %}
   <div class="bt-callout bt-callout--warning mb-3" role="note"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ w }}</span></div>
@@ -30,32 +29,34 @@
     <div class="card h-100 result-card result-card--predicted"><div class="card-body">
       <div class="result-label">Predicted demand</div>
       <div class="result-value" data-testid="predicted-meals">{{ ds.predicted_meals|intcomma }} <span class="result-unit">meals</span></div>
-      <div class="bt-footnote">The model's estimate of meals that will be served.</div>
     </div></div>
   </div>
   <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card result-card--recommended"><div class="card-body">
       <div class="result-label">Recommended preparation</div>
       <div class="result-value" data-testid="recommended-meals">{{ ds.recommended_meals|intcomma }} <span class="result-unit">meals</span></div>
-      <div class="bt-footnote">Predicted demand plus a rule-based safety buffer.</div>
+      <div class="bt-footnote">Prediction + safety buffer</div>
     </div></div>
   </div>
   <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card"><div class="card-body">
-      <div class="result-label">Difference (safety buffer)</div>
+      <div class="result-label">Safety buffer</div>
       <div class="result-value">+{{ ds.buffer_meals|intcomma }} <span class="result-unit">meals</span></div>
-      <div class="bt-footnote">{{ ds.buffer_pct }}% of predicted demand, added to cover day-to-day volatility.</div>
+      <div class="bt-footnote">{{ ds.buffer_pct }}% of prediction</div>
     </div></div>
   </div>
   <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card"><div class="card-body">
       <div class="result-label">Planning risk</div>
       <div class="result-value"><span class="badge risk-badge risk-{{ ds.risk_level|lower }} fs-5">{{ ds.risk_level }}</span></div>
-      <div class="bt-footnote">Based on the buffer's size relative to predicted demand. Horizon: {{ ds.uncertainty }}</div>
+      <div class="bt-footnote" title="Based on the buffer's size relative to predicted demand">{{ ds.uncertainty }}</div>
     </div></div>
   </div>
 </section>
-<p class="bt-footnote mb-4"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>The safety buffer is a rule-based planning heuristic (recent demand volatility, scaled up for days further ahead, capped at 20% of predicted demand). It is not a statistical confidence interval.</p>
+<details class="bt-footnote bt-notes mb-4">
+  <summary><i class="bi bi-info-circle" aria-hidden="true"></i>About the buffer</summary>
+  <p>Rule-based: recent demand volatility, scaled up for later days, capped at 20% of predicted demand. It's not a statistical confidence interval.</p>
+</details>
 
 {# --- Budget + resource planning ---------------------------------------------------------------- #}
 <div class="row g-3 mb-4">
@@ -91,7 +92,11 @@
           <div class="col-auto"><button type="submit" class="btn btn-outline-secondary">Recalculate</button></div>
           {% if cost_source == "override" %}<div class="col-auto"><a class="btn btn-link px-0" href="{% url 'core:forecast_run' run.pk %}">Reset</a></div>{% endif %}
         </form>
-        <p class="bt-footnote mt-3 mb-0">Budget = meals × cost per meal. The cost per meal is a planning assumption (default KES {{ default_cost|floatformat:"-2" }}), not verified Food4Education expenditure. Recalculating only re-prices this saved forecast; predictions are unchanged and no new forecast is created. Multi-day totals add each day's meals once.{% if summary.cost_estimate %} The dataset itself records an average of KSh {{ summary.cost_per_meal }} per meal for this school.{% endif %}</p>
+        <details class="bt-footnote bt-notes mt-3">
+          <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Notes</summary>
+          <p>Budget = meals × cost per meal. Cost is a planning assumption (default KES {{ default_cost|floatformat:"-2" }}), not verified Food4Education expenditure.{% if summary.cost_estimate %} Dataset average for this school: KSh {{ summary.cost_per_meal }}.{% endif %}</p>
+          <p>Recalculating re-prices this forecast only; predictions don't change.</p>
+        </details>
       </div>
     </section>
   </div>
@@ -105,7 +110,7 @@
           <p class="small mb-3" data-testid="allocation">{{ summary.allocation.recommendation }}</p>
         {% endif %}
         <p class="mb-2">Prepare <strong>{{ summary.totals.recommended_meals|intcomma }}</strong> meals over the horizon for a predicted demand of <strong>{{ summary.totals.predicted_meals|intcomma }}</strong>.</p>
-        <p class="bt-footnote mb-0">A decision-support recommendation, not an automatic instruction. Final decisions stay with school and programme staff.</p>
+        <p class="bt-footnote mb-0">Guidance only. Staff make the final call.</p>
       </div>
     </section>
   </div>
@@ -115,7 +120,7 @@
   <div class="card-header bt-card-header"><h2 class="bt-card-title" id="forecast-chart-heading"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i>Recent demand and forecast</h2></div>
   <div class="card-body">
     {% include "partials/_chart.html" with chart=chart chart_id="forecast-chart" hide_title=True %}
-    {% if days|length > 1 %}<p class="bt-footnote mb-0">Uncertainty grows with each day further from the last recorded date.</p>{% endif %}
+    {% if days|length > 1 %}<p class="bt-footnote mb-0">Uncertainty grows with each day ahead.</p>{% endif %}
   </div>
 </section>
 
@@ -148,11 +153,11 @@
 
 <section class="card">
   <div class="card-body">
-    <details class="bt-disclosure" open>
+    <details class="bt-disclosure">
       <summary><i class="bi bi-list-check" aria-hidden="true"></i>Assumptions used</summary>
       <ul class="small mt-2 mb-2">
         {% for a in assumptions %}<li>{{ a }}</li>{% endfor %}
-        {% if weather_unrecorded %}<li data-testid="weather-not-recorded">Weather: not recorded in the active dataset, so it does not inform this forecast.</li>{% endif %}
+        {% if weather_unrecorded %}<li data-testid="weather-not-recorded">Weather: not recorded, not used.</li>{% endif %}
         <li>Cost per meal: {{ budget.cost_per_meal|kes }} (planning assumption).</li>
       </ul>
       <p class="bt-footnote mb-0">User inputs: {% for k, v in run.assumptions.items %}{{ k|humanize_key }} = {{ v }}{% if not forloop.last %}, {% endif %}{% empty %}none (recent averages used){% endfor %}. Model version: {{ run.model_version|default:"unknown" }}.</p>

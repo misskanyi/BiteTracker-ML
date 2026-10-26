@@ -65,7 +65,9 @@
   // Charts draw straight away (so layout never jumps) but their marks stay hidden
   // (.is-pending) until the chart scrolls into view. Then lines wipe in left to right,
   // bars grow from the axis one after another, and value labels fade in last (CSS).
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The OS setting or the user's own "Reduce animations" preference (Settings → Appearance).
+  var reduceMotion = document.documentElement.classList.contains("bt-reduce-motion")
+    || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   var REVEAL_MS = 1600;
 
   // Plotly rebuilds bar nodes on every redraw, so the stagger delays are re-applied after each one.

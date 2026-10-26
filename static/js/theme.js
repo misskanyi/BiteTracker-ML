@@ -3,7 +3,9 @@
  * The initial theme is applied by partials/_theme_init.html before first paint.
  * This file wires the header toggle, follows OS changes while no explicit choice
  * is saved, and announces changes with a "bt:themechange" event (charts listen).
- * localStorage key "theme" is shared with Django admin's toggle.
+ * localStorage key "theme" is shared with Django admin's toggle. For signed-in users the
+ * toggle also saves the choice to their account (Settings → Appearance), so it survives
+ * logging in again on any device.
  */
 (function () {
   "use strict";
@@ -45,6 +47,23 @@
     document.dispatchEvent(new CustomEvent("bt:themechange", { detail: { theme: theme } }));
   }
 
+  function csrfToken() {
+    var match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  // Best effort: the page has already switched; a failed save only means the next login uses the old theme.
+  function saveToAccount(theme) {
+    var meta = document.querySelector('meta[name="bt-theme-url"]');
+    if (!meta || !window.fetch) return;
+    root.setAttribute("data-theme-pref", theme);
+    fetch(meta.content, {
+      method: "POST", credentials: "same-origin",
+      headers: { "X-CSRFToken": csrfToken(), "Content-Type": "application/x-www-form-urlencoded" },
+      body: "theme=" + encodeURIComponent(theme)
+    }).catch(function () {});
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     syncToggle();
     var button = document.getElementById("bt-theme-toggle");
@@ -53,6 +72,7 @@
         var next = current() === "dark" ? "light" : "dark";
         try { localStorage.setItem(STORAGE_KEY, next); } catch (e) { /* still switch for this page */ }
         apply(next);
+        saveToAccount(next);
       });
     }
   });

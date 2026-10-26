@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Forecast history{% endblock %}
 {% block content %}
-{% include "partials/_page_header.html" with title="Forecast history" icon="bi-clock-history" subtitle="Every forecast generated through BiteTracker, newest first." %}
+{% include "partials/_page_header.html" with title="Forecast history" icon="bi-clock-history" subtitle="All forecasts, newest first." %}
 
 {% if schools %}
 <form method="get" class="row g-2 align-items-end mb-3">
@@ -40,7 +40,7 @@
   </div>
   <div class="card-footer bg-white">{% include "partials/_pagination.html" %}</div>
   {% else %}
-  <div class="card-body"><div class="empty-state"><i class="bi bi-calendar2-plus"></i><p>No forecasts recorded yet. <a href="{% url 'core:forecast' %}">Generate a forecast</a>.</p></div></div>
+  <div class="card-body"><div class="empty-state"><i class="bi bi-calendar2-plus"></i><p>No forecasts yet. <a href="{% url 'core:forecast' %}">Generate one</a>.</p></div></div>
   {% endif %}
 </div>
 {% endblock %}
