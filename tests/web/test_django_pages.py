@@ -41,6 +41,7 @@ from services.model_service import FeatureAlignmentError, ModelLoadError, ModelM
 from src.feature_engineering import FEATURE_COLUMNS
 from web.core.errors import user_message
 from web.schools.models import DatasetUpload, ForecastRun, School
+from tests.support.web_fixtures import operator
 
 pytestmark = pytest.mark.django_db
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -51,7 +52,7 @@ PAGES = ["core:dashboard", "core:history", "core:forecast", "core:forecast_histo
 
 @pytest.fixture
 def user(db):
-    return get_user_model().objects.create_user("planner", password=PASSWORD)
+    return operator()
 
 
 @pytest.fixture
@@ -245,7 +246,7 @@ def test_forecast_with_capacity_shows_allocation(logged_in, stub_artifacts):
 
 
 def test_forecast_links_to_imported_school(logged_in, stub_artifacts):
-    School.objects.create(school_id="SCH001", name="Greenfield Primary")
+    School.objects.filter(school_id="SCH001").update(name="Greenfield Primary")
     _post_forecast(logged_in)
     assert ForecastRun.objects.get().school.school_id == "SCH001"
 
@@ -375,6 +376,10 @@ def _csv_upload(frame: pd.DataFrame, name: str = "school_data.csv") -> SimpleUpl
     return SimpleUploadedFile(name, frame.to_csv(index=False).encode(), content_type="text/csv")
 
 
+def _letter(name: str = "letter.pdf", content: bytes = b"%PDF-1.4\n%signed cover letter\n") -> SimpleUploadedFile:
+    return SimpleUploadedFile(name, content, content_type="application/pdf")
+
+
 def _valid_upload_frame(stub_artifacts) -> pd.DataFrame:
     return stub_artifacts.frame[["date", "school_id", "school_name", "meals_served", "students_present", "enrolled_students"]].head(80)
 
@@ -383,7 +388,7 @@ def test_upload_requires_permission(logged_in, stub_artifacts):
     response = logged_in.get(reverse("schools:upload"))
     assert response.status_code == 403
     assert b'data-testid="error-403"' in response.content
-    assert logged_in.post(reverse("schools:upload"), {"file": _csv_upload(_valid_upload_frame(stub_artifacts))}).status_code == 403
+    assert logged_in.post(reverse("schools:upload"), {"file": _csv_upload(_valid_upload_frame(stub_artifacts)), "letter": _letter()}).status_code == 403
     assert DatasetUpload.objects.count() == 0
 
 
@@ -397,7 +402,7 @@ def test_valid_upload_is_validated_recorded_and_stored(uploader, stub_artifacts,
     model_mtime = stub_artifacts.model_path.stat().st_mtime_ns
     data_mtime = stub_artifacts.processed_path.stat().st_mtime_ns
 
-    response = uploader.post(reverse("schools:upload"), {"file": _csv_upload(_valid_upload_frame(stub_artifacts))})
+    response = uploader.post(reverse("schools:upload"), {"file": _csv_upload(_valid_upload_frame(stub_artifacts)), "letter": _letter()})
     record = DatasetUpload.objects.get()
     assert response.status_code == 302 and response.url == reverse("schools:upload_detail", args=[record.pk])
     assert record.validation_status == "valid"
@@ -419,7 +424,7 @@ def test_valid_upload_is_validated_recorded_and_stored(uploader, stub_artifacts,
 
 def test_upload_missing_required_columns_is_invalid_and_not_stored(uploader, stub_artifacts, media_root):
     frame = _valid_upload_frame(stub_artifacts).drop(columns=["meals_served"])
-    uploader.post(reverse("schools:upload"), {"file": _csv_upload(frame)})
+    uploader.post(reverse("schools:upload"), {"file": _csv_upload(frame), "letter": _letter()})
     record = DatasetUpload.objects.get()
     assert record.validation_status == "invalid"
     assert not record.file
@@ -428,7 +433,7 @@ def test_upload_missing_required_columns_is_invalid_and_not_stored(uploader, stu
 
 def test_upload_corrupt_excel_is_unreadable(uploader, stub_artifacts, media_root):
     bad = SimpleUploadedFile("broken.xlsx", b"not really an excel file", content_type="application/vnd.ms-excel")
-    response = uploader.post(reverse("schools:upload"), {"file": bad})
+    response = uploader.post(reverse("schools:upload"), {"file": bad, "letter": _letter()})
     record = DatasetUpload.objects.get()
     assert record.validation_status == "unreadable" and not record.file
     html = uploader.get(response.url).content.decode()
@@ -440,13 +445,13 @@ def test_upload_real_excel_file_validates(uploader, stub_artifacts, media_root):
     buffer = io.BytesIO()
     _valid_upload_frame(stub_artifacts).to_excel(buffer, index=False)
     upload = SimpleUploadedFile("school_data.xlsx", buffer.getvalue())
-    uploader.post(reverse("schools:upload"), {"file": upload})
+    uploader.post(reverse("schools:upload"), {"file": upload, "letter": _letter()})
     assert DatasetUpload.objects.get().validation_status == "valid"
 
 
 @pytest.mark.parametrize("name", ["data.txt", "data.xls", "data.exe", "noextension"])
 def test_upload_rejects_unsupported_file_types(uploader, stub_artifacts, media_root, name):
-    response = uploader.post(reverse("schools:upload"), {"file": SimpleUploadedFile(name, b"a,b\n1,2\n")})
+    response = uploader.post(reverse("schools:upload"), {"file": SimpleUploadedFile(name, b"a,b\n1,2\n"), "letter": _letter()})
     assert response.status_code == 200
     assert b"Unsupported file type" in response.content
     assert DatasetUpload.objects.count() == 0
@@ -455,7 +460,7 @@ def test_upload_rejects_unsupported_file_types(uploader, stub_artifacts, media_r
 def test_upload_rejects_oversized_file(uploader, stub_artifacts, media_root, settings):
     settings.MAX_UPLOAD_SIZE_BYTES = 1024 * 1024
     big = SimpleUploadedFile("big.csv", b"x" * (1024 * 1024 + 1))
-    response = uploader.post(reverse("schools:upload"), {"file": big})
+    response = uploader.post(reverse("schools:upload"), {"file": big, "letter": _letter()})
     assert b"larger than the 1 MB limit" in response.content
     assert DatasetUpload.objects.count() == 0
 

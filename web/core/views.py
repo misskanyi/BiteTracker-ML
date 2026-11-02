@@ -12,18 +12,28 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from config import settings as ml_settings
 from services import ServiceError, data_service, donor_service, forecast_service, model_service, performance_service, planning_service
+from web.accounts import access
 from web.core import charts
 from web.core.errors import user_message
 from web.core.forecast_records import record_forecast_run, stored_cost_per_meal, stored_days
 from web.core.forms import ForecastForm, HistoryFilterForm
-from web.schools.models import ForecastRun
+from web.notifications.models import Notification
+from web.notifications.services import notify
+from web.schools.models import ForecastRun, School
 
 logger = logging.getLogger(__name__)
+
+NO_SCHOOLS_MESSAGE = (
+    "No schools are assigned to your account yet, so there is no school data to show. "
+    "Ask a Programme Admin or System Admin to assign your schools."
+)
 
 DEFAULT_HISTORY_DAYS = 90
 HISTORY_PAGE_SIZE = 25
@@ -49,22 +59,22 @@ def _baselines_beating_model(metadata: dict) -> list[dict]:
     return sorted(rows, key=lambda r: r["test_mae"])
 
 
+def _visible_runs(user):
+    """Forecast runs for the schools the user may see (all runs for System Admins)."""
+    runs = ForecastRun.objects.select_related("user")
+    codes = access.accessible_school_codes(user)
+    return runs if codes is None else runs.filter(school_code__in=codes)
+
+
+def _schools_for(user) -> list[dict]:
+    """Dataset schools within the user's scope. Raises ServiceError if the data is unavailable."""
+    return access.filter_school_records(user, data_service.list_schools())
+
+
 def dashboard(request):
-    context = {"recent_runs": ForecastRun.objects.select_related("user")[:5]}
+    context = {"recent_runs": _visible_runs(request.user)[:5]}
     try:
-        summary = data_service.recent_demand_summary()
-        date_range = data_service.get_date_range()
-        latest = date_range["end"]
-        reporting = [s for s in summary if s["latest_date"] == latest]
-        context.update(
-            schools=summary,
-            date_range=date_range,
-            latest_day_total=sum(s["latest_meals_served"] for s in reporting),
-            latest_day_schools=len(reporting),
-            recent_daily_total=round(sum(s["recent_mean_meals"] for s in summary)),
-            history_chart=charts.all_schools_history_chart(data_service.load_processed_data()),
-            quick_form=ForecastForm(schools=summary),
-        )
+        context.update(_dashboard_data(request.user))
     except ServiceError as exc:
         context["data_error"] = user_message(exc)
     try:
@@ -74,6 +84,29 @@ def dashboard(request):
     except ServiceError as exc:
         context["model_error"] = user_message(exc)
     return render(request, "core/dashboard.html", context)
+
+
+def _dashboard_data(user) -> dict:
+    """Demand figures for the user's schools only."""
+    summary = access.filter_school_records(user, data_service.recent_demand_summary())
+    if not summary:
+        return {"data_error": NO_SCHOOLS_MESSAGE}
+    date_range = data_service.get_date_range()
+    latest = date_range["end"]
+    reporting = [s for s in summary if s["latest_date"] == latest]
+    data = data_service.load_processed_data()
+    codes = access.accessible_school_codes(user)
+    if codes is not None:
+        data = data[data[ml_settings.SCHOOL_ID_COLUMN].isin(codes)]
+    return dict(
+        schools=summary,
+        date_range=date_range,
+        latest_day_total=sum(s["latest_meals_served"] for s in reporting),
+        latest_day_schools=len(reporting),
+        recent_daily_total=round(sum(s["recent_mean_meals"] for s in summary)),
+        history_chart=charts.all_schools_history_chart(data),
+        quick_form=ForecastForm(schools=summary),
+    )
 
 
 def _history_presets(school_id: str, available: dict, start, end) -> list[dict]:
@@ -88,9 +121,11 @@ def _history_presets(school_id: str, available: dict, start, end) -> list[dict]:
 
 def history(request):
     try:
-        schools = data_service.list_schools()
+        schools = _schools_for(request.user)
     except ServiceError as exc:
         return render(request, "core/history.html", {"data_error": user_message(exc)})
+    if not schools:
+        return render(request, "core/history.html", {"data_error": NO_SCHOOLS_MESSAGE})
 
     form = HistoryFilterForm(request.GET or None, schools=schools)
     context = {"form": form}
@@ -154,10 +189,12 @@ def history(request):
 @require_http_methods(["GET", "POST"])
 def forecast(request):
     try:
-        schools = data_service.list_schools()
+        schools = _schools_for(request.user)
         defaults = {s["school_id"]: forecast_service.default_assumptions(s["school_id"]) for s in schools}
     except ServiceError as exc:
         return render(request, "core/forecast.html", {"data_error": user_message(exc)})
+    if not schools:
+        return render(request, "core/forecast.html", {"data_error": NO_SCHOOLS_MESSAGE})
 
     if request.method == "POST":
         form = ForecastForm(request.POST, schools=schools)
@@ -172,9 +209,18 @@ def forecast(request):
                     available_capacity=data["available_capacity"],
                 )
             except ServiceError as exc:
-                form.add_error(None, user_message(exc))
+                message = user_message(exc)
+                form.add_error(None, message)
+                school = School.objects.filter(school_id=data["school"]).first()
+                notify([request.user], Notification.Type.FORECAST_FAILED, f"Forecast failed: {school or data['school']}",
+                       message, url=reverse("core:forecast"), school=school, include_actor=True)
             else:
                 run = record_forecast_run(result, request.user, cost_per_meal=data["cost_per_meal_kes"])
+                notify([request.user], Notification.Type.FORECAST_COMPLETED,
+                       f"Forecast ready: {run.school_name or run.school_code}",
+                       f"{run.get_horizon_days_display()} from {run.first_forecast_date:%d %b %Y}. "
+                       f"Day 1: {run.day1_predicted_meals} meals predicted, {run.day1_recommended_meals} recommended.",
+                       url=reverse("core:forecast_run", args=[run.pk]), school=run.school, include_actor=True)
                 return redirect("core:forecast_run", pk=run.pk)
     else:
         initial = {k: request.GET[k] for k in ("school", "horizon") if k in request.GET}
@@ -189,13 +235,27 @@ def forecast(request):
         # inform the forecast. Server-side validation is unchanged.
         for name in ("expected_rainfall_mm", "expected_temperature_c"):
             form.fields[name].widget.attrs.update(disabled=True, **{"aria-describedby": "weather-note"})
+    attendance_unused = _model_ignores_attendance()
+    if attendance_unused:
+        form.fields["expected_attendance"].widget.attrs.update(disabled=True)
     return render(request, "core/forecast.html", {
         "form": form, "defaults": defaults_json, "weather_unrecorded": weather_unrecorded,
+        "attendance_unused": attendance_unused,
     })
 
 
+def _model_ignores_attendance() -> bool:
+    """True when the saved model has no attendance features (e.g. a Food4Education model)."""
+    try:
+        features = set(model_service.load_model_metadata()["features_used"])
+    except ServiceError:
+        return False  # the forecast itself reports the model problem
+    return not features & {"previous_attendance", "previous_attendance_rate"}
+
+
 def forecast_run(request, pk: int):
-    run = get_object_or_404(ForecastRun.objects.select_related("user"), pk=pk)
+    # Out-of-scope runs 404 rather than 403, so their existence is not revealed.
+    run = get_object_or_404(_visible_runs(request.user), pk=pk)
     days = stored_days(run)
     try:
         recent = data_service.get_school_history(run.school_code, end=run.origin_date).tail(21)
@@ -249,12 +309,13 @@ def _safe_unrecorded() -> set[str]:
 
 
 def forecast_history(request):
-    runs = ForecastRun.objects.select_related("user")
+    visible = _visible_runs(request.user)
+    runs = visible
     school = request.GET.get("school")
     if school:
         runs = runs.filter(school_code=school)
     page = Paginator(runs, 20).get_page(request.GET.get("page"))
-    schools = ForecastRun.objects.order_by().values_list("school_code", "school_name").distinct()
+    schools = visible.order_by().values_list("school_code", "school_name").distinct()
     return render(request, "core/forecast_history.html", {
         "page": page,
         "selected_school": school,
@@ -277,7 +338,9 @@ def performance(request):
 def donors(request):
     """How each school's programme is doing and where a donation would reach the most children."""
     try:
-        impact = donor_service.school_impact()
+        impact = donor_service.school_impact(school_ids=access.accessible_school_codes(request.user))
     except ServiceError as exc:
         return render(request, "core/donors.html", {"data_error": user_message(exc)})
+    if not impact["schools"]:
+        return render(request, "core/donors.html", {"data_error": NO_SCHOOLS_MESSAGE})
     return render(request, "core/donors.html", {"impact": impact, "chart": charts.donor_reach_chart(impact["schools"])})

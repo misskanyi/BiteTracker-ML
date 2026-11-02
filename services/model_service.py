@@ -6,10 +6,12 @@ forecasts reuse one in-memory model and a re-run of the training pipeline is
 picked up without restarting the server.
 
 Before a loaded model is handed out, `verify_model` checks that it matches
-its metadata and that it expects exactly the features inference builds
-(`src.feature_engineering.FEATURE_COLUMNS`, the same list
-`src.forecasting._build_feature_row` emits). A mismatch raises instead of
-producing a prediction from misaligned inputs.
+its metadata and that it expects exactly the feature set for its data source
+(`src.feature_engineering.feature_columns_for(metadata["data_source"])`:
+`FEATURE_COLUMNS` for synthetic data, `FOOD4EDUCATION_FEATURE_COLUMNS` for
+the real sheet). `src.forecasting._build_feature_row` emits every column in
+both sets. A mismatch raises instead of producing a prediction from
+misaligned inputs.
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from typing import Any
 
 from config import settings
 from services import ServiceError
-from src.feature_engineering import FEATURE_COLUMNS
+from src.feature_engineering import SYNTHETIC_SOURCE, feature_columns_for
 from src.forecasting import load_forecasting_model
 
 MODEL_FILENAME = "final_best_model.joblib"
@@ -118,10 +120,15 @@ def load_model_metadata() -> dict:
 
 def verify_model(model: Any, metadata: dict) -> None:
     """Fail clearly if the model, its metadata and the inference feature list disagree."""
-    expected = list(FEATURE_COLUMNS)
+    # Metadata written before data sources existed describes a synthetic-data model.
+    data_source = metadata.get("data_source", SYNTHETIC_SOURCE)
+    try:
+        expected = feature_columns_for(data_source)
+    except ValueError as exc:
+        raise FeatureAlignmentError(f"Model metadata has an unknown data source {data_source!r}. {_RETRAIN_HINT}") from exc
 
     # Features: metadata, saved feature list and the model itself must all
-    # equal the inference feature list, in the same order.
+    # equal the feature list for that data source, in the same order.
     if list(metadata["features_used"]) != expected:
         raise FeatureAlignmentError(
             "Model metadata lists different features from the ones inference builds "

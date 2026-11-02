@@ -10,6 +10,7 @@ from django import forms
 
 from services import planning_service
 from services.forecast_service import HORIZONS, TEMPERATURE_RANGE_C
+from web.core.uploads import validate_document
 
 
 def _number(label: str, help_text: str, **kwargs) -> forms.FloatField:
@@ -81,10 +82,17 @@ class DatasetUploadForm(forms.Form):
         label="Dataset file (.csv or .xlsx)",
         widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".csv,.xlsx"}),
     )
+    letter = forms.FileField(
+        label="Signed supporting letter (.pdf, .docx, .png or .jpg)",
+        widget=forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".pdf,.docx,.png,.jpg,.jpeg"}),
+    )
 
-    def __init__(self, *args, max_size: int, allowed_extensions: tuple[str, ...], **kwargs):
+    def __init__(self, *args, max_size: int, allowed_extensions: tuple[str, ...], letter_max_size: int, **kwargs):
         super().__init__(*args, **kwargs)
-        self.max_size, self.allowed_extensions = max_size, allowed_extensions
+        self.max_size, self.allowed_extensions, self.letter_max_size = max_size, allowed_extensions, letter_max_size
+
+    def clean_letter(self):
+        return validate_document(self.cleaned_data["letter"], self.letter_max_size)
 
     def clean_file(self):
         upload = self.cleaned_data["file"]

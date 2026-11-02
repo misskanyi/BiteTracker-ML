@@ -1,0 +1,13 @@
+{% comment %}
+  Branded loading indicator for real waits only (a request the user is waiting on), never as decoration.
+  Usage: {% include "partials/_loader.html" with variant="pulse"|"ring" message="Loading dashboard…" decorative=True %}
+    pulse — the icon stays upright and gently pulses; for pages the server is preparing.
+    ring  — the icon stays still inside a rotating violet ring; for long operations (forecast generation, uploads).
+  The ring is indeterminate: no percentage is shown because the server does not report progress.
+  decorative=True hides it from assistive technology when a separate role="status" region announces the wait.
+  Motion stops under prefers-reduced-motion (bitetracker.css, section 8); the message still shows.
+{% endcomment %}
+<div class="bt-loader bt-loader--{{ variant|default:'pulse' }}"{% if decorative %} aria-hidden="true"{% else %} role="status" aria-live="polite"{% endif %}>
+  <span class="bt-loader__mark">{% include "partials/_brand.html" with variant="icon" decorative=True %}</span>
+  <span class="bt-loader__message" data-loader-message>{{ message|default:"Loading…" }}</span>
+</div>

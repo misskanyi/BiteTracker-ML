@@ -1,0 +1,16 @@
+<div class="table-responsive">
+  <table class="table table-hover align-middle mb-0" data-testid="event-table">
+    <thead class="table-light"><tr><th>Dates</th><th>Event</th><th>Type</th><th>School</th><th>Feeding</th></tr></thead>
+    <tbody>
+      {% for e in events %}
+      <tr>
+        <td class="text-nowrap">{{ e.start_date|date:"j M Y" }}{% if e.is_multi_day %} – {{ e.end_date|date:"j M Y" }}{% endif %}</td>
+        <td><a href="{% url 'schoolcalendar:event_detail' e.pk %}">{{ e.title }}</a></td>
+        <td class="small">{{ e.get_event_type_display }}</td>
+        <td class="small">{{ e.scope_label }}</td>
+        <td><span class="badge bt-feed-badge bt-feed--{{ e.feeding_status }}">{{ e.get_feeding_status_display }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

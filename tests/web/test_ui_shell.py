@@ -22,6 +22,7 @@ from django.contrib.staticfiles import finders
 from django.urls import reverse
 
 from web.core import charts
+from tests.support.web_fixtures import operator
 
 PASSWORD = "Str0ng-test-passw0rd!"
 
@@ -77,6 +78,28 @@ def test_shell_uses_shared_glass_components(client, planner):
     assert '<header class="bt-topbar bt-glass-nav">' in html
 
 
+def test_console_logger_loads_before_other_scripts(client, planner):
+    html = _page(client, planner)
+    head = html.split("</head>")[0]
+    assert "js/debug.js" in head  # in <head>, so it catches errors thrown by later scripts
+    assert html.index("js/debug.js") < html.index("js/theme.js") < html.index("js/layout.js")
+
+
+@pytest.mark.parametrize("debug, flag", [(True, "1"), (False, "0")])
+def test_console_logging_is_on_by_default_only_in_debug(client, planner, settings, debug, flag):
+    settings.DEBUG = debug
+    assert f'<meta name="bt-debug" content="{flag}">' in _page(client, planner)
+
+
+def test_django_messages_carry_their_level_for_the_console_logger():
+    from django.contrib.messages import constants
+    from django.contrib.messages.storage.base import Message
+    from django.template.loader import render_to_string
+
+    html = render_to_string("partials/_messages.html", {"messages": [Message(constants.ERROR, "Upload failed")]})
+    assert 'data-bt-message="error"' in html and "alert-danger" in html
+
+
 def test_theme_init_also_runs_on_login_page(client, db):
     html = client.get(reverse("accounts:login")).content.decode()
     assert 'localStorage.getItem("theme")' in html
@@ -125,11 +148,21 @@ def test_active_page_is_marked(client, planner, url_name, label):
     assert f'aria-current="page">{label}</li>' in _page(client, planner, url_name)  # breadcrumb
 
 
-def test_sidebar_collapse_control_and_mobile_drawer(client, planner):
+def test_sidebar_pin_toggle_and_mobile_drawer(client, planner):
     html = _page(client, planner)
-    assert 'id="bt-collapse-toggle"' in html and 'aria-controls="bt-sidebar"' in html
+    pin = re.search(r'<button[^>]*id="bt-sidebar-pin"[^>]*>', html).group(0)
+    assert 'aria-controls="bt-sidebar"' in pin and 'aria-pressed="false"' in pin and 'aria-label="Pin sidebar open"' in pin
+    toggle = re.search(r'<button[^>]*id="bt-sidebar-toggle"[^>]*>', html).group(0)  # touch screens, no hover
+    assert 'aria-controls="bt-sidebar"' in toggle and 'aria-expanded="false"' in toggle
     assert 'data-bs-toggle="offcanvas" data-bs-target="#bt-sidebar"' in html
     assert 'aria-label="Open navigation"' in html
+    assert 'id="bt-collapse-toggle"' not in html
+
+
+def test_pinned_sidebar_is_applied_before_first_paint(client, planner):
+    head = _page(client, planner).split("</head>")[0]
+    assert 'localStorage.getItem("bt-sidebar-pinned")' in head
+    assert head.index('classList.add("bt-sidebar-pinned")') < head.index("css/bitetracker.css")
 
 
 def test_logout_controls_are_csrf_protected_post_forms(client, planner):
@@ -182,6 +215,45 @@ def test_admin_login_matches_app_theme(client, db):
 ])
 def test_static_assets_exist(path):
     assert finders.find(path)
+
+
+# --- Brand marks and loaders ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize("path", [
+    f"images/branding/{folder}/{name}-{theme}.svg"
+    for folder, names in {"logos": ["logo-horizontal", "logo-stacked"], "icons": ["icon"]}.items()
+    for name in names for theme in ("light", "dark")
+] + ["images/branding/favicons/favicon-simple.svg", "images/branding/favicons/favicon-simple.png",
+     "images/branding/icons/app-light.png"])
+def test_brand_assets_exist(path):
+    assert finders.find(path)
+
+
+def test_login_shows_stacked_logo_for_both_themes_and_no_green_branding(client, db):
+    html = client.get(reverse("accounts:login")).content.decode()
+    assert "logo-stacked-light.svg" in html and "logo-stacked-dark.svg" in html
+    assert "favicon-simple.svg" in html
+    assert "text-success" not in html and "btn-success" not in html and "bi-basket2" not in html
+
+
+def test_sidebar_uses_horizontal_logo_and_icon_for_collapsed_state(client, planner):
+    brand = _sidebar(_page(client, planner)).split("</a>")[0]
+    assert "logo-horizontal-light.svg" in brand and "logo-horizontal-dark.svg" in brand
+    assert "icon-light.svg" in brand and "bt-collapse-show" in brand
+
+
+def test_slow_pages_get_a_page_loader_message(client, planner):
+    html = _page(client, planner)
+    assert 'id="bt-page-loader"' in html and "bt-loader--pulse" in html
+    assert f'href="{reverse("core:performance")}"' in html and 'data-loading-nav="Analysing model performance…"' in html
+
+
+def test_forecast_form_has_ring_loader_hidden_until_submit(client, db, stub_artifacts):
+    html = _page(client, operator("assigned_planner"), "core:forecast")
+    assert 'data-testid="forecast-form"' in html
+    overlay = re.search(r'<div class="bt-loader-overlay" data-loader-overlay hidden>.*?</div>\s*</div>', html, re.S)
+    assert overlay and "bt-loader--ring" in overlay.group(0) and "Generating forecast" in overlay.group(0)
 
 
 # --- Chart colour roles --------------------------------------------------------------------

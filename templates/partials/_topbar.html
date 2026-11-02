@@ -1,9 +1,18 @@
-{# Slim header: drawer button (mobile), current location, theme toggle, account menu. #}
+{# Slim header: drawer button (mobile), current location, theme toggle, notifications, account menu. #}
 <header class="bt-topbar bt-glass-nav">
   <button type="button" class="bt-icon-btn bt-glass-button d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#bt-sidebar"
           aria-controls="bt-sidebar" aria-label="Open navigation">
     <i class="bi bi-list" aria-hidden="true"></i>
   </button>
+  {# Wide touch screens can't hover the sidebar open, so they get this visible toggle (shown by CSS, wired in layout.js). #}
+  <button type="button" class="bt-icon-btn bt-glass-button bt-sidebar-toggle" id="bt-sidebar-toggle"
+          aria-controls="bt-sidebar" aria-expanded="false" aria-label="Expand sidebar">
+    <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+  </button>
+  {# Compact mark for small screens, where the sidebar (and its logo) is a closed drawer. #}
+  <a class="bt-topbar__brand d-lg-none" href="{% url 'core:dashboard' %}" data-loading-nav="Loading dashboard…">
+    {% include "partials/_brand.html" with variant="icon" %}
+  </a>
 
   <nav class="bt-crumb" aria-label="Breadcrumb">
     <ol class="breadcrumb mb-0">
@@ -18,14 +27,24 @@
       <i class="bi bi-sun bt-theme-icon--dark" aria-hidden="true"></i>
     </button>
 
+    {% include "notifications/_bell.html" %}
+
     <div class="dropdown">
-      <button type="button" class="bt-avatar bt-avatar--button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
-        {{ user.get_username|slice:":2"|upper }}
+      <button type="button" class="bt-avatar-button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
+        {% include "partials/_avatar.html" with url=USER_AVATAR_URL initials=USER_INITIALS %}
       </button>
       <div class="dropdown-menu dropdown-menu-end bt-menu">
-        <div class="px-3 py-2 small text-body-secondary">Signed in as {{ user.get_username }}</div>
+        <div class="px-3 py-2">
+          <div class="fw-semibold text-truncate">{{ user.get_full_name|default:user.get_username }}</div>
+          <div class="small text-body-secondary">Signed in as {{ user.get_username }} · {{ USER_ROLE }}</div>
+        </div>
         <div class="dropdown-divider"></div>
+        <a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person-circle me-2" aria-hidden="true"></i>My profile</a>
+        <a class="dropdown-item" href="{% url 'accounts:settings' %}"><i class="bi bi-gear me-2" aria-hidden="true"></i>Settings</a>
+        <a class="dropdown-item" href="{% url 'support:help' %}"><i class="bi bi-question-circle me-2" aria-hidden="true"></i>Help &amp; support</a>
+        {% if IS_ADMIN %}<a class="dropdown-item" href="{% url 'administration:users' %}"><i class="bi bi-people me-2" aria-hidden="true"></i>Administration</a>{% endif %}
         {% if user.is_staff %}<a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Django admin</a>{% endif %}
+        <div class="dropdown-divider"></div>
         <form method="post" action="{% url 'accounts:logout' %}">
           {% csrf_token %}
           <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Log out</button>

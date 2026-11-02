@@ -1,0 +1,164 @@
+# Deploy BiteTracker to AWS EC2 — INACTIVE until configured.
+#
+# What it does, in short:
+# 1. On every push to main, runs the same checks and tests as CI. Any synthetic model the
+#    tests need is trained into a temporary folder outside the repository, never shipped.
+# 2. Only if the repository variable DEPLOY_ENABLED is "true" (it is not set by default),
+#    packages the tracked code with `git archive` (no models, data or databases can be
+#    included), checks that, uploads it to a private S3 bucket using short-lived AWS
+#    credentials from GitHub OIDC (no stored AWS keys), and asks the instance to run
+#    deploy/scripts/deploy.sh through AWS Systems Manager (no SSH, no open port 22).
+# 3. deploy.sh backs up the state directory, migrates, switches release, checks /health/
+#    and rolls back automatically if the check fails. The database, uploads and trained
+#    model live in BITETRACKER_STATE_DIR on the server and are never replaced.
+#
+# To activate (see deploy/README.md): create the AWS resources, then set these repository
+# variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   AWS_REGION, AWS_DEPLOY_ROLE_ARN, DEPLOY_BUCKET, EC2_INSTANCE_ID, DEPLOY_ENABLED=true
+# and optionally add required reviewers to the "production" environment.
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never run two deployments at once; let a running one finish.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Tests before deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # Synthetic CI artifacts (model, processed CSV, metrics, test DB) go here, outside the checkout.
+      - name: Use a temporary state directory
+        run: echo "BITETRACKER_STATE_DIR=$RUNNER_TEMP/ci-state" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Train development model on the SYNTHETIC sample (test-only, never deployed)
+        run: python scripts/train_models.py --data-path data/sample/synthetic_school_meals.csv
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Django migration consistency check
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Django deployment check (production settings)
+        env:
+          DJANGO_DEBUG: "False"
+          DJANGO_SECRET_KEY: ci-only-not-a-real-secret-${{ github.run_id }}-0123456789abcdefghijklmnopqrstuvwxyz
+          DJANGO_ALLOWED_HOSTS: bitetracker.example.org
+          DJANGO_SECURE_SSL_REDIRECT: "True"
+          DJANGO_SECURE_HSTS_SECONDS: "3600"
+          DJANGO_BEHIND_HTTPS_PROXY: "True"
+        run: python manage.py check --deploy --fail-level ERROR
+
+      - name: Run tests
+        run: pytest -q
+
+  deploy:
+    name: Deploy to EC2
+    needs: test
+    # Safe default: skipped until DEPLOY_ENABLED is set to "true" and only ever from main.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      id-token: write   # GitHub OIDC -> short-lived AWS credentials
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      DEPLOY_BUCKET: ${{ vars.DEPLOY_BUCKET }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      RELEASE_ID: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check deployment variables are set
+        run: |
+          for v in AWS_REGION DEPLOY_BUCKET EC2_INSTANCE_ID; do
+            [ -n "${!v}" ] || { echo "Repository variable $v is not set."; exit 1; }
+          done
+
+      # Fresh checkout: only tracked files. .gitignore keeps models, data, databases and secrets out of git.
+      - name: Package release (tracked code only)
+        run: git archive --format=tar.gz -o "release-$RELEASE_ID.tar.gz" HEAD
+
+      - name: Refuse to ship models, data, databases or secrets
+        run: |
+          bad="$(tar -tzf "release-$RELEASE_ID.tar.gz" | grep -E \
+            '\.(joblib|pkl|sqlite3|db|xlsx|xls|pem|key)$|(^|/)\.env$|^models/.+|^data/(processed|raw|uploads)/.+|^reports/metrics/.+' \
+            | grep -vE '(^|/)\.gitkeep$' || true)"
+          if [ -n "$bad" ]; then
+            echo "Release contains files that must never be deployed from git:"; echo "$bad"; exit 1
+          fi
+          echo "Release package is code only."
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload release to S3
+        run: aws s3 cp --only-show-errors --sse AES256 "release-$RELEASE_ID.tar.gz" "s3://$DEPLOY_BUCKET/releases/$RELEASE_ID.tar.gz"
+
+      - name: Run deploy.sh on the instance via Systems Manager
+        run: |
+          # AWS-RunShellScript runs this with /bin/sh (no bash-only options here).
+          script=$(cat <<EOF
+          set -eu
+          work=\$(mktemp -d)
+          trap 'rm -rf "\$work"' EXIT
+          aws s3 cp --only-show-errors "s3://$DEPLOY_BUCKET/releases/$RELEASE_ID.tar.gz" "\$work/release.tar.gz"
+          mkdir "\$work/src"
+          tar -xzf "\$work/release.tar.gz" -C "\$work/src" deploy/scripts
+          bash "\$work/src/deploy/scripts/deploy.sh" "\$work/release.tar.gz" "$RELEASE_ID"
+          EOF
+          )
+          params=$(jq -n --arg s "$script" '{commands: [$s], executionTimeout: ["1500"]}')
+          command_id=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "BiteTracker deploy $RELEASE_ID" \
+            --parameters "$params" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $command_id"
+
+          status=Pending
+          for _ in $(seq 180); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$command_id" \
+              --instance-id "$EC2_INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+          done
+
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardOutputContent --output text || true
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+            --query StandardErrorContent --output text >&2 || true
+          echo "Deploy status: $status"
+          [ "$status" = "Success" ]

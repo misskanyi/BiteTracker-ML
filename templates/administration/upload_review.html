@@ -1,0 +1,43 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Review {{ upload.original_filename }}{% endblock %}
+{% block admin_content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'administration:uploads' %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>All uploads</a></nav>
+<h2 class="h4 mb-3">{{ upload.original_filename }}</h2>
+
+<section class="card mb-4"><div class="card-body">
+  <dl class="bt-metric-list mb-3">
+    <div><dt>Status</dt><dd>{% include "schools/_review_status.html" with status=upload.review_status label=upload.get_review_status_display %}</dd></div>
+    <div><dt>Uploaded by</dt><dd>{{ upload.uploaded_by.get_username|default:"Deleted account" }}</dd></div>
+    <div><dt>Submitted</dt><dd>{{ upload.uploaded_at|date:"j M Y, H:i" }}</dd></div>
+    <div><dt>File size</dt><dd>{{ upload.file_size|filesizeformat }}</dd></div>
+    {% if upload.reviewed_at %}<div><dt>Reviewed</dt><dd>{{ upload.reviewed_at|date:"j M Y, H:i" }} by {{ upload.reviewed_by.get_username|default:"deleted account" }}</dd></div>{% endif %}
+  </dl>
+  <div class="d-flex flex-wrap gap-2" data-testid="review-downloads">
+    <a class="btn btn-outline-primary btn-sm" href="{% url 'schools:upload_file' upload.pk %}"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Download data file</a>
+    {% if upload.supporting_letter %}<a class="btn btn-outline-primary btn-sm" href="{% url 'schools:upload_letter' upload.pk %}"><i class="bi bi-file-earmark-text me-1" aria-hidden="true"></i>Download supporting letter ({{ upload.letter_filename }})</a>
+    {% else %}<span class="small text-muted align-self-center">No supporting letter attached.</span>{% endif %}
+  </div>
+  {% if upload.review_comment %}<h3 class="bt-subheading mt-3">Review comment</h3><p class="mb-0">{{ upload.review_comment|linebreaksbr }}</p>{% endif %}
+</div></section>
+
+<section class="card bt-form-card mb-4"><div class="card-body">
+  {% if can_decide %}
+  <form method="post" novalidate data-testid="upload-review-form">
+    {% csrf_token %}
+    <fieldset class="mb-3">
+      <legend class="form-label">Decision{% if upload.review_status != "pending" %} <span class="small text-muted">(changes the current decision)</span>{% endif %}</legend>
+      {% for choice in form.decision %}<div class="form-check form-check-inline">{{ choice.tag }}<label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></div>{% endfor %}
+      {% for e in form.decision.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+    </fieldset>
+    {% include "partials/_field.html" with field=form.comment %}
+    <button type="submit" class="btn btn-primary">Save decision</button>
+  </form>
+  <p class="small text-muted mt-2 mb-0">The uploader is notified. Approving records the decision only; it does not replace the active dataset or retrain the model.</p>
+  {% else %}
+  <p class="mb-0 text-muted">You uploaded this file, so another administrator must review it.</p>
+  {% endif %}
+</div></section>
+
+<h3 class="h5 mb-3">Validation results</h3>
+{% include "schools/_validation_summary.html" %}
+{% endblock %}

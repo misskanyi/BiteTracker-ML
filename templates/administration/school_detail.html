@@ -1,0 +1,63 @@
+{% extends "administration/_layout.html" %}
+{% block title %}{{ school }}{% endblock %}
+{% block admin_content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'administration:schools' %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>All schools</a></nav>
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <h2 class="h4 mb-0 me-auto" data-testid="school-name">{{ school.name|default:school.school_id }} <code class="fs-6">{{ school.school_id }}</code></h2>
+  <a class="btn btn-primary btn-sm" href="{% url 'administration:school_edit' school.pk %}"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edit school</a>
+</div>
+<div class="row g-4">
+  <div class="col-lg-5">
+    <section class="card h-100"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-building" aria-hidden="true"></i>Details</h3></div><div class="card-body">
+      <dl class="bt-metric-list">
+        <div><dt>County</dt><dd>{{ school.county|default:"—" }}</dd></div>
+        <div><dt>Sub-county</dt><dd>{{ school.sub_county|default:"—" }}</dd></div>
+        <div><dt>Verified enrolment</dt><dd>{{ school.verified_enrolment|default:"Not verified" }}</dd></div>
+        <div><dt>Data source</dt><dd>{{ school.data_source|default:"—" }}</dd></div>
+        <div><dt>Status</dt><dd>{% if school.is_active %}Active{% else %}Inactive{% endif %}</dd></div>
+        <div><dt>Forecasts saved</dt><dd>{{ forecast_count }}</dd></div>
+        <div><dt>Calendar events</dt><dd>{{ event_count }}</dd></div>
+        <div><dt>Last updated</dt><dd>{{ school.updated_at|date:"j M Y, H:i" }}</dd></div>
+      </dl>
+    </div></section>
+  </div>
+  <div class="col-lg-7">
+    <section class="card h-100"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-people" aria-hidden="true"></i>Assigned users</h3></div>
+      {% if rows %}
+      <ul class="list-group list-group-flush" data-testid="school-users">
+        {% for row in rows %}{% with u=row.assignment.user %}
+        <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+          <div class="me-auto">
+            {% if row.manageable %}<a href="{% url 'administration:user_detail' u.pk %}">{{ u.get_full_name|default:u.username }}</a>{% else %}{{ u.get_full_name|default:u.username }}{% endif %}
+            <div class="bt-cell-sub">{{ row.role }}{% if not u.is_active %} · inactive{% endif %} · assigned {{ row.assignment.assigned_at|date:"j M Y" }}</div>
+          </div>
+          {% if row.manageable %}
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="unassign"><input type="hidden" name="user" value="{{ u.pk }}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" aria-label="Remove {{ u.username }} from this school">Remove</button></form>
+          {% endif %}
+        </li>
+        {% endwith %}{% endfor %}
+      </ul>
+      {% else %}
+      <div class="card-body"><p class="small text-muted mb-0">No users are assigned to this school.</p></div>
+      {% endif %}
+      <div class="card-footer">
+        <form method="post" class="d-flex flex-wrap gap-2 align-items-end" novalidate>
+          {% csrf_token %}<input type="hidden" name="action" value="assign">
+          <div class="flex-grow-1">
+            <label class="form-label small" for="{{ form.user.id_for_label }}">{{ form.user.label }}</label>
+            {{ form.user }}
+            {% for e in form.user.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-12">
+    <section class="card"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-journal-text" aria-hidden="true"></i>Recent activity for this school</h3></div>
+      {% include "administration/_log_table.html" with logs=logs %}
+    </section>
+  </div>
+</div>
+{% endblock %}

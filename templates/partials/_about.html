@@ -1,0 +1,15 @@
+{# About BiteTracker. Model facts come from the saved model metadata (web/core/about.py), never hardcoded. #}
+<section class="card" aria-labelledby="about-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="about-heading"><i class="bi bi-info-circle" aria-hidden="true"></i>About BiteTracker</h2></div>
+  <div class="card-body">
+    <div class="mb-3">{% include "partials/_brand.html" with variant="horizontal" %}</div>
+    <p>{{ about.description }}</p>
+    <dl class="bt-metric-list mb-3" data-testid="about-facts">
+      <div><dt>Application version</dt><dd>{{ about.version|default:"Not available" }}</dd></div>
+      <div><dt>Forecasting model</dt><dd>{{ about.model_name|default:"Not available" }}</dd></div>
+      <div><dt>Model last trained</dt><dd>{% if about.trained_at %}{{ about.trained_at|date:"j M Y, H:i" }}{% else %}Not available{% endif %}</dd></div>
+      {% if about.results_label %}<div><dt>Results label</dt><dd>{{ about.results_label }}</dd></div>{% endif %}
+    </dl>
+    <a class="bt-card-link" href="{% url 'support:help' %}"><i class="bi bi-question-circle" aria-hidden="true"></i>Help &amp; support</a>
+  </div>
+</section>

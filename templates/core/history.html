@@ -2,7 +2,7 @@
 {% load humanize bitetracker %}
 {% block title %}Historical demand{% endblock %}
 {% block content %}
-{% include "partials/_page_header.html" with title="Historical demand" icon="bi-graph-up" subtitle="Recorded daily meal demand for one school." %}
+{% include "partials/_page_header.html" with title="Historical demand" icon="bi-graph-up" subtitle="Daily meal demand per school." %}
 
 {% if data_error %}
   <div class="alert alert-warning" role="alert" data-testid="data-error"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>{{ data_error }}</div>
@@ -39,7 +39,7 @@
       {% for p in range_presets %}<a class="bt-chip{% if p.active %} is-active{% endif %}" href="{{ p.href }}"{% if p.active %} aria-current="true"{% endif %}>{{ p.label }}</a>{% endfor %}
     </div>
     {% endif %}
-    {% if available %}<p class="bt-footnote mt-2 mb-0">Records for this school: {{ available.start|date:"j M Y" }} – {{ available.end|date:"j M Y" }}. With no dates selected, the last 90 days are shown.</p>{% endif %}
+    {% if available %}<p class="bt-footnote mt-2 mb-0">Data: {{ available.start|date:"j M Y" }} – {{ available.end|date:"j M Y" }}. Default: last 90 days.</p>{% endif %}
   </div>
 </section>
 {% endif %}
@@ -49,19 +49,19 @@
     <section class="row g-3 mb-4" aria-label="Summary for the selected period">
       <div class="col-6 col-xl-3"><div class="card kpi-card h-100"><div class="card-body bt-kpi">
         <span class="bt-kpi__icon" aria-hidden="true"><i class="bi bi-list-ol"></i></span>
-        <div class="bt-kpi__body"><div class="kpi-label">Records</div><div class="kpi-value">{{ records }}</div><div class="kpi-note">school days, {{ start|date:"j M Y" }} – {{ end|date:"j M Y" }}</div></div>
+        <div class="bt-kpi__body"><div class="kpi-label">Records</div><div class="kpi-value">{{ records }}</div><div class="kpi-note">{{ start|date:"j M" }} – {{ end|date:"j M Y" }}</div></div>
       </div></div></div>
       <div class="col-6 col-xl-3"><div class="card kpi-card h-100"><div class="card-body bt-kpi">
         <span class="bt-kpi__icon" aria-hidden="true"><i class="bi bi-bar-chart-line"></i></span>
-        <div class="bt-kpi__body"><div class="kpi-label">Mean meals / day</div><div class="kpi-value">{{ stats.mean|floatformat:"1g" }}</div><div class="kpi-note">meals served per recorded day</div></div>
+        <div class="bt-kpi__body"><div class="kpi-label">Mean meals / day</div><div class="kpi-value">{{ stats.mean|floatformat:"1g" }}</div></div>
       </div></div></div>
       <div class="col-6 col-xl-3"><div class="card kpi-card h-100"><div class="card-body bt-kpi">
         <span class="bt-kpi__icon" aria-hidden="true"><i class="bi bi-arrows-expand-vertical"></i></span>
-        <div class="bt-kpi__body"><div class="kpi-label">Min – max</div><div class="kpi-value kpi-value--md">{{ stats.min|meals }} – {{ stats.max|meals }}</div><div class="kpi-note">meals served on a single day</div></div>
+        <div class="bt-kpi__body"><div class="kpi-label">Min – max</div><div class="kpi-value kpi-value--md">{{ stats.min|meals }} – {{ stats.max|meals }}</div><div class="kpi-note">meals in a day</div></div>
       </div></div></div>
       <div class="col-6 col-xl-3"><div class="card kpi-card h-100"><div class="card-body bt-kpi">
         <span class="bt-kpi__icon" aria-hidden="true"><i class="bi bi-basket2"></i></span>
-        <div class="bt-kpi__body"><div class="kpi-label">Total meals served</div><div class="kpi-value">{{ stats.total|meals }}</div><div class="kpi-note">across {{ records }} school day{{ records|pluralize }}</div></div>
+        <div class="bt-kpi__body"><div class="kpi-label">Total meals served</div><div class="kpi-value">{{ stats.total|meals }}</div></div>
       </div></div></div>
     </section>
 
@@ -71,14 +71,13 @@
       </div>
       <div class="card-body">
         {% include "partials/_chart.html" with chart=chart chart_id="history-chart" hide_title=True %}
-        <p class="bt-footnote mb-0">Meals served is the demand the model forecasts; students present is a separate recorded variable shown for context.</p>
       </div>
     </section>
 
     <section class="card" aria-labelledby="records-heading">
       <div class="card-header bt-card-header">
-        <h2 class="bt-card-title" id="records-heading"><i class="bi bi-table" aria-hidden="true"></i>{{ school.school_name }} ({{ school.school_id }}) — daily records, newest first</h2>
-        <a class="btn btn-primary btn-sm" href="{% url 'core:forecast' %}?school={{ school.school_id }}"><i class="bi bi-calendar2-week me-1" aria-hidden="true"></i>Forecast this school</a>
+        <h2 class="bt-card-title" id="records-heading"><i class="bi bi-table" aria-hidden="true"></i>Daily records</h2>
+        <a class="btn btn-primary btn-sm" href="{% url 'core:forecast' %}?school={{ school.school_id }}"><i class="bi bi-calendar2-week me-1" aria-hidden="true"></i>Forecast</a>
       </div>
       <div class="table-responsive bt-table-scroll">
         <table class="table table-hover align-middle mb-0 bt-table bt-table--sticky" data-testid="history-table">
@@ -108,10 +107,11 @@
       </div>
       <div class="card-footer bt-footnote" data-testid="history-notes">
         <div class="mb-2">{% include "partials/_pagination.html" %}</div>
-        Meal counts come from the processed dataset: values outside the school's training-period IQR fences were capped during preprocessing.
-        {% if original_known %}Counts marked <sup class="bt-capped">†</sup> differ from the original recorded count (shown on hover), which the source keeps as students present.
-        {% else %}Counts marked <sup class="bt-capped">†</sup> are non-integer because of capping; capped values that are whole numbers cannot be identified for this source.{% endif %}
-        {% if unrecorded_labels %}<br><strong>Not recorded:</strong> {{ unrecorded_labels|join:" and " }} are not measured in the active dataset, so no values are shown (placeholder zeros in the processed file are not real observations).{% endif %}
+        <details class="bt-notes">
+          <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Notes</summary>
+          <p><sup class="bt-capped">†</sup> {% if original_known %}Capped as an outlier; hover for the original count.{% else %}Capped as an outlier (only non-integer capped values can be marked).{% endif %}</p>
+          {% if unrecorded_labels %}<p>{{ unrecorded_labels|join:" and " }} are not measured in this dataset.</p>{% endif %}
+        </details>
       </div>
     </section>
   {% else %}

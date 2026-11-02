@@ -6,3 +6,6 @@ class AccountsConfig(AppConfig):
     name = "web.accounts"
     label = "accounts"
     verbose_name = "Accounts"
+
+    def ready(self):
+        from web.accounts import signals  # noqa: F401  (registers the profile signal)

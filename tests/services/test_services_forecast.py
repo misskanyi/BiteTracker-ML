@@ -235,3 +235,15 @@ def test_missing_model_rejected_through_forecast(stub_artifacts):
 def test_forecast_errors_are_service_errors():
     for error in (InvalidForecastRequestError, InsufficientHistoryError, UnknownSchoolError, DataNotFoundError):
         assert issubclass(error, ServiceError)
+
+
+def test_default_assumptions_are_valid_json_when_weather_is_unrecorded(stub_artifacts):
+    """The forecast form embeds these defaults as JSON; an empty weather column must not become NaN."""
+    frame = stub_artifacts.frame.copy()
+    frame["rainfall_mm"] = float("nan")
+    frame["temperature_c"] = float("nan")
+    stub_artifacts.write_processed(frame)
+    defaults = forecast_service.default_assumptions("SCH001")
+    assert defaults["recent_rainfall_mm"] is None and defaults["recent_temperature_c"] is None
+    assert defaults["recent_attendance"] is not None
+    json.loads(json.dumps(defaults, default=str, allow_nan=False))

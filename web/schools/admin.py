@@ -29,9 +29,9 @@ class ReadOnlyRecordAdmin(admin.ModelAdmin):
 class DatasetUploadAdmin(ReadOnlyRecordAdmin):
     list_display = (
         "original_filename", "uploaded_by", "uploaded_at", "validation_status",
-        "forecast_readiness", "quality_score", "n_records", "processing_status",
+        "forecast_readiness", "quality_score", "n_records", "review_status", "reviewed_by",
     )
-    list_filter = ("validation_status", "forecast_readiness", "processing_status")
+    list_filter = ("validation_status", "review_status", "forecast_readiness", "processing_status")
     search_fields = ("original_filename", "uploaded_by__username")
     date_hierarchy = "uploaded_at"
 

@@ -1,0 +1,24 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Edit {{ school }}{% endblock %}
+{% block admin_content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'administration:school_detail' school.pk %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>Back</a></nav>
+<div class="card bt-form-card"><div class="card-header bt-card-header"><h2 class="bt-card-title"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit {{ school.name|default:school.school_id }}</h2></div>
+<div class="card-body">
+  <form method="post" novalidate data-testid="school-form">
+    {% csrf_token %}
+    {% include "partials/_form_errors.html" %}
+    <div class="mb-3"><label class="form-label" for="school-id">School ID</label>
+      <input id="school-id" class="form-control" value="{{ school.school_id }}" readonly aria-describedby="school-id-note">
+      <div class="form-text" id="school-id-note">Dataset identifier. It cannot be changed, so historical records and forecasts stay linked.</div></div>
+    {% include "partials/_field.html" with field=form.name %}
+    <div class="row g-3">
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.county %}</div>
+      <div class="col-md-6">{% include "partials/_field.html" with field=form.sub_county %}</div>
+    </div>
+    {% include "partials/_field.html" with field=form.verified_enrolment %}
+    {% include "partials/_field.html" with field=form.is_active switch=True %}
+    <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save changes</button>
+      <a class="btn btn-outline-secondary" href="{% url 'administration:school_detail' school.pk %}">Cancel</a></div>
+  </form>
+</div></div>
+{% endblock %}

@@ -23,8 +23,12 @@ Usage:
 
 Without --data-path, the dataset is the Food4Education Google Sheet when
 BITETRACKER_GOOGLE_SHEET_URL is set (read live from the link, never saved),
-otherwise `config.settings.ACTIVE_DATA_PATH` (the BITETRACKER_DATA_PATH
-environment variable, or the synthetic sample by default).
+otherwise the file named by the BITETRACKER_DATA_PATH environment variable.
+If neither is set the run stops: real data is the default, so the synthetic
+sample is only used when asked for explicitly (CI does this, as it has no
+access to the real sheet):
+
+    python scripts/train_models.py --data-path data/sample/synthetic_school_meals.csv
 
 Any failure stops the run with a non-zero exit status, so CI can detect it.
 """
@@ -32,6 +36,7 @@ Any failure stops the run with a non-zero exit status, so CI can detect it.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -64,8 +69,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--data-path",
         type=Path,
         default=None,
-        help="Input CSV with the BiteTracker schema. Defaults to BITETRACKER_DATA_PATH, "
-        "or the synthetic sample dataset if that is not set.",
+        help="Input CSV with the BiteTracker schema. Defaults to the Food4Education Google Sheet "
+        "(BITETRACKER_GOOGLE_SHEET_URL), then BITETRACKER_DATA_PATH.",
     )
     return parser.parse_args(argv)
 
@@ -187,6 +192,14 @@ def run_metadata(data_source: str, data) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.data_path is None and not settings.USE_GOOGLE_SHEET and not os.getenv("BITETRACKER_DATA_PATH"):
+        print(
+            "No real dataset configured: set BITETRACKER_GOOGLE_SHEET_URL in .env to the Food4Education "
+            "Google Sheet link. To train on the synthetic sample instead, ask for it explicitly with "
+            "--data-path data/sample/synthetic_school_meals.csv",
+            file=sys.stderr,
+        )
+        return 2
     if args.data_path is not None:
         # An explicit file overrides the Google Sheet, including the results label.
         settings.USE_GOOGLE_SHEET = False

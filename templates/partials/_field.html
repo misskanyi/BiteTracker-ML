@@ -1,0 +1,28 @@
+{% comment %}
+  One labelled form field with help text and errors, wired for screen readers.
+  Usage: {% include "partials/_field.html" with field=form.title %}  (switch=True for role="switch" checkboxes)
+{% endcomment %}{% with id=field.id_for_label %}
+{% if field.widget_type == "checkbox" %}
+<div class="form-check{% if switch %} form-switch{% endif %} mb-3">
+  {{ field }}
+  <label class="form-check-label" for="{{ id }}">{{ field.label }}</label>
+  {% if field.help_text %}<div class="form-text" id="{{ id }}_helptext">{{ field.help_text }}</div>{% endif %}
+  {% for error in field.errors %}<div class="invalid-feedback d-block" id="{{ id }}_error">{{ error }}</div>{% endfor %}
+</div>
+{% elif field.widget_type == "checkboxselectmultiple" %}
+<fieldset class="mb-3">
+  <legend class="form-label">{{ field.label }}{% if field.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</legend>
+  {% if field.help_text %}<div class="form-text mt-0 mb-2">{{ field.help_text }}</div>{% endif %}
+  <div class="bt-check-grid">
+    {% for choice in field %}<div class="form-check">{{ choice.tag }}<label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></div>{% empty %}<p class="small text-muted mb-0">No schools available.</p>{% endfor %}
+  </div>
+  {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+</fieldset>
+{% else %}
+<div class="mb-3">
+  <label class="form-label" for="{{ id }}">{{ field.label }}{% if field.field.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+  {{ field }}
+  {% if field.help_text %}<div class="form-text" id="{{ id }}_helptext">{{ field.help_text|safe }}</div>{% endif %}
+  {% for error in field.errors %}<div class="invalid-feedback d-block" id="{{ id }}_error">{{ error }}</div>{% endfor %}
+</div>
+{% endif %}{% endwith %}

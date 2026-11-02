@@ -9,6 +9,7 @@
 (function () {
   "use strict";
   var charts = [];
+  var log = window.BTLog;  // static/js/debug.js, loaded by base.html
 
   function token(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -65,7 +66,9 @@
   // Charts draw straight away (so layout never jumps) but their marks stay hidden
   // (.is-pending) until the chart scrolls into view. Then lines wipe in left to right,
   // bars grow from the axis one after another, and value labels fade in last (CSS).
-  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The OS setting or the user's own "Reduce animations" preference (Settings → Appearance).
+  var reduceMotion = document.documentElement.classList.contains("bt-reduce-motion")
+    || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   var REVEAL_MS = 1600;
 
   // Plotly rebuilds bar nodes on every redraw, so the stagger delays are re-applied after each one.
@@ -96,7 +99,14 @@
     : null;
 
   function render(el) {
-    var spec = JSON.parse(document.getElementById(el.dataset.chart).textContent);
+    var name = el.dataset.chart;
+    var spec;
+    try {
+      spec = JSON.parse(document.getElementById(name).textContent);
+    } catch (error) {
+      log.error("Chart \"" + name + "\" has no readable data:", error);
+      return;
+    }
     if (el.hasAttribute("data-hide-title")) {
       // The card heading names the chart; the title stays in the spec for the aria-label.
       spec.layout.title = { text: "" };
@@ -120,6 +130,9 @@
     }).then(function () {
       el.classList.add("is-ready");
       if (observer) observer.observe(el);
+      log.success("Chart \"" + name + "\" rendered (" + spec.data.length + " traces)");
+    }).catch(function (error) {
+      log.error("Chart \"" + name + "\" failed to render:", error);
     });
     charts.push(el);
   }
@@ -127,5 +140,9 @@
   // Plotly measures labels when it draws, so wait for the self-hosted font first (falls back immediately if unsupported).
   var fontsReady = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
   fontsReady.then(function () { document.querySelectorAll("[data-chart]").forEach(render); });
-  document.addEventListener("bt:themechange", function () { charts.forEach(applyTheme); });
+  document.addEventListener("bt:themechange", function () {
+    charts.forEach(function (el) {
+      applyTheme(el).catch(function (error) { log.error("Chart \"" + el.dataset.chart + "\" failed to restyle:", error); });
+    });
+  });
 })();

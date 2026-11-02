@@ -13,19 +13,18 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from tests.support.service_fixtures import stub_metadata
 from web.core.templatetags.bitetracker import is_fractional, location, meals
 from web.schools.models import ForecastRun
+from tests.support.web_fixtures import operator
 
-PASSWORD = "Str0ng-test-passw0rd!"
 
 
 @pytest.fixture
 def logged_in(client, db):
-    client.force_login(get_user_model().objects.create_user(username="planner", password=PASSWORD))
+    client.force_login(operator())
     return client
 
 

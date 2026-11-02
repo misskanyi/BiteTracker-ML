@@ -1,0 +1,4 @@
+{% comment %}
+  User avatar: profile photo if one is saved, otherwise initials.
+  Usage: {% include "partials/_avatar.html" with url=USER_AVATAR_URL initials=USER_INITIALS size="lg" %}
+{% endcomment %}<span class="bt-avatar{% if size %} bt-avatar--{{ size }}{% endif %}{% if url %} bt-avatar--photo{% endif %}" aria-hidden="true">{% if url %}<img src="{{ url }}" alt="" loading="lazy">{% else %}{{ initials }}{% endif %}</span>

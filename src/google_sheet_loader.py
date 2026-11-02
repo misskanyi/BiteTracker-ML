@@ -8,7 +8,8 @@ then mapped onto the canonical BiteTracker schema
 and training need no source-specific code paths.
 
 Workbook layout expected (checked by `to_bitetracker_schema`):
-- "meals produced and served": one row per school-day with
+- "meals produced and served" (or "School Day Data" in the 2023-2025
+  export): one row per school-day with
   deidentified_school, activity_date, daily_unique_students_tapped,
   projected_students, actual_students.
 - "school_1" ... "school_N": one row per student tap with
@@ -54,6 +55,8 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 MEALS_SHEET = "meals produced and served"
+# The 2023-2025 export names the school-day sheet differently; same columns.
+MEALS_SHEET_NAMES = [MEALS_SHEET, "School Day Data"]
 TAP_SHEET_PREFIX = "school_"
 _REQUEST_TIMEOUT_SECONDS = 120
 
@@ -133,31 +136,32 @@ def _mark_unavailable_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _validate_meals_sheet(meals: pd.DataFrame) -> pd.DataFrame:
+def _validate_meals_sheet(meals: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
     """Check required columns exist and counts/dates parse; return a typed copy."""
     missing = [c for c in REQUIRED_MEALS_COLUMNS if c not in meals.columns]
     if missing:
-        raise GoogleSheetError(f"Sheet {MEALS_SHEET!r} is missing columns: {missing}")
+        raise GoogleSheetError(f"Sheet {sheet_name!r} is missing columns: {missing}")
     meals = meals.copy()
     meals["activity_date"] = pd.to_datetime(meals["activity_date"], errors="coerce")
     if meals["activity_date"].isna().any():
         raise GoogleSheetError(
-            f"Sheet {MEALS_SHEET!r} has {int(meals['activity_date'].isna().sum())} unparsable activity_date values"
+            f"Sheet {sheet_name!r} has {int(meals['activity_date'].isna().sum())} unparsable activity_date values"
         )
     for col in _COUNT_COLUMNS:
         numeric = pd.to_numeric(meals[col], errors="coerce")
         bad = int((numeric.isna() & meals[col].notna()).sum())
         if bad:
-            raise GoogleSheetError(f"Sheet {MEALS_SHEET!r} column {col!r} has {bad} non-numeric values")
+            raise GoogleSheetError(f"Sheet {sheet_name!r} column {col!r} has {bad} non-numeric values")
         meals[col] = numeric
     return meals
 
 
 def to_bitetracker_schema(sheets: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Map the Food4Education workbook onto `SCHEMA_COLUMNS`."""
-    if MEALS_SHEET not in sheets:
-        raise GoogleSheetError(f"Sheet {MEALS_SHEET!r} not found; got {list(sheets)}")
-    meals = _validate_meals_sheet(sheets[MEALS_SHEET])
+    sheet_name = next((name for name in MEALS_SHEET_NAMES if name in sheets), None)
+    if sheet_name is None:
+        raise GoogleSheetError(f"None of the sheets {MEALS_SHEET_NAMES} found; got {list(sheets)}")
+    meals = _validate_meals_sheet(sheets[sheet_name], sheet_name)
 
     df = pd.DataFrame({
         "date": meals["activity_date"],

@@ -45,6 +45,7 @@ HORIZONS: dict[int, str] = {
 
 # The longest look-back any feature needs (lag_14_meals / rolling_mean_14).
 # With less history those features would be NaN and the prediction meaningless.
+# FEATURE_COLUMNS includes every Food4Education feature, so this covers both sets.
 MIN_HISTORY_RECORDS = max(int(n) for column in FEATURE_COLUMNS for n in re.findall(r"_(\d+)", column))
 
 # Same 14-day window the former Streamlit pages used for volatility and cost.
@@ -148,13 +149,20 @@ def default_assumptions(school_id: str) -> dict:
     """
     history = data_service.get_school_history(school_id)
     recent = history.tail(_RECENT_WINDOW)
+
+    def recent_mean(column: str) -> float | None:
+        # None, not NaN, for columns the dataset leaves empty (e.g. unrecorded weather): the result is
+        # embedded in the page as JSON, and NaN is not valid JSON.
+        value = recent[column].mean()
+        return None if pd.isna(value) else round(float(value), 1)
+
     return {
         "school_id": school_id,
         "origin_date": history[settings.DATE_COLUMN].max().date(),
         "last_recorded_attendance": float(history["students_present"].iloc[-1]),
-        "recent_attendance": round(float(recent["students_present"].mean()), 1),
-        "recent_rainfall_mm": round(float(recent["rainfall_mm"].mean()), 1),
-        "recent_temperature_c": round(float(recent["temperature_c"].mean()), 1),
+        "recent_attendance": recent_mean("students_present"),
+        "recent_rainfall_mm": recent_mean("rainfall_mm"),
+        "recent_temperature_c": recent_mean("temperature_c"),
         "records": int(len(history)),
     }
 
@@ -200,6 +208,7 @@ def generate_forecast(
         expected_rainfall_mm=expected_rainfall_mm,
         expected_temperature_c=expected_temperature_c,
         model=loaded.model,
+        feature_columns=loaded.feature_columns,
     )
 
     recent = history.tail(_RECENT_WINDOW)

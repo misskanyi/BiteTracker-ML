@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'schoolcalendar:calendar' %}?month={{ event.start_date|date:'Y-m' }}"><i class="bi bi-arrow-left" aria-hidden="true"></i>Back to calendar</a></nav>
+<div class="bt-page-header bt-page-header--actions">
+  <span class="bt-icon-chip" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
+  <div class="me-auto">
+    <h1 class="bt-page-title" data-testid="event-title">{{ event.title }}</h1>
+    <p class="bt-page-subtitle">{{ event.get_event_type_display }} · {{ event.scope_label }}</p>
+  </div>
+  {% if can_edit %}
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="{% url 'schoolcalendar:event_update' event.pk %}"><i class="bi bi-pencil me-1" aria-hidden="true"></i>Edit</a>
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#delete-event"><i class="bi bi-trash me-1" aria-hidden="true"></i>Delete</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <section class="card h-100"><div class="card-body">
+      <dl class="bt-metric-list">
+        <div><dt>Dates</dt><dd>{{ event.start_date|date:"l j F Y" }}{% if event.is_multi_day %} – {{ event.end_date|date:"l j F Y" }}{% endif %}</dd></div>
+        <div><dt>Event type</dt><dd>{{ event.get_event_type_display }}</dd></div>
+        <div><dt>School</dt><dd>{{ event.scope_label }}</dd></div>
+        <div><dt>Feeding status</dt><dd><span class="badge bt-feed-badge bt-feed--{{ event.feeding_status }}">{{ event.get_feeding_status_display }}</span></dd></div>
+        <div><dt>Academic year</dt><dd>{{ event.academic_year }}</dd></div>
+      </dl>
+      <h2 class="bt-subheading mt-4">Notes</h2>
+      <p class="mb-0">{{ event.description|default:"No notes."|linebreaksbr }}</p>
+    </div></section>
+  </div>
+  <div class="col-lg-5">
+    <section class="card h-100"><div class="card-body">
+      <h2 class="bt-subheading">Record</h2>
+      <dl class="bt-metric-list">
+        <div><dt>Created by</dt><dd>{{ event.created_by.get_username|default:"—" }}</dd></div>
+        <div><dt>Created</dt><dd>{{ event.created_at|date:"j M Y, H:i" }}</dd></div>
+        <div><dt>Last updated by</dt><dd>{{ event.updated_by.get_username|default:"—" }}</dd></div>
+        <div><dt>Last updated</dt><dd>{{ event.updated_at|date:"j M Y, H:i" }}</dd></div>
+      </dl>
+    </div></section>
+  </div>
+</div>
+
+{% if can_edit %}
+<div class="modal fade" id="delete-event" tabindex="-1" aria-labelledby="delete-event-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form method="post" action="{% url 'schoolcalendar:event_delete' event.pk %}">
+      {% csrf_token %}
+      <div class="modal-header"><h2 class="modal-title h5" id="delete-event-title">Delete this event?</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel"></button></div>
+      <div class="modal-body"><p class="mb-0">“{{ event.title }}” will be removed from the calendar for {{ event.scope_label }}. Users assigned to this school will be notified. This cannot be undone.</p></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger" data-testid="confirm-delete">Delete event</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
+{% endblock %}

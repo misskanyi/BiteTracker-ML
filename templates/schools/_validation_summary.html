@@ -1,0 +1,43 @@
+{% load bitetracker %}{# Validation results of one DatasetUpload. Expects `summary`. #}
+{% for e in summary.errors %}<div class="alert alert-danger small py-2" role="alert">{{ e }}</div>{% endfor %}
+{% for w in summary.warnings %}<div class="alert alert-warning small py-2" role="alert">{{ w }}</div>{% endfor %}
+
+{% if summary.n_records is not None %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Records</div><div class="kpi-value">{{ summary.n_records }}</div><div class="kpi-note">{{ summary.n_columns }} columns{% if summary.n_schools is not None %}, {{ summary.n_schools }} school{{ summary.n_schools|pluralize }}{% endif %}</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Date range</div><div class="kpi-value kpi-value--sm">{% if summary.date_range %}{{ summary.date_range.0 }} – {{ summary.date_range.1 }}{% else %}—{% endif %}</div><div class="kpi-note">{{ summary.coverage_months }} months</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Data quality score</div><div class="kpi-value">{{ summary.quality_score }}<span class="fs-6 text-muted">/100</span></div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card kpi-card h-100"><div class="card-body"><div class="kpi-label">Forecast readiness</div><div class="kpi-value kpi-value--sm">{{ summary.forecast_readiness }}</div></div></div></div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card h-100"><div class="card-header bg-white"><h2 class="h6 mb-0">Checks</h2></div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between">Missing values <span>{{ summary.missing_values }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">Duplicate rows / (school, date) pairs <span>{{ summary.duplicate_rows }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">Unparsable dates <span>{{ summary.unparsable_dates }}</span></li>
+        <li class="list-group-item d-flex justify-content-between">Invalid numeric values <span>{{ summary.invalid_numeric_values }}</span></li>
+      </ul>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100"><div class="card-header bg-white"><h2 class="h6 mb-0">Quality score breakdown</h2></div>
+      <ul class="list-group list-group-flush small">
+        {% for factor, points in summary.score_breakdown.items %}<li class="list-group-item d-flex justify-content-between">{{ factor|humanize_key }} <span>{{ points }}</span></li>{% empty %}<li class="list-group-item">Not scored.</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% if summary.compatibility_issues %}
+<div class="alert alert-warning small mt-3" role="alert"><strong>Model compatibility issues:</strong>
+  <ul class="mb-0">{% for i in summary.compatibility_issues %}<li>{{ i }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+<details class="small text-muted bt-notes mt-3">
+  <summary><i class="bi bi-layout-three-columns" aria-hidden="true"></i>Columns</summary>
+  <p>Found: {{ summary.columns|join:", " }}.</p>
+  {% if summary.optional_columns_missing %}<p>Optional, missing: {{ summary.optional_columns_missing|join:", " }}.</p>{% endif %}
+</details>
+{% endif %}

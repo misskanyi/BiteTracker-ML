@@ -1,0 +1,27 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Upload reviews{% endblock %}
+{% block admin_content %}
+<div class="bt-chips mb-3" role="group" aria-label="Filter by review status">
+  {% for value, label in statuses %}<a class="bt-chip{% if status == value %} is-active{% endif %}" href="?status={{ value }}">{{ label }}{% for k, n in counts.items %}{% if k == value %} ({{ n }}){% endif %}{% endfor %}</a>{% endfor %}
+  <a class="bt-chip{% if not status %} is-active{% endif %}" href="?status=all">All</a>
+</div>
+<div class="card">
+  {% if page.object_list %}
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0" data-testid="uploads-table">
+    <thead class="table-light"><tr><th>File</th><th>Uploaded by</th><th>Submitted</th><th class="text-end">Records</th><th class="text-end">Quality</th><th>Letter</th><th>Status</th></tr></thead>
+    <tbody>{% for u in page %}
+      <tr><td><a href="{% url 'administration:upload_review' u.pk %}">{{ u.original_filename }}</a></td>
+        <td class="small">{{ u.uploaded_by.get_username|default:"—" }}</td>
+        <td class="small text-nowrap">{{ u.uploaded_at|date:"j M Y H:i" }}</td>
+        <td class="small text-end">{{ u.n_records|default:"—" }}</td>
+        <td class="small text-end">{{ u.quality_score|default:"—" }}/100</td>
+        <td class="small">{% if u.supporting_letter %}<i class="bi bi-paperclip" aria-hidden="true"></i> Attached{% else %}<span class="text-muted">None</span>{% endif %}</td>
+        <td>{% include "schools/_review_status.html" with status=u.review_status label=u.get_review_status_display %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <div class="card-footer">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+  <div class="card-body"><div class="empty-state"><i class="bi bi-inbox"></i><p class="mb-0">No uploads{% if status %} with this status{% endif %}.</p></div></div>
+  {% endif %}
+</div>
+{% endblock %}

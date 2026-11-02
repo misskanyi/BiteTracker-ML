@@ -16,13 +16,24 @@ load_dotenv()
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 
 # --- Directories -----------------------------------------------------------
-DATA_DIR: Path = PROJECT_ROOT / "data"
+# Writable state (trained model, model metadata, processed historical CSV,
+# metrics, figures, user uploads and, in bitetracker_web/settings.py, the
+# SQLite database) lives under STATE_DIR. Unset (local development), STATE_DIR
+# is the project root, so every path is exactly where it always was. In
+# production set BITETRACKER_STATE_DIR (e.g. /var/lib/bitetracker) so state
+# survives redeploys of the code directory.
+_state_dir = os.getenv("BITETRACKER_STATE_DIR", "").strip()
+STATE_DIR: Path = Path(_state_dir).expanduser().resolve() if _state_dir else PROJECT_ROOT
+STATE_DIR_IS_EXTERNAL: bool = bool(_state_dir)
+
+DATA_DIR: Path = STATE_DIR / "data"
 RAW_DATA_DIR: Path = DATA_DIR / "raw"
 PROCESSED_DATA_DIR: Path = DATA_DIR / "processed"
-SAMPLE_DATA_DIR: Path = DATA_DIR / "sample"
+# The committed synthetic sample is code, not state: it always stays in the project.
+SAMPLE_DATA_DIR: Path = PROJECT_ROOT / "data" / "sample"
 UPLOADS_DIR: Path = DATA_DIR / "uploads"
-MODELS_DIR: Path = PROJECT_ROOT / "models"
-REPORTS_DIR: Path = PROJECT_ROOT / "reports"
+MODELS_DIR: Path = STATE_DIR / "models"
+REPORTS_DIR: Path = STATE_DIR / "reports"
 FIGURES_DIR: Path = REPORTS_DIR / "figures"
 METRICS_DIR: Path = REPORTS_DIR / "metrics"
 

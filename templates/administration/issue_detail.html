@@ -1,0 +1,15 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Report #{{ issue.pk }}{% endblock %}
+{% block admin_content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'administration:issues' %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>All issues</a></nav>
+<h2 class="h4 mb-3">{{ issue.subject }}</h2>
+{% include "support/_issue_body.html" %}
+<section class="card bt-form-card"><div class="card-body">
+  <form method="post" class="d-flex flex-wrap gap-2 align-items-end" novalidate data-testid="issue-status-form">
+    {% csrf_token %}
+    <div><label class="form-label" for="{{ form.status.id_for_label }}">Status</label>{{ form.status }}</div>
+    <button type="submit" class="btn btn-primary">Update status</button>
+  </form>
+  <p class="small text-muted mt-2 mb-0">The reporter is notified when the status changes.</p>
+</div></section>
+{% endblock %}

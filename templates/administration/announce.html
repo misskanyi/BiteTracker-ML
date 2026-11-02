@@ -1,0 +1,25 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Announcements{% endblock %}
+{% block admin_content %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <section class="card"><div class="card-header bt-card-header"><h2 class="bt-card-title"><i class="bi bi-megaphone" aria-hidden="true"></i>Send an announcement</h2></div><div class="card-body">
+      <p class="small text-muted">Delivered as an in-app notification to every active user who has announcements turned on.</p>
+      <form method="post" novalidate data-loading="Sending…" data-testid="announce-form">
+        {% csrf_token %}
+        {% include "partials/_form_errors.html" %}
+        {% include "partials/_field.html" with field=form.title %}
+        {% include "partials/_field.html" with field=form.message %}
+        <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1" aria-hidden="true"></i>Send announcement</button>
+        <p class="visually-hidden" role="status" data-loading-status></p>
+      </form>
+    </div></section>
+  </div>
+  <div class="col-lg-5">
+    <section class="card"><div class="card-header bt-card-header"><h2 class="bt-card-title"><i class="bi bi-clock-history" aria-hidden="true"></i>Recently sent</h2></div>
+      {% if recent %}<ul class="list-group list-group-flush">{% for log in recent %}<li class="list-group-item"><div>{{ log.target_label }}</div><div class="bt-cell-sub">{{ log.created_at|date:"j M Y H:i" }} · {{ log.actor_name }} · {{ log.details.recipients }} recipient(s)</div></li>{% endfor %}</ul>
+      {% else %}<div class="card-body"><p class="small text-muted mb-0">No announcements sent yet.</p></div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

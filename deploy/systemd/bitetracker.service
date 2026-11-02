@@ -1,0 +1,44 @@
+# BiteTracker Django application served by Gunicorn.
+# Install: sudo cp deploy/systemd/bitetracker.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable bitetracker
+# deploy/scripts/deploy.sh restarts it after switching /opt/bitetracker/current.
+
+[Unit]
+Description=BiteTracker (Django + Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=bitetracker
+Group=bitetracker
+# /opt/bitetracker/current is a symlink to the active release; it is resolved at each (re)start.
+WorkingDirectory=/opt/bitetracker/current
+# Secrets and settings (DJANGO_SECRET_KEY, BITETRACKER_STATE_DIR, ...). Not in git.
+EnvironmentFile=/etc/bitetracker/bitetracker.env
+Environment=DJANGO_SETTINGS_MODULE=bitetracker_web.settings
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/bitetracker/current/.venv/bin/gunicorn --config /opt/bitetracker/current/deploy/gunicorn.conf.py bitetracker_web.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the code is read-only to the app; only the state directory is writable.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/bitetracker
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

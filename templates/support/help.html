@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Help &amp; support{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Help & support" icon="bi-question-circle" subtitle="Guides, FAQs and problem reports." %}
+
+<div class="row g-4">
+  <div class="col-lg-3 d-none d-lg-block">
+    <nav class="bt-toc card" aria-label="On this page"><div class="card-body">
+      <div class="bt-subheading">On this page</div>
+      <ol class="list-unstyled mb-0">
+        <li><a href="#guides">Guides</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#report">Report a problem</a></li>
+        <li><a href="#my-reports">My reports</a></li>
+        <li><a href="#about">About</a></li>
+      </ol>
+    </div></nav>
+  </div>
+
+  <div class="col-lg-9 d-flex flex-column gap-4">
+    <section class="card" id="guides" aria-labelledby="guides-heading"><div class="card-body">
+      <h2 class="bt-section-title mt-0" id="guides-heading"><i class="bi bi-compass" aria-hidden="true"></i>Guides</h2>
+
+      <details class="bt-disclosure mb-2" id="getting-started">
+        <summary><i class="bi bi-signpost" aria-hidden="true"></i>Getting started</summary>
+        <ul class="small mt-2">
+          <li>Use the sidebar to move between pages.</li>
+          <li>You only see schools assigned to you.</li>
+          <li>Profile, settings and help: account menu (top right). <i class="bi bi-bell" aria-hidden="true"></i><span class="visually-hidden">Bell</span> = notifications.</li>
+        </ul>
+      </details>
+
+      <details class="bt-disclosure mb-2" id="forecasting">
+        <summary><i class="bi bi-graph-up-arrow" aria-hidden="true"></i>Forecasting guide</summary>
+        <ol class="small mt-2">
+          <li>Open <a href="{% url 'core:forecast' %}">Forecast &amp; planning</a>.</li>
+          <li>Pick a school and horizon ({{ horizons|join:", " }}).</li>
+          <li>Optional: capacity and cost per meal.</li>
+          <li><strong>Generate forecast</strong>. It's saved to Forecast history.</li>
+        </ol>
+        <ul class="small">
+          <li><strong>Predicted</strong>: model estimate. <strong>Recommended</strong>: prediction + safety buffer.</li>
+          <li><strong>Risk</strong>: how uncertain the day is.</li>
+          <li>Can't foresee closures or one-off events. See <a href="{% url 'core:performance' %}">Model performance</a> for accuracy.</li>
+        </ul>
+      </details>
+
+      <details class="bt-disclosure mb-2" id="data">
+        <summary><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>Data upload</summary>
+        <ul class="small mt-2">
+          {% if not can_upload %}<li>Your account can't upload. Ask an administrator.</li>{% endif %}
+          <li><strong>{{ upload_extensions }}</strong>, up to {{ max_upload_mb }} MB.</li>
+          <li>Required: {% for c in required_columns %}<code>{{ c }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.</li>
+          <li>Optional: {% for c in optional_columns %}<code>{{ c }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}.</li>
+          <li>Validates only. Doesn't replace data or retrain the model.</li>
+          <li>School-level totals only. No personal data.</li>
+        </ul>
+      </details>
+
+      <details class="bt-disclosure mb-0" id="calendar">
+        <summary><i class="bi bi-calendar3" aria-hidden="true"></i>School calendar</summary>
+        <ul class="small mt-2 mb-0">
+          <li><a href="{% url 'schoolcalendar:calendar' %}">School calendar</a>: month or list view, with filters.</li>
+          <li><strong>Add event</strong> or the <i class="bi bi-plus" aria-hidden="true"></i><span class="visually-hidden">plus</span> on a day. Open an event to edit or delete it.</li>
+          <li>Changes notify the school's users. Events don't affect forecasts.</li>
+        </ul>
+      </details>
+    </div></section>
+
+    <section class="card" id="faq" aria-labelledby="faq-heading"><div class="card-body">
+      <h2 class="bt-section-title mt-0" id="faq-heading"><i class="bi bi-chat-square-text" aria-hidden="true"></i>Frequently asked questions</h2>
+      <details class="bt-disclosure mb-2"><summary>Forgot my password</summary><p class="mt-2 small">Ask an admin for a temporary one, then change it in <a href="{% url 'accounts:settings' %}?tab=security">Settings → Security</a>.</p></details>
+      <details class="bt-disclosure mb-2"><summary>Can't see a school</summary><p class="mt-2 small">Ask an admin to assign it. Your schools are on <a href="{% url 'accounts:profile' %}">My profile</a>.</p></details>
+      <details class="bt-disclosure mb-2"><summary>Forecast differs from meals served</summary><p class="mt-2 small">Forecasts are estimates and miss one-off events. Plan with the recommended quantity.</p></details>
+      <details class="bt-disclosure mb-2"><summary>Upload marked “Invalid”</summary><p class="mt-2 small">Open it to see the problems, fix the file and upload again.</p></details>
+      <details class="bt-disclosure mb-2"><summary>Where are past forecasts?</summary><p class="mt-2 small"><a href="{% url 'core:forecast_history' %}">Forecast history</a>.</p></details>
+      <details class="bt-disclosure mb-0"><summary>“Data or model unavailable”</summary><p class="mt-2 small">Report it below so an admin can regenerate them.</p></details>
+    </div></section>
+
+    <section class="card" id="report" aria-labelledby="report-heading"><div class="card-body">
+      <h2 class="bt-section-title mt-0" id="report-heading"><i class="bi bi-bug" aria-hidden="true"></i>Report a problem</h2>
+      <form method="post" enctype="multipart/form-data" novalidate data-loading="Sending…" data-testid="report-form" class="bt-narrow-form">
+        {% csrf_token %}
+        {% include "partials/_form_errors.html" %}
+        {% include "partials/_field.html" with field=form.category %}
+        {% include "partials/_field.html" with field=form.subject %}
+        {% include "partials/_field.html" with field=form.description %}
+        {% include "partials/_field.html" with field=form.screenshot %}
+        <button type="submit" class="btn btn-primary"><i class="bi bi-send me-1" aria-hidden="true"></i>Submit report</button>
+        <p class="visually-hidden" role="status" data-loading-status></p>
+      </form>
+    </div></section>
+
+    <section class="card" id="my-reports" aria-labelledby="my-reports-heading">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="my-reports-heading"><i class="bi bi-inbox" aria-hidden="true"></i>My reports</h2>
+        {% if IS_SYSTEM_ADMIN %}<a class="bt-card-link" href="{% url 'administration:issues' %}">All submitted issues <i class="bi bi-arrow-right" aria-hidden="true"></i></a>{% endif %}</div>
+      {% if my_issues %}
+      <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead class="table-light"><tr><th>#</th><th>Subject</th><th>Category</th><th>Submitted</th><th>Status</th></tr></thead>
+        <tbody>{% for issue in my_issues %}
+          <tr><td>{{ issue.pk }}</td><td><a href="{% url 'support:issue_detail' issue.pk %}">{{ issue.subject }}</a></td><td class="small">{{ issue.get_category_display }}</td>
+            <td class="small text-nowrap">{{ issue.created_at|date:"j M Y H:i" }}</td><td>{% include "support/_status.html" with status=issue.status label=issue.get_status_display %}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}
+      <div class="card-body"><div class="empty-state py-3"><i class="bi bi-inbox"></i><p class="mb-0 small">You haven't reported any problems.</p></div></div>
+      {% endif %}
+    </section>
+
+    <div id="about">{% include "partials/_about.html" %}</div>
+  </div>
+</div>
+{% endblock %}

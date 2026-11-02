@@ -2,7 +2,7 @@
 {% load humanize bitetracker %}
 {% block title %}Donor insights{% endblock %}
 {% block content %}
-{% include "partials/_page_header.html" with title="Donor insights" icon="bi-heart" subtitle="See how each school's meal programme is doing and where support would reach the most children." %}
+{% include "partials/_page_header.html" with title="Donor insights" icon="bi-heart" subtitle="Where support reaches the most children." %}
 
 {% if data_error %}
   <div class="alert alert-warning" role="alert" data-testid="data-error"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>{{ data_error }}</div>
@@ -16,7 +16,7 @@
       <div class="bt-kpi__body">
         <div class="kpi-label">Meals served per day</div>
         <div class="kpi-value">{{ t.meals_per_day|intcomma }}</div>
-        <div class="kpi-note">across {{ t.schools }} school{{ t.schools|pluralize }}, average of each school's last {{ impact.window }} school days</div>
+        <div class="kpi-note">{{ t.schools }} school{{ t.schools|pluralize }} · {{ impact.window }}-day average</div>
       </div>
     </div></div>
   </div>
@@ -26,7 +26,7 @@
       <div class="bt-kpi__body">
         <div class="kpi-label">Programme reach</div>
         <div class="kpi-value">{% if t.reach_pct is not None %}{{ t.reach_pct }}%{% else %}—{% endif %}</div>
-        <div class="kpi-note">of {{ t.registered_students|intcomma }} registered students fed on an average day</div>
+        <div class="kpi-note">of {{ t.registered_students|intcomma }} students fed daily</div>
       </div>
     </div></div>
   </div>
@@ -36,7 +36,7 @@
       <div class="bt-kpi__body">
         <div class="kpi-label">Students not yet served</div>
         <div class="kpi-value">{{ t.unserved_per_day|intcomma }}</div>
-        <div class="kpi-note">registered students without a meal on an average day (includes absentees)</div>
+        <div class="kpi-note">per day, incl. absentees</div>
       </div>
     </div></div>
   </div>
@@ -46,7 +46,7 @@
       <div class="bt-kpi__body">
         <div class="kpi-label">Monthly funding gap</div>
         <div class="kpi-value kpi-value--md" data-testid="total-gap">{{ t.monthly_gap_kes|kes }}</div>
-        <div class="kpi-note">to feed every registered student for {{ impact.school_days_per_month }} school days at {{ impact.cost_per_meal|kes }}/meal</div>
+        <div class="kpi-note">to feed every student · {{ impact.cost_per_meal|kes }}/meal</div>
       </div>
     </div></div>
   </div>
@@ -57,7 +57,7 @@
 {% if impact.recommended %}
 <section class="mb-4" aria-labelledby="recommended-heading" data-testid="recommended">
   <h2 class="bt-section-title" id="recommended-heading"><i class="bi bi-stars" aria-hidden="true"></i>Where a donation helps most</h2>
-  <p class="bt-page-subtitle mb-3">Schools with the most registered students not yet served a meal each day.</p>
+  <p class="bt-page-subtitle mb-3">Most students not yet served daily.</p>
   <div class="row g-3">
     {% for s in impact.recommended %}
     <div class="col-md-6 col-xl-4">
@@ -74,13 +74,13 @@
           <div class="bt-meter my-2" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ s.reach_pct }}" aria-label="Reach {{ s.reach_pct }}%">
             <span class="bt-meter__fill" style="--bt-meter: {{ s.reach_pct }}%"></span>
           </div>
-          <p class="mb-3 small">{{ s.recent_mean_meals|floatformat:0|intcomma }} of {{ s.registered_students|intcomma }} registered students fed per day ({{ s.reach_pct }}%).</p>
+          <p class="mb-3 small">{{ s.recent_mean_meals|floatformat:0|intcomma }} of {{ s.registered_students|intcomma }} fed daily ({{ s.reach_pct }}%)</p>
           <dl class="bt-metric-list mb-3">
             <div><dt>Not yet served</dt><dd>{{ s.unserved_per_day|intcomma }} students/day</dd></div>
             <div><dt>Monthly gap</dt><dd class="fw-semibold">{{ s.monthly_gap_kes|kes }}</dd></div>
             <div><dt>Trend</dt><dd>{% include "core/_trend.html" with s=s %}</dd></div>
           </dl>
-          <a class="btn btn-outline-secondary btn-sm mt-auto align-self-start" href="{% url 'core:history' %}?school={{ s.school_id }}">See meal history <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+          <a class="btn btn-outline-secondary btn-sm mt-auto align-self-start" href="{% url 'core:history' %}?school={{ s.school_id }}">History <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
       </article>
     </div>
@@ -96,14 +96,14 @@
   </div>
   <div class="card-body">
     {% include "partials/_chart.html" with chart=chart chart_id="donor-reach-chart" hide_title=True %}
-    <p class="bt-footnote mb-0">Each bar is one school's registered students on an average recent school day (last {{ impact.window }} recorded days): the lower part were served a meal, the upper part were not.</p>
+    <p class="bt-footnote mb-0">Average of last {{ impact.window }} school days.</p>
   </div>
 </section>
 
 {# --- All schools ------------------------------------------------------------------------- #}
 <section class="card" aria-labelledby="all-heading">
   <div class="card-header bt-card-header">
-    <h2 class="bt-card-title" id="all-heading"><i class="bi bi-buildings" aria-hidden="true"></i>How every school is performing</h2>
+    <h2 class="bt-card-title" id="all-heading"><i class="bi bi-buildings" aria-hidden="true"></i>All schools</h2>
   </div>
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0 bt-table" data-testid="donor-table">
@@ -133,14 +133,16 @@
       </tbody>
     </table>
   </div>
-  <div class="card-footer bt-footnote" data-testid="donor-method-note">
-    <strong>How this is worked out.</strong>
-    Reach is meals served per day ÷ registered students, averaged over each school's last {{ impact.window }} recorded school days; trend compares that average with the {{ impact.window }} days before.
-    Registered students is the enrolment figure in the active dataset (for Food4Education data, unique students seen at the meal tap), not verified school enrolment.
-    "Not yet served" includes students who were absent, so it is an upper bound on unmet need.
-    The funding gap uses the planning assumption of {{ impact.cost_per_meal|kes }} per meal and {{ impact.school_days_per_month }} school days a month, not verified Food4Education costs.
-    Priority ranks schools by students not yet served per day. Data up to {{ impact.dataset_end|date:"j M Y" }}.
-  </div>
+  <details class="card-footer bt-footnote bt-notes" data-testid="donor-method-note">
+    <summary><i class="bi bi-info-circle" aria-hidden="true"></i>How this is worked out</summary>
+    <ul class="ps-3">
+      <li>Reach = meals per day ÷ registered students ({{ impact.window }}-day average). Trend compares with the previous {{ impact.window }} days.</li>
+      <li>Registered students is the dataset enrolment figure, not verified enrolment.</li>
+      <li>"Not yet served" includes students who were absent, so it's an upper bound.</li>
+      <li>Gap assumes {{ impact.cost_per_meal|kes }}/meal and {{ impact.school_days_per_month }} school days a month.</li>
+      <li>Priority = students not yet served per day. Data to {{ impact.dataset_end|date:"j M Y" }}.</li>
+    </ul>
+  </details>
 </section>
 {% endif %}
 {% endblock %}

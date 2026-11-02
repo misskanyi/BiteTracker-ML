@@ -51,6 +51,11 @@ def dataset_upload_path(instance: DatasetUpload, filename: str) -> str:
     return f"datasets/{timezone.now():%Y%m%d_%H%M%S}_{stem}{path.suffix.lower()}"
 
 
+def supporting_letter_path(instance: DatasetUpload, filename: str) -> str:
+    # Only the extension is kept from the original name: nothing user-supplied reaches the path.
+    return f"letters/{timezone.now():%Y%m%d_%H%M%S}_user{instance.uploaded_by_id}{Path(filename).suffix.lower()}"
+
+
 class DatasetUpload(models.Model):
     class ValidationStatus(models.TextChoices):
         VALID = "valid", "Valid"
@@ -59,6 +64,12 @@ class DatasetUpload(models.Model):
 
     class ProcessingStatus(models.TextChoices):
         NOT_PROCESSED = "not_processed", "Not processed (stored for review only)"
+
+    class ReviewStatus(models.TextChoices):
+        # Blank for uploads that failed validation: nothing was stored, so there is nothing to review.
+        PENDING = "pending", "Awaiting review"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
 
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="dataset_uploads"
@@ -79,6 +90,18 @@ class DatasetUpload(models.Model):
     processing_status = models.CharField(
         max_length=20, choices=ProcessingStatus.choices, default=ProcessingStatus.NOT_PROCESSED
     )
+    supporting_letter = models.FileField(
+        upload_to=supporting_letter_path,
+        blank=True,
+        help_text="Signed cover letter (PDF, DOCX, PNG or JPEG) stored with valid uploads, never served publicly.",
+    )
+    letter_filename = models.CharField(max_length=255, blank=True)
+    review_status = models.CharField(max_length=20, choices=ReviewStatus.choices, blank=True, db_index=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviewed_uploads"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_comment = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-uploaded_at"]

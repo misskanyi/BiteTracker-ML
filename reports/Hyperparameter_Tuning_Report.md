@@ -4,21 +4,21 @@
 
 ## Why Tuning Was Required
 
-Phase 4 models used library-default hyperparameters, which lets tree-based models fit training noise. Measured default-hyperparameter results: Decision Tree: test R²=0.973 (Overfitting); Random Forest: test R²=0.989 (Overfitting); XGBoost: test R²=0.987 (Overfitting). This phase tunes depth, leaf-size, regularization, and sampling parameters to reduce the train/test gap, not just to chase a lower training error.
+Phase 4 models used library-default hyperparameters, which lets tree-based models fit training noise. Measured default-hyperparameter results: Decision Tree: test R²=0.940 (Overfitting); Random Forest: test R²=0.975 (Overfitting); XGBoost: test R²=0.963 (Overfitting). This phase tunes depth, leaf-size, regularization, and sampling parameters to reduce the train/test gap, not just to chase a lower training error.
 
 ## Why TimeSeriesSplit
 
 Meal demand is a time series — a school's future demand must never be predicted using information from its own future. `TimeSeriesSplit` builds growing folds where every validation fold occurs strictly after its training fold, unlike standard k-fold which would shuffle rows and let the model "see" the future during cross-validation.
 
-5 folds were used over the 574 training rows carried over from Phase 4 (the final 20% test set was held out entirely and never passed to GridSearchCV/RandomizedSearchCV). Exact fold ranges:
+5 folds were used over the 1982 training rows carried over from Phase 4 (the final 20% test set was held out entirely and never passed to GridSearchCV/RandomizedSearchCV). Exact fold ranges:
 
 | Fold | Train Rows | Train Index Range | Val Rows | Val Index Range |
 |---|---|---|---|---|
-| 1 | 99 | (0, 98) | 95 | (99, 193) |
-| 2 | 194 | (0, 193) | 95 | (194, 288) |
-| 3 | 289 | (0, 288) | 95 | (289, 383) |
-| 4 | 384 | (0, 383) | 95 | (384, 478) |
-| 5 | 479 | (0, 478) | 95 | (479, 573) |
+| 1 | 332 | (0, 331) | 330 | (332, 661) |
+| 2 | 662 | (0, 661) | 330 | (662, 991) |
+| 3 | 992 | (0, 991) | 330 | (992, 1321) |
+| 4 | 1322 | (0, 1321) | 330 | (1322, 1651) |
+| 5 | 1652 | (0, 1651) | 330 | (1652, 1981) |
 
 ## Scoring Strategy
 
@@ -39,7 +39,7 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 ```json
 {
-  "max_depth": 8,
+  "max_depth": 5,
   "max_features": null,
   "min_samples_leaf": 10,
   "min_samples_split": 2
@@ -51,10 +51,10 @@ Meal demand is a time series — a school's future demand must never be predicte
 ```json
 {
   "n_estimators": 300,
-  "min_samples_split": 5,
+  "min_samples_split": 10,
   "min_samples_leaf": 1,
-  "max_features": 0.7,
-  "max_depth": null,
+  "max_features": "log2",
+  "max_depth": 10,
   "bootstrap": true
 }
 ```
@@ -65,11 +65,11 @@ Meal demand is a time series — a school's future demand must never be predicte
 {
   "subsample": 0.85,
   "reg_lambda": 10,
-  "reg_alpha": 0.1,
-  "n_estimators": 200,
+  "reg_alpha": 0,
+  "n_estimators": 100,
   "min_child_weight": 5,
-  "max_depth": 2,
-  "learning_rate": 0.05,
+  "max_depth": 3,
+  "learning_rate": 0.1,
   "colsample_bytree": 0.7
 }
 ```
@@ -78,23 +78,23 @@ Meal demand is a time series — a school's future demand must never be predicte
 
 | Model         |   Train MAE |   Test MAE |   Train RMSE |   Test RMSE |   Train R2 |   Test R2 | Generalization Gap Status   |   Tuning Time (s) |   Prediction Time (s) |   Best CV RMSE |
 |:--------------|------------:|-----------:|-------------:|------------:|-----------:|----------:|:----------------------------|------------------:|----------------------:|---------------:|
-| Decision Tree |      51.896 |     61.197 |       88.573 |     111.100 |      0.990 |     0.983 | Moderate Gap                |             4.680 |                 0.001 |        138.921 |
-| Random Forest |      27.526 |     49.544 |       47.975 |      88.943 |      0.997 |     0.989 | Overfitting                 |             6.566 |                 0.017 |        131.676 |
-| XGBoost       |      50.676 |     51.637 |       84.354 |      88.796 |      0.991 |     0.989 | Good Generalization         |             1.133 |                 0.002 |        124.036 |
+| Decision Tree |      92.661 |     93.488 |      153.186 |     162.368 |      0.967 |     0.965 | Good Generalization         |             7.041 |                 0.001 |        182.235 |
+| Random Forest |      74.792 |     83.320 |      122.744 |     136.176 |      0.979 |     0.976 | Moderate Gap                |            13.574 |                 0.023 |        173.604 |
+| XGBoost       |      84.581 |     83.763 |      138.581 |     134.761 |      0.973 |     0.976 | Good Generalization         |             1.604 |                 0.003 |        177.334 |
 
 ## Default-Hyperparameter vs Tuned Comparison (test set, research only)
 
 | Model         |   Baseline Test MAE |   Tuned Test MAE |   MAE Improvement |   Baseline Test RMSE |   Tuned Test RMSE |   RMSE Improvement |   Baseline Test R2 |   Tuned Test R2 |   R2 Improvement | Baseline Overfitting Status   | Tuned Overfitting Status   |
 |:--------------|--------------------:|-----------------:|------------------:|---------------------:|------------------:|-------------------:|-------------------:|----------------:|-----------------:|:------------------------------|:---------------------------|
-| Decision Tree |              76.846 |           61.197 |            15.649 |              140.834 |           111.100 |             29.734 |              0.973 |           0.983 |            0.010 | Overfitting                   | Moderate Gap               |
-| Random Forest |              51.016 |           49.544 |             1.472 |               89.008 |            88.943 |              0.065 |              0.989 |           0.989 |            0.000 | Overfitting                   | Overfitting                |
-| XGBoost       |              60.198 |           51.637 |             8.561 |               99.752 |            88.796 |             10.956 |              0.987 |           0.989 |            0.003 | Overfitting                   | Good Generalization        |
+| Decision Tree |             126.308 |           93.488 |            32.820 |              213.829 |           162.368 |             51.461 |              0.940 |           0.965 |            0.026 | Overfitting                   | Good Generalization        |
+| Random Forest |              80.888 |           83.320 |            -2.433 |              137.355 |           136.176 |              1.179 |              0.975 |           0.976 |            0.000 | Overfitting                   | Moderate Gap               |
+| XGBoost       |             103.758 |           83.763 |            19.995 |              167.874 |           134.761 |             33.112 |              0.963 |           0.976 |            0.013 | Overfitting                   | Good Generalization        |
 
 ## Did Tuning Reduce Overfitting?
 
-- **Decision Tree**: Test MAE improved by 15.65 meals (Overfitting → Moderate Gap).
-- **Random Forest**: Test MAE improved by 1.47 meals (Overfitting → Overfitting).
-- **XGBoost**: Test MAE improved by 8.56 meals (Overfitting → Good Generalization).
+- **Decision Tree**: Test MAE improved by 32.82 meals (Overfitting → Good Generalization).
+- **Random Forest**: Test MAE did not improve (tuned model performed worse) by -2.43 meals (Overfitting → Moderate Gap).
+- **XGBoost**: Test MAE improved by 20.00 meals (Overfitting → Good Generalization).
 
 ## Final Model Selection (validation only)
 
@@ -102,19 +102,19 @@ Selection criterion: **lowest TimeSeriesSplit validation MAE**, with lowest Time
 
 | Rank | Model | Validation MAE | Validation MAE Std | Validation RMSE | Folds |
 |---|---|---|---|---|---|
-| 1 | XGBoost | 75.916 | 13.489 | 124.036 | 5 |
-| 2 | Linear Regression | 78.489 | 13.264 | 124.579 | 5 |
-| 3 | Random Forest | 79.228 | 18.572 | 131.676 | 5 |
-| 4 | Decision Tree | 82.860 | 20.149 | 138.921 | 5 |
+| 1 | Random Forest | 105.302 | 9.773 | 173.604 | 5 |
+| 2 | XGBoost | 106.620 | 6.744 | 177.334 | 5 |
+| 3 | Linear Regression | 109.431 | 9.413 | 178.678 | 5 |
+| 4 | Decision Tree | 111.514 | 7.047 | 182.235 | 5 |
 
-**Selected final model: XGBoost** (validation MAE=75.916).
+**Selected final model: Random Forest** (validation MAE=105.302).
 
 ## Final Test Evaluation (selected model, evaluated once)
 
-- Test MAE: **51.637** meals
-- Test RMSE: **88.796** meals
-- Test R²: **0.989**
-- Train/test generalization: Good Generalization
+- Test MAE: **83.320** meals
+- Test RMSE: **136.176** meals
+- Test R²: **0.976**
+- Train/test generalization: Moderate Gap
 
 ## Naive Forecasting Baselines
 
@@ -131,19 +131,19 @@ Validation columns are empty for the naive baselines: they were not evaluated on
 
 | Method                         | Type           |   Validation MAE |   Validation RMSE |   Selection Rank | Selected   |   Test MAE |   Test RMSE |   Test R2 |
 |:-------------------------------|:---------------|-----------------:|------------------:|-----------------:|:-----------|-----------:|------------:|----------:|
-| Persistence / Last Observation | Naive baseline |          nan     |           nan     |          nan     | False      |     39.067 |      69.104 |     0.994 |
-| 7-Day Historical Mean          | Naive baseline |          nan     |           nan     |          nan     | False      |     58.098 |     119.790 |     0.981 |
-| XGBoost                        | ML candidate   |           75.916 |           124.036 |            1.000 | True       |     51.637 |      88.796 |     0.989 |
-| Linear Regression              | ML candidate   |           78.489 |           124.579 |            2.000 | False      |     50.914 |      82.666 |     0.991 |
-| Random Forest                  | ML candidate   |           79.228 |           131.676 |            3.000 | False      |     49.544 |      88.943 |     0.989 |
-| Decision Tree                  | ML candidate   |           82.860 |           138.921 |            4.000 | False      |     61.197 |     111.100 |     0.983 |
+| Persistence / Last Observation | Naive baseline |          nan     |           nan     |          nan     | False      |     65.500 |     126.811 |     0.979 |
+| 7-Day Historical Mean          | Naive baseline |          nan     |           nan     |          nan     | False      |     83.318 |     162.125 |     0.965 |
+| Random Forest                  | ML candidate   |          105.302 |           173.604 |            1.000 | True       |     83.320 |     136.176 |     0.976 |
+| XGBoost                        | ML candidate   |          106.620 |           177.334 |            2.000 | False      |     83.763 |     134.761 |     0.976 |
+| Linear Regression              | ML candidate   |          109.431 |           178.678 |            3.000 | False      |     80.106 |     135.131 |     0.976 |
+| Decision Tree                  | ML candidate   |          111.514 |           182.235 |            4.000 | False      |     93.488 |     162.368 |     0.965 |
 
 ### Selected Model vs Naive Baselines (test period)
 
 | Selected Model   | Naive Baseline                 |   Baseline Test MAE |   Model Test MAE |   MAE Improvement |   MAE Improvement (%) |   Baseline Test RMSE |   Model Test RMSE |   RMSE Improvement | Model Beats Baseline (MAE)   |
 |:-----------------|:-------------------------------|--------------------:|-----------------:|------------------:|----------------------:|---------------------:|------------------:|-------------------:|:-----------------------------|
-| XGBoost          | Persistence / Last Observation |              39.067 |           51.637 |           -12.570 |               -32.176 |               69.104 |            88.796 |            -19.692 | False                        |
-| XGBoost          | 7-Day Historical Mean          |              58.098 |           51.637 |             6.461 |                11.121 |              119.790 |            88.796 |             30.994 | True                         |
+| Random Forest    | Persistence / Last Observation |              65.500 |           83.320 |           -17.821 |               -27.207 |              126.811 |           136.176 |             -9.365 | False                        |
+| Random Forest    | 7-Day Historical Mean          |              83.318 |           83.320 |            -0.003 |                -0.003 |              162.125 |           136.176 |             25.949 | False                        |
 
-- vs **Persistence / Last Observation**: XGBoost does NOT beat it: MAE is worse by 12.57 meals (-32.2%).
-- vs **7-Day Historical Mean**: XGBoost beats it by 6.46 meals MAE (11.1%).
+- vs **Persistence / Last Observation**: Random Forest does NOT beat it: MAE is worse by 17.82 meals (-27.2%).
+- vs **7-Day Historical Mean**: Random Forest does NOT beat it: MAE is worse by 0.00 meals (-0.0%).

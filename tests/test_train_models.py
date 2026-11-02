@@ -84,6 +84,13 @@ def test_resolve_data_path_uses_configured_active_path_by_default():
     assert train_models.resolve_data_path(None) == settings.ACTIVE_DATA_PATH
 
 
+def test_no_real_dataset_configured_stops_instead_of_using_synthetic(monkeypatch, capsys):
+    monkeypatch.setattr(settings, "USE_GOOGLE_SHEET", False)
+    monkeypatch.delenv("BITETRACKER_DATA_PATH", raising=False)
+    assert train_models.main([]) == 2
+    assert "BITETRACKER_GOOGLE_SHEET_URL" in capsys.readouterr().err
+
+
 def test_resolve_data_path_makes_cli_path_absolute():
     resolved = train_models.resolve_data_path(Path("some/file.csv"))
     assert resolved.is_absolute()

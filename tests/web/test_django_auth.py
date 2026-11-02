@@ -144,7 +144,8 @@ def test_logout_rejects_get_requests(client, user):
 
 
 @pytest.mark.parametrize("authenticated", [False, True])
-def test_synthetic_banner_shown_on_every_page(client, user, authenticated):
+def test_synthetic_banner_shown_on_every_page(client, user, authenticated, stub_artifacts):
+    # stub_artifacts = a synthetic model; the banner follows the model metadata, not this machine's models/.
     if authenticated:
         client.force_login(user)
         response = client.get(reverse("core:dashboard"))
