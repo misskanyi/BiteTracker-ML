@@ -16,9 +16,14 @@ from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
+from config import settings as ml_settings
+
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Writable state directory (BITETRACKER_STATE_DIR, see config/settings.py).
+# Equals BASE_DIR in local development, so nothing moves.
+STATE_DIR = ml_settings.STATE_DIR
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -49,6 +54,8 @@ if not DEBUG:
     # non-DEBUG build locally over plain HTTP.
     SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = _env_bool("DJANGO_SECURE_COOKIES", True)
     SECURE_SSL_REDIRECT = _env_bool("DJANGO_SECURE_SSL_REDIRECT", False)
+    # Local health probes (deploy script, load balancer) talk plain HTTP to Gunicorn.
+    SECURE_REDIRECT_EXEMPT = [r"^health/$"]
     SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_SECURE_HSTS_SECONDS", "0"))
     if _env_bool("DJANGO_BEHIND_HTTPS_PROXY", False):
         SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -134,7 +141,8 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": Path(os.getenv("DJANGO_SQLITE_PATH", str(BASE_DIR / "db.sqlite3"))),
+            # DJANGO_SQLITE_PATH wins; otherwise the database sits in the state directory.
+            "NAME": Path(os.getenv("DJANGO_SQLITE_PATH", "").strip() or str(STATE_DIR / "db.sqlite3")),
         }
     }
 
@@ -176,9 +184,9 @@ STORAGES = {
     },
 }
 
-# Uploaded datasets are stored under data/uploads/ (gitignored). MEDIA_URL is
+# Uploaded datasets are stored under <state dir>/data/uploads/ (gitignored). MEDIA_URL is
 # deliberately not routed: uploaded files are never served over HTTP.
-MEDIA_ROOT = BASE_DIR / "data" / "uploads"
+MEDIA_ROOT = ml_settings.UPLOADS_DIR
 MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
 # Profile photos and support screenshots: PNG, JPEG or WebP only, checked by content, not just extension.
 MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024
