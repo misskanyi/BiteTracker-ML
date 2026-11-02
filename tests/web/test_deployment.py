@@ -195,3 +195,24 @@ def test_health_accepts_food4education_model_in_production(client, settings, stu
 @pytest.mark.django_db
 def test_health_only_allows_safe_methods(client, stub_artifacts):
     assert client.post("/health/").status_code == 405
+
+
+# --- Deployment shell scripts --------------------------------------------------------------------
+
+DEPLOY_SCRIPTS = sorted((PROJECT_ROOT / "deploy" / "scripts").glob("*.sh"))
+
+
+@pytest.mark.parametrize("script", DEPLOY_SCRIPTS, ids=lambda p: p.name)
+def test_deploy_scripts_have_valid_bash_syntax(script):
+    result = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_deploy_passes_backup_label_as_separate_argument():
+    """Regression: `"$SCRIPT_DIR/backup.sh""pre-deploy-..."` ran a non-existent file and aborted every deploy."""
+    deploy = (PROJECT_ROOT / "deploy" / "scripts" / "deploy.sh").read_text()
+    assert 'bash "$SCRIPT_DIR/backup.sh" "pre-deploy-$RELEASE_ID"' in deploy
+    assert 'backup.sh""' not in deploy
+    # backup.sh must accept every character deploy.sh allows in a release id.
+    backup = (PROJECT_ROOT / "deploy" / "scripts" / "backup.sh").read_text()
+    assert "^[A-Za-z0-9._-]+$" in backup

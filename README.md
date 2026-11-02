@@ -632,7 +632,7 @@ The run fails if the dependencies cannot be installed, if any pipeline stage or 
 - `bitetracker_web/wsgi.py` (e.g. `gunicorn bitetracker_web.wsgi:application`) and `bitetracker_web/asgi.py` are provided;
 - custom 403/404/500 pages never show error details.
 
-A hosted deployment would also need: the model artifacts generated on (or copied to) the server, a persistent database (PostgreSQL recommended over SQLite for multi-user hosting), and persistent storage for `data/uploads/`.
+An AWS EC2 deployment (Nginx, Gunicorn, systemd, SQLite in a persistent state directory, GitHub Actions → S3 → Systems Manager) is prepared in [`deploy/`](deploy/README.md). The trained model and processed data are copied to the server separately and never come from git or CI.
 
 ## Privacy and Data Use
 

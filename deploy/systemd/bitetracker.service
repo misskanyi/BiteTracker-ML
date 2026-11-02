@@ -1,7 +1,6 @@
 # BiteTracker Django application served by Gunicorn.
-# Install: sudo cp deploy/systemd/bitetracker.service /etc/systemd/system/
-#          sudo systemctl daemon-reload && sudo systemctl enable bitetracker
-# deploy/scripts/deploy.sh restarts it after switching /opt/bitetracker/current.
+# Installed and enabled by deploy/scripts/bootstrap.sh (it does not start it: there is no
+# release yet). deploy/scripts/deploy.sh restarts it after switching /opt/bitetracker/current.
 
 [Unit]
 Description=BiteTracker (Django + Gunicorn)
