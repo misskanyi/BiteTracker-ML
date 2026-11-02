@@ -12,10 +12,13 @@
 #    and rolls back automatically if the check fails. The database, uploads and trained
 #    model live in BITETRACKER_STATE_DIR on the server and are never replaced.
 #
-# To activate (see deploy/README.md): create the AWS resources, then set these repository
-# variables (Settings -> Secrets and variables -> Actions -> Variables):
+# To activate (see deploy/README.md): run deploy/scripts/bootstrap.sh on the instance once,
+# install the production model with deploy/scripts/install-artifacts.sh, then set these
+# repository variables (Settings -> Secrets and variables -> Actions -> Variables):
 #   AWS_REGION, AWS_DEPLOY_ROLE_ARN, DEPLOY_BUCKET, EC2_INSTANCE_ID, DEPLOY_ENABLED=true
 # and optionally add required reviewers to the "production" environment.
+# The deploy job uses `environment: production`, so the role's OIDC trust policy must allow
+# the subject repo:<owner>/<repo>:environment:production (not ...:ref:refs/heads/main).
 
 name: Deploy
 
@@ -45,9 +48,10 @@ jobs:
       - name: Use a temporary state directory
         run: echo "BITETRACKER_STATE_DIR=$RUNNER_TEMP/ci-state" >> "$GITHUB_ENV"
 
+      # Same Python as the EC2 instance (Ubuntu 24.04's python3), so what is tested is what runs.
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
 

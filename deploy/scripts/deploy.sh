@@ -25,14 +25,27 @@ RELEASE_ID="$2"
 require_root
 load_env_file
 require_state_artifacts
+systemctl cat "$SERVICE_NAME" >/dev/null 2>&1 || die "systemd service $SERVICE_NAME is not installed; run deploy/scripts/bootstrap.sh once first."
 
 RELEASE="$RELEASES_DIR/$RELEASE_ID"
 PREVIOUS="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 [ "$PREVIOUS" != "$(readlink -f "$RELEASE" 2>/dev/null || echo none)" ] || die "release $RELEASE_ID is already active."
 
+# Remove the oldest releases first, so that with the new one at most $KEEP_RELEASES remain.
+prune_releases() {
+  local keep="$1" active old
+  active="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+  ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n +"$((keep + 1))" | while read -r old; do
+    old="$(readlink -f "$old")"
+    [ "$old" = "$active" ] || [ "$old" = "$PREVIOUS" ] || [ "$old" = "$(readlink -f "$RELEASE")" ] || rm -rf -- "$old"
+  done
+}
+
 # --- 1. Unpack -------------------------------------------------------------------
-log "Unpacking release $RELEASE_ID"
 mkdir -p "$RELEASES_DIR"
+prune_releases "$((KEEP_RELEASES - 1))"
+require_free_space
+log "Unpacking release $RELEASE_ID"
 rm -rf "$RELEASE"
 mkdir -p "$RELEASE"
 tar -xzf "$TARBALL" -C "$RELEASE"
@@ -51,11 +64,14 @@ $bundled"
 fi
 
 # --- 3. Python environment ---------------------------------------------------------
-PYTHON_BIN="${PYTHON_BIN:-$(command -v python3.11 || command -v python3)}"
+# Ubuntu 24.04's python3 (3.12). The saved model only needs the same library versions
+# (scikit-learn, numpy, joblib pinned in requirements.txt), not the same Python minor version.
+PYTHON_BIN="${PYTHON_BIN:-$(command -v python3)}"
 log "Building virtualenv with $("$PYTHON_BIN" --version)"
-"$PYTHON_BIN" -m venv "$RELEASE/.venv"
-"$RELEASE/.venv/bin/pip" install --quiet --upgrade pip
-"$RELEASE/.venv/bin/pip" install --quiet -r "$RELEASE/requirements.txt"
+"$PYTHON_BIN" -m venv "$RELEASE/.venv" || die "could not create a virtualenv; install python3-venv (bootstrap.sh does this)."
+# No pip cache: wheels are large and would slowly fill a small disk.
+"$RELEASE/.venv/bin/pip" install --quiet --no-cache-dir --upgrade pip
+"$RELEASE/.venv/bin/pip" install --quiet --no-cache-dir -r "$RELEASE/requirements.txt"
 chmod -R a+rX "$RELEASE"
 
 # State directory layout, owned by the app user (settings would otherwise create it as root).
@@ -64,7 +80,9 @@ for d in "" data data/processed data/raw data/uploads models reports reports/met
 done
 
 # --- 4. Back up state before touching the database ---------------------------------------
-BACKUP_PATH="$(bash "$SCRIPT_DIR/backup.sh""pre-deploy-$RELEASE_ID" | tail -n 1)"
+# backup.sh takes one optional label argument and prints the backup directory on its last line.
+BACKUP_PATH="$(bash "$SCRIPT_DIR/backup.sh" "pre-deploy-$RELEASE_ID" | tail -n 1)"
+[ -d "$BACKUP_PATH" ] || die "pre-deploy backup failed; not touching the database."
 log "Pre-deploy backup: $BACKUP_PATH"
 
 # --- 5. Django checks, static files, migrations ----------------------------------------
@@ -107,7 +125,4 @@ else
 fi
 
 # --- 7. Keep the newest $KEEP_RELEASES releases (never the active or previous one) ------------
-ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n +"$((KEEP_RELEASES + 1))" | while read -r old; do
-  old="$(readlink -f "$old")"
-  [ "$old" = "$(readlink -f "$CURRENT_LINK")" ] || [ "$old" = "$PREVIOUS" ] || rm -rf -- "$old"
-done
+prune_releases "$KEEP_RELEASES"

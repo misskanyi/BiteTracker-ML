@@ -21,7 +21,8 @@ BACKUP_KEEP="${BACKUP_KEEP:-14}"
 STATE="$BITETRACKER_STATE_DIR"
 DB_PATH="${DJANGO_SQLITE_PATH:-$STATE/db.sqlite3}"
 label="${1:-manual}"
-[[ "$label" =~ ^[A-Za-z0-9_-]+$ ]] || die "label may only contain letters, digits, - and _."
+# Same characters deploy.sh allows in a release id, since it passes "pre-deploy-<release-id>".
+[[ "$label" =~ ^[A-Za-z0-9._-]+$ ]] || die "label may only contain letters, digits, '.', '-' and '_'."
 
 dest="$BACKUP_DIR/$(date -u +%Y%m%dT%H%M%SZ)-$label"
 umask 077

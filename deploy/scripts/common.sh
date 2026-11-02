@@ -8,7 +8,11 @@ CURRENT_LINK="$APP_ROOT/current"
 ENV_FILE="${ENV_FILE:-/etc/bitetracker/bitetracker.env}"
 SERVICE_NAME="${SERVICE_NAME:-bitetracker}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8000/health/}"
-KEEP_RELEASES="${KEEP_RELEASES:-5}"
+# Each release has its own virtualenv (~1.3 GB on x86_64: xgboost pulls in NVIDIA NCCL),
+# so keep few releases on a small disk.
+KEEP_RELEASES="${KEEP_RELEASES:-3}"
+# Free space (MB) needed under $APP_ROOT before building a new release.
+MIN_FREE_MB="${MIN_FREE_MB:-2500}"
 
 log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
@@ -64,8 +68,20 @@ require_state_artifacts() {
   for f in \
     "$BITETRACKER_STATE_DIR/models/final_best_model.joblib" \
     "$BITETRACKER_STATE_DIR/models/final_best_model_metadata.json" \
+    "$BITETRACKER_STATE_DIR/models/feature_columns.json" \
     "$BITETRACKER_STATE_DIR/data/processed/school_meals_processed.csv"; do
     if [ ! -s "$f" ]; then log "Missing production artifact: $f"; missing=1; fi
   done
-  [ "$missing" -eq 0 ] || die "copy the trained model, metadata and processed CSV into $BITETRACKER_STATE_DIR first (see deploy/README.md)."
+  [ "$missing" -eq 0 ] || die "copy the trained model, metadata, feature columns and processed CSV into $BITETRACKER_STATE_DIR first (see deploy/README.md)."
+  # The Model performance page also reads these; the site works without them.
+  for f in naive_baseline_metrics.csv validation_model_selection.csv; do
+    [ -s "$BITETRACKER_STATE_DIR/reports/metrics/$f" ] || log "WARNING: $BITETRACKER_STATE_DIR/reports/metrics/$f is missing; the Model performance page will show an error."
+  done
+}
+
+# Stop early with a clear message instead of failing halfway through pip install.
+require_free_space() {
+  local free_mb
+  free_mb="$(df -Pm "$APP_ROOT" | awk 'NR==2 {print $4}')"
+  [ "${free_mb:-0}" -ge "$MIN_FREE_MB" ] || die "only ${free_mb:-0} MB free under $APP_ROOT; need $MIN_FREE_MB MB. Remove old releases or grow the EBS volume."
 }
