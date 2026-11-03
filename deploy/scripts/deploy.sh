@@ -31,18 +31,10 @@ RELEASE="$RELEASES_DIR/$RELEASE_ID"
 PREVIOUS="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 [ "$PREVIOUS" != "$(readlink -f "$RELEASE" 2>/dev/null || echo none)" ] || die "release $RELEASE_ID is already active."
 
-# Remove the oldest releases first, so that with the new one at most $KEEP_RELEASES remain.
-prune_releases() {
-  local keep="$1" active old
-  active="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
-  ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n +"$((keep + 1))" | while read -r old; do
-    old="$(readlink -f "$old")"
-    [ "$old" = "$active" ] || [ "$old" = "$PREVIOUS" ] || [ "$old" = "$(readlink -f "$RELEASE")" ] || rm -rf -- "$old"
-  done
-}
-
 # --- 1. Unpack -------------------------------------------------------------------
 mkdir -p "$RELEASES_DIR"
+# Remove the oldest releases first (prune_releases, common.sh), so that with the new one
+# at most $KEEP_RELEASES remain. Safe when $RELEASES_DIR is empty (first deployment).
 prune_releases "$((KEEP_RELEASES - 1))"
 require_free_space
 log "Unpacking release $RELEASE_ID"

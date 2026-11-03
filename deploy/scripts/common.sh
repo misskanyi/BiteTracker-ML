@@ -79,6 +79,38 @@ require_state_artifacts() {
   done
 }
 
+# Delete all but the newest <keep> release directories in $RELEASES_DIR.
+# Never deletes the active release ($CURRENT_LINK), $PREVIOUS (rollback target) or
+# $RELEASE (the one being deployed), even if they fall outside the newest <keep>.
+# Works with zero, one or many releases: an empty $RELEASES_DIR (first deployment)
+# is a no-op. (Before, `ls "$RELEASES_DIR"/*/` got the unmatched pattern itself,
+# exited 2, and `set -euo pipefail` aborted the deploy.)
+prune_releases() {
+  local keep="$1" active previous new old restore_nullglob
+  local -a releases
+  active="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+  previous="$(readlink -f "${PREVIOUS:-}" 2>/dev/null || true)"
+  new="$(readlink -f "${RELEASE:-}" 2>/dev/null || true)"
+
+  # nullglob: no match gives an empty list instead of the literal pattern.
+  restore_nullglob="$(shopt -p nullglob || true)"
+  shopt -s nullglob
+  releases=("$RELEASES_DIR"/*/)
+  eval "$restore_nullglob"
+
+  [ "${#releases[@]}" -gt "$keep" ] || return 0
+
+  # Newest first; everything after the first <keep> entries is a candidate for removal.
+  while IFS= read -r old; do
+    old="$(readlink -f "$old")"
+    if [ -z "$old" ] || [ "$old" = "$active" ] || [ "$old" = "$previous" ] || [ "$old" = "$new" ]; then
+      continue
+    fi
+    log "Removing old release $old"
+    rm -rf -- "$old"
+  done < <(ls -1dt -- "${releases[@]}" | tail -n +"$((keep + 1))")
+}
+
 # Stop early with a clear message instead of failing halfway through pip install.
 require_free_space() {
   local free_mb

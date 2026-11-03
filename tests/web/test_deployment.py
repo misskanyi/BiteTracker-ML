@@ -208,6 +208,72 @@ def test_deploy_scripts_have_valid_bash_syntax(script):
     assert result.returncode == 0, result.stderr
 
 
+def _prune(tmp_path, keep, *, current=None, previous="", release=""):
+    """Run common.sh's prune_releases under deploy.sh's strict mode; return (result, remaining names)."""
+    releases_dir = tmp_path / "releases"
+    releases_dir.mkdir(exist_ok=True)
+    current_link = tmp_path / "current"
+    if current is not None and not current_link.exists():
+        current_link.symlink_to(releases_dir / current)
+    script = (
+        "set -euo pipefail\n"
+        f'. "{PROJECT_ROOT / "deploy" / "scripts" / "common.sh"}"\n'
+        'prune_releases "$KEEP"\n'
+        'echo "prune-ok"\n'
+    )
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "APP_ROOT": str(tmp_path),  # common.sh derives RELEASES_DIR and CURRENT_LINK from it
+        "KEEP": str(keep),
+        "PREVIOUS": str(releases_dir / previous) if previous else "",
+        "RELEASE": str(releases_dir / release) if release else "",
+    }
+    result = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
+    return result, sorted(p.name for p in releases_dir.iterdir())
+
+
+def _make_releases(tmp_path, *names):
+    """Create release directories, oldest first (distinct modification times)."""
+    releases_dir = tmp_path / "releases"
+    releases_dir.mkdir(exist_ok=True)
+    for age, name in enumerate(reversed(names)):
+        d = releases_dir / name
+        d.mkdir()
+        stamp = 1_700_000_000 - age * 3600
+        os.utime(d, (stamp, stamp))
+
+
+def test_prune_releases_empty_dir_first_deployment(tmp_path):
+    """Regression: first deploy aborted with exit 2 because `ls releases/*/` failed on an empty dir."""
+    for keep in (0, 2, 3):  # deploy.sh calls it with KEEP_RELEASES - 1 and KEEP_RELEASES
+        result, remaining = _prune(tmp_path, keep, release="new")
+        assert result.returncode == 0, result.stderr
+        assert "prune-ok" in result.stdout
+        assert remaining == []
+
+
+def test_prune_releases_single_release_is_kept(tmp_path):
+    _make_releases(tmp_path, "r1")
+    result, remaining = _prune(tmp_path, 0, current="r1", previous="r1", release="r2")
+    assert result.returncode == 0, result.stderr
+    assert remaining == ["r1"]
+
+
+def test_prune_releases_keeps_newest_and_protected(tmp_path):
+    _make_releases(tmp_path, "r1", "r2", "r3", "r4", "r5")  # r1 oldest, r5 newest
+    # r1 is active and the rollback target although it is the oldest: it must survive.
+    result, remaining = _prune(tmp_path, 2, current="r1", previous="r1", release="r6")
+    assert result.returncode == 0, result.stderr
+    assert remaining == ["r1", "r4", "r5"]
+
+
+def test_prune_releases_never_removes_release_being_deployed(tmp_path):
+    _make_releases(tmp_path, "new", "r2", "r3")  # the release being deployed is the oldest dir
+    result, remaining = _prune(tmp_path, 1, current="r3", previous="r3", release="new")
+    assert result.returncode == 0, result.stderr
+    assert remaining == ["new", "r3"]
+
+
 def test_deploy_passes_backup_label_as_separate_argument():
     """Regression: `"$SCRIPT_DIR/backup.sh""pre-deploy-..."` ran a non-existent file and aborted every deploy."""
     deploy = (PROJECT_ROOT / "deploy" / "scripts" / "deploy.sh").read_text()
