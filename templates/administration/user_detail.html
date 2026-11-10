@@ -44,7 +44,8 @@
     <section class="card h-100"><div class="card-header bt-card-header"><h2 class="bt-card-title"><i class="bi bi-buildings" aria-hidden="true"></i>Assigned schools</h2></div><div class="card-body">
       {% if target_role == "System Administrator" %}<p class="small mb-0">System Administrators can work with every school.</p>
       {% elif assignments %}
-      <ul class="list-unstyled mb-0 bt-school-list" data-testid="target-schools">{% for a in assignments %}<li><i class="bi bi-building me-2" aria-hidden="true"></i>{{ a.school }}<span class="bt-cell-sub ms-2">since {{ a.assigned_at|date:"j M Y" }}</span></li>{% endfor %}</ul>
+      <ul class="list-unstyled mb-0 bt-school-list" data-testid="target-schools">{% for a in assignments %}<li{% if a.unavailable %} data-testid="unavailable-assignment"{% endif %}><i class="bi bi-building me-2" aria-hidden="true"></i>{{ a.school.name|default:a.school.school_id }} ({{ a.school.school_id }})<span class="bt-cell-sub ms-2">since {{ a.assigned_at|date:"j M Y" }}</span>{% if a.unavailable %} <span class="badge status-pill--synthetic ms-1" title="Edit role &amp; schools to remove or replace it">Unavailable · {{ a.unavailable }}</span>{% endif %}</li>{% endfor %}</ul>
+      {% if has_unavailable %}<p class="small text-muted mt-2 mb-0" data-testid="unavailable-hint">Unavailable schools give this user no data. Use <a href="{% url 'administration:user_edit' target.pk %}">Edit role &amp; schools</a> to remove or replace them; nothing changes until you save.</p>{% endif %}
       {% else %}<p class="small text-muted mb-0">No schools assigned.</p>{% endif %}
     </div></section>
   </div>

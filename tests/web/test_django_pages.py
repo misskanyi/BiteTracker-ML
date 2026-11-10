@@ -124,10 +124,13 @@ def test_dashboard_shows_schools_model_chart_and_status(logged_in, stub_artifact
     assert response.status_code == 200
     for name in ("Greenfield Primary", "Riverside Primary", "Highlands Academy"):
         assert name in html
-    assert 'data-testid="model-name">Linear Regression<' in html  # from metadata, not hardcoded
+    assert 'data-testid="model-card"' not in html  # model evaluation is administrator-only
     assert 'id="dashboard-history-chart"' in html
     assert "Synthetic" in html and "SYNTHETIC DEVELOPMENT DATA" in html
     assert "No forecasts yet" in html
+    logged_in.force_login(get_user_model().objects.create_superuser("dash_admin", password="Str0ng-test-passw0rd!"))
+    admin_html = logged_in.get(reverse("core:dashboard")).content.decode()
+    assert 'data-testid="model-name">Linear Regression<' in admin_html  # from metadata, not hardcoded
 
 
 def test_dashboard_lists_recent_forecast_runs(logged_in, stub_artifacts):

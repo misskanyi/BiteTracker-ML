@@ -109,7 +109,8 @@ def sysadmin(db):
 
 
 @pytest.fixture
-def schools(db):
+def schools(db, stub_artifacts):
+    """School rows for the stub dataset's IDs; only schools in the active dataset can be assigned."""
     return {code: School.objects.get_or_create(school_id=code, defaults={"name": f"School {code[-1]}"})[0]
             for code in ("SCH001", "SCH002", "SCH003")}
 

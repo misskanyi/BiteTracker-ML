@@ -136,7 +136,7 @@ def test_stakeholder_cannot_change_accounts_schools_or_registrations(client, sta
     assert access.role_of(stakeholder) == Role.PLANNING_STAKEHOLDER
 
 
-def test_system_admin_creates_school_manager(client, sysadmin):
+def test_system_admin_creates_school_manager(client, sysadmin, stub_artifacts):
     client.force_login(sysadmin)
     response = client.post(reverse("administration:user_create"), _create_payload())
     assert response.status_code == 302
@@ -149,7 +149,7 @@ def test_system_admin_creates_school_manager(client, sysadmin):
     assert NEW_PASSWORD not in json.dumps(log.details)
 
 
-def test_system_admin_changes_school_assignments(client, sysadmin, in_scope):
+def test_system_admin_changes_school_assignments(client, sysadmin, in_scope, stub_artifacts):
     sch2 = School.objects.get_or_create(school_id="SCH002")[0]
     client.force_login(sysadmin)
     response = client.post(reverse("administration:user_edit", args=[in_scope.pk]), {
@@ -269,7 +269,7 @@ def test_school_management_is_system_admin_only(client, stakeholder, sysadmin):
     assert client.get(reverse("administration:school_edit", args=[school.pk])).status_code == 200
 
 
-def test_school_assign_and_unassign_users(client, sysadmin, in_scope):
+def test_school_assign_and_unassign_users(client, sysadmin, in_scope, stub_artifacts):
     sch2 = School.objects.get_or_create(school_id="SCH002")[0]
     client.force_login(sysadmin)
     client.post(reverse("administration:school_detail", args=[sch2.pk]), {"action": "assign", "user": in_scope.pk})

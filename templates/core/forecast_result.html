@@ -13,6 +13,9 @@
     <a class="btn btn-primary btn-sm" href="{% url 'core:forecast' %}?school={{ run.school_code }}&amp;horizon={{ run.horizon_days }}"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>New forecast</a>
   </div>
 </div>
+{% if run.is_synthetic %}
+<div class="alert alert-warning" role="note" data-testid="run-synthetic-note"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>This forecast was produced from <strong>synthetic development data</strong>. It is not a Food4Education research result and must not be used for planning.</div>
+{% endif %}
 
 <div class="bt-callout bt-callout--info mb-3" role="status" data-testid="origin-note">
   <i class="bi bi-calendar-event" aria-hidden="true"></i>

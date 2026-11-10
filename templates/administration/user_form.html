@@ -16,6 +16,7 @@
     </div>
     {% if form.role %}{% include "partials/_field.html" with field=form.role %}{% elif target %}<p class="small text-muted">You cannot change your own role.</p>{% endif %}
     {% include "partials/_field.html" with field=form.schools %}
+    {% if form.keep_unavailable %}<div class="bt-callout bt-callout--warning mb-3" data-testid="keep-unavailable">{% include "partials/_field.html" with field=form.keep_unavailable %}</div>{% endif %}
     {% if form.password1 %}
     <div class="row g-3">
       <div class="col-md-6">{% include "partials/_field.html" with field=form.password1 %}</div>

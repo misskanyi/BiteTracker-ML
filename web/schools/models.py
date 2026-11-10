@@ -147,3 +147,8 @@ class ForecastRun(models.Model):
 
     def __str__(self) -> str:
         return f"{self.school_code} · {self.get_horizon_days_display()} · {self.created_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def is_synthetic(self) -> bool:
+        """Produced by a model trained on synthetic development data (not a research result)."""
+        return "SYNTHETIC" in (self.results_label or "").upper()

@@ -20,10 +20,10 @@
   {% if page.object_list %}
   <div class="table-responsive">
     <table class="table table-hover align-middle mb-0" data-testid="runs-table">
-      <thead class="table-light"><tr><th>Generated</th><th>School</th><th>Horizon</th><th>Forecast dates</th><th class="text-end">Day 1 predicted</th><th class="text-end">Day 1 recommended</th><th>Risk</th><th>Model</th><th>By</th></tr></thead>
+      <thead class="table-light"><tr><th>Generated</th><th>School</th><th>Horizon</th><th>Forecast dates</th><th class="text-end">Day 1 predicted</th><th class="text-end">Day 1 recommended</th><th>Risk</th><th>Model</th><th>Data</th><th>By</th></tr></thead>
       <tbody>
         {% for run in page %}
-        <tr>
+        <tr{% if run.is_synthetic %} class="bt-row-muted"{% endif %}>
           <td class="text-nowrap"><a href="{% url 'core:forecast_run' run.pk %}">{{ run.created_at|date:"j M Y H:i" }}</a></td>
           <td>{{ run.school_name|default:run.school_code }}</td>
           <td>{{ run.get_horizon_days_display }}</td>
@@ -32,6 +32,7 @@
           <td class="text-end">{{ run.day1_recommended_meals }}</td>
           <td><span class="badge risk-badge risk-{{ run.day1_risk_level|lower }}">{{ run.day1_risk_level }}</span></td>
           <td class="small">{{ run.model_label }}</td>
+          <td>{% include "core/_run_data_badge.html" %}</td>
           <td class="small">{{ run.user.get_username|default:"—" }}</td>
         </tr>
         {% endfor %}

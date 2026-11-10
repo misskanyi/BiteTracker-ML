@@ -264,6 +264,12 @@ secrets.toml
 *.crt
 credentials*.json
 service-account*.json
+# Google OAuth client downloads from Cloud Console (contain the client secret)
+client_secret*.json
+*oauth*client*.json
+# Filled-in server env files, e.g. a copy of deploy/bitetracker.env.example (keep the templates)
+*.env
+!*.env.example
 
 # Logs
 logs/

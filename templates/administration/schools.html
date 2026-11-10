@@ -24,7 +24,8 @@
           <td class="small">{{ s.sub_county }}{% if s.sub_county and s.county %}, {% endif %}{{ s.county }}</td>
           <td class="text-end">{{ s.verified_enrolment|default:"—" }}</td>
           <td class="text-end">{{ s.n_users }}</td>
-          <td>{% if s.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-light">Inactive</span>{% endif %}</td>
+          <td>{% if s.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-light">Inactive</span>{% endif %}
+            {% if dataset_codes is not None and s.school_id not in dataset_codes %}<span class="badge status-pill--synthetic" data-testid="school-not-in-dataset">Not in active dataset</span>{% endif %}</td>
           <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{% url 'administration:school_detail' s.pk %}">View</a></td>
         </tr>
       {% endfor %}

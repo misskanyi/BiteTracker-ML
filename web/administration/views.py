@@ -35,6 +35,7 @@ from web.administration.forms import (
     UserCreateForm,
     UserEditForm,
 )
+from web.schools import eligibility
 from web.audit.models import AuditLog
 from web.audit.services import log_action, visible_logs
 from web.notifications.models import Notification
@@ -143,11 +144,26 @@ def _approve(request, access_request, data) -> bool:
     log_action(request.user, AuditLog.Action.ACCESS_APPROVED, target=access_request, target_user=user,
                target_label=access_request.email,
                details={"role": role, "schools": _school_codes(schools), "note": note})
+    school_text = f" for {_school_list(schools)}" if schools else ""
+    # The applicant's own status notice: recipient is the applicant only.
     notify([user], Notification.Type.ACCOUNT, "Your registration was approved",
-           f"Welcome to BiteTracker. Your role is {Role(role).label}"
-           + (f" for {', '.join(str(s) for s in schools)}." if schools else "."),
+           f"Welcome to BiteTracker. Your role is {Role(role).label}{school_text}.",
            url=reverse("core:dashboard"), event_key=f"access_request:{access_request.pk}:approved")
+    # The approver's confirmation: recipient is the administrator who approved, nobody else.
+    notify([request.user], Notification.Type.ACCESS_REQUEST, "Registration approved",
+           f"You approved {_applicant_label(access_request)} as {Role(role).label}{school_text}.",
+           url=reverse("administration:access_request_detail", args=[access_request.pk]), include_actor=True,
+           event_key=f"access_request:{access_request.pk}:approved_by")
     return True
+
+
+def _school_list(schools) -> str:
+    return ", ".join(f"{s.name or s.school_id} ({s.school_id})" for s in schools)
+
+
+def _applicant_label(access_request) -> str:
+    name = access_request.full_name.strip()
+    return f"{name} ({access_request.email})" if name else access_request.email
 
 
 @transaction.atomic
@@ -164,6 +180,10 @@ def _reject(request, access_request, reason: str) -> bool:
     notify([user], Notification.Type.ACCOUNT, "Your registration was not approved",
            "Contact your System Administrator if you think this is a mistake.",
            event_key=f"access_request:{access_request.pk}:rejected", include_inactive=True)
+    notify([request.user], Notification.Type.ACCESS_REQUEST, "Registration rejected",
+           f"You rejected {_applicant_label(access_request)}.",
+           url=reverse("administration:access_request_detail", args=[access_request.pk]), include_actor=True,
+           event_key=f"access_request:{access_request.pk}:rejected_by")
     return True
 
 
@@ -233,6 +253,13 @@ def user_create(request):
     return _render(request, "administration/user_form.html", "users", {"form": form, "creating": True})
 
 
+def _assignment_rows(target) -> list[dict]:
+    """The user's assignments, each with why it couldn't be made today (None when it still could)."""
+    codes = eligibility.active_dataset_school_codes()
+    return [{"school": a.school, "assigned_at": a.assigned_at, "unavailable": eligibility.unavailable_reason(a.school, codes)}
+            for a in target.school_assignments.select_related("school").order_by("school__name", "school__school_id")]
+
+
 def _managed_user(request, pk: int):
     return get_object_or_404(_users_queryset(request.user), pk=pk)
 
@@ -258,7 +285,8 @@ def user_detail(request, pk: int):
         "target_status_label": access.STATUS_LABELS[status],
         "access_request": access.access_request_of(target),
         "google_linked": target.socialaccount_set.filter(provider="google").exists(),
-        "assignments": target.school_assignments.all(),
+        "assignments": (rows := _assignment_rows(target)),
+        "has_unavailable": any(r["unavailable"] for r in rows),
         "logs": visible_logs(request.user).filter(Q(target_user=target) | Q(actor=target))[:10],
         "is_self": target.pk == request.user.pk,
     })
@@ -301,7 +329,7 @@ def user_edit(request, pk: int):
                 notify([target], Notification.Type.ACCOUNT, "Your role has changed",
                        f"Your BiteTracker role is now {Role(data['role']).label}.", url=reverse("accounts:profile"))
 
-            added, removed = access.set_school_assignments(target, data["schools"], request.user, scope=scope)
+            added, removed = access.set_school_assignments(target, form.assigned_schools(), request.user, scope=scope)
             if added or removed:
                 log_action(request.user, AuditLog.Action.SCHOOLS_ASSIGNED, target=target, target_user=target,
                            target_label=target.get_username(),
@@ -384,7 +412,7 @@ def schools(request):
         qs = qs.filter(is_active=status == "active")
     page = Paginator(qs.order_by("name", "school_id"), PAGE_SIZE).get_page(request.GET.get("page"))
     return _render(request, "administration/schools.html", "schools", {
-        "page": page, "q": q, "status": status,
+        "page": page, "q": q, "status": status, "dataset_codes": eligibility.active_dataset_school_codes(),
         "querystring": urlencode({k: v for k, v in {"q": q, "status": status}.items() if v}),
     })
 
@@ -401,7 +429,7 @@ def school_detail(request, pk: int):
     form = AssignUserForm(request.POST or None, admin=request.user, school=school)
     if request.method == "POST":
         action = request.POST.get("action")
-        if action == "assign" and form.is_valid():
+        if action == "assign" and form.is_valid():  # form refuses schools not eligible for new assignments
             target = form.cleaned_data["user"]
             SchoolAssignment.objects.get_or_create(user=target, school=school, defaults={"assigned_by": request.user})
             _log_assignment(request, target, school, added=True)
@@ -420,7 +448,7 @@ def school_detail(request, pk: int):
     rows = [{"assignment": a, "role": access.role_label(a.user), "manageable": a.user_id in manageable_ids}
             for a in assignments]
     return _render(request, "administration/school_detail.html", "schools", {
-        "school": school, "rows": rows, "form": form,
+        "school": school, "rows": rows, "form": form, "unavailable_reason": form.unavailable_reason,
         "logs": visible_logs(request.user).filter(school=school)[:10],
         "forecast_count": school.forecast_runs.count(),
         "event_count": school.calendar_events.count(),

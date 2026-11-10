@@ -7,6 +7,12 @@
 {% if data_error %}
   <div class="alert alert-warning" role="alert" data-testid="data-error"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>{{ data_error }}</div>
 {% else %}
+  {% if unavailable_schools %}
+  <div class="alert alert-info small" role="note" data-testid="unavailable-schools">
+    <i class="bi bi-info-circle me-1" aria-hidden="true"></i>Not in the active dataset, so not shown:
+    {% for s in unavailable_schools %}{{ s.name|default:s.school_id }} ({{ s.school_id }}){% if not forloop.last %}, {% endif %}{% endfor %}.
+  </div>
+  {% endif %}
   {# --- KPIs ------------------------------------------------------------------------------- #}
   <section class="row g-3 mb-4" aria-label="Key figures">
     <div class="col-sm-6 col-xl-3">
@@ -74,6 +80,7 @@
   </div>
 
   <div class="col-xl-4 d-flex flex-column gap-3">
+    {% if show_model_card %}
     <section class="card" aria-labelledby="model-heading" data-testid="model-card">
       <div class="card-body">
         <h2 class="bt-card-title mb-3" id="model-heading"><i class="bi bi-cpu" aria-hidden="true"></i>Forecasting model</h2>
@@ -107,6 +114,7 @@
         {% endif %}
       </div>
     </section>
+    {% endif %}
 
     {% if quick_form %}
     <section class="card" aria-labelledby="quick-heading">
@@ -151,18 +159,14 @@
       </tr></thead>
       <tbody>
         {% for run in recent_runs %}
-        <tr{% if "SYNTHETIC" in run.results_label %} class="bt-row-muted"{% endif %}>
+        <tr{% if run.is_synthetic %} class="bt-row-muted"{% endif %}>
           <td class="text-nowrap"><a href="{% url 'core:forecast_run' run.pk %}">{{ run.created_at|date:"j M Y, H:i" }}</a></td>
           <td>{{ run.school_name|default:run.school_code }}</td>
           <td class="text-nowrap d-none d-xl-table-cell">{{ run.get_horizon_days_display }}</td>
           <td class="text-end">{{ run.day1_predicted_meals|intcomma }}</td>
           <td class="text-end fw-semibold">{{ run.day1_recommended_meals|intcomma }}</td>
           <td><span class="badge risk-badge risk-{{ run.day1_risk_level|lower }}">{{ run.day1_risk_level }}</span></td>
-          <td>
-            {% if "SYNTHETIC" in run.results_label %}<span class="badge status-pill--synthetic" title="{{ run.results_label }}" data-testid="run-data-synthetic"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Synthetic</span>
-            {% elif "FOOD4EDUCATION" in run.results_label %}<span class="badge status-pill--real" title="{{ run.results_label }}" data-testid="run-data-real">Food4Education</span>
-            {% else %}<span class="badge bt-badge-neutral" title="{{ run.results_label }}">{{ run.results_label|truncatechars:28 }}</span>{% endif %}
-          </td>
+          <td>{% include "core/_run_data_badge.html" %}</td>
         </tr>
         {% endfor %}
       </tbody>
