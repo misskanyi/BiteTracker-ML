@@ -395,4 +395,4 @@ def privacy(request):
 
     if not notice.is_published():
         raise Http404("The privacy notice has not been published yet.")
-    return render(request, "core/privacy.html", {"facts": notice.FACTS})
+    return render(request, "core/privacy.html", {"facts": notice.FACTS, "contact_email": notice.CONTACT_EMAIL})
