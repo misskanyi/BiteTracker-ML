@@ -66,6 +66,9 @@ class UserProfile(models.Model):
     notify_dataset_validation = models.BooleanField("Dataset validation errors", default=True)
     notify_calendar = models.BooleanField("School calendar updates", default=True)
     notify_announcements = models.BooleanField("Important system announcements", default=True)
+    # Optional email (System Administrators): new registration requests. Account and security
+    # emails about the user's own account are essential and are always sent.
+    email_access_requests = models.BooleanField("Email me new registration requests", default=True)
 
     updated_at = models.DateTimeField(auto_now=True)
 

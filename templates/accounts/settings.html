@@ -42,14 +42,14 @@
 
   {% elif tab == "notifications" %}
     <section class="card" aria-labelledby="notifications-heading">
-      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="notifications-heading"><i class="bi bi-bell" aria-hidden="true"></i>In-app notifications</h2></div>
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="notifications-heading"><i class="bi bi-bell" aria-hidden="true"></i>Notifications</h2></div>
       <div class="card-body">
-        <p class="small text-muted">Choose which optional notifications appear under the bell. BiteTracker does not send email or SMS.</p>
+        <p class="small text-muted">Choose which optional notifications appear under the bell. Routine activity such as forecasts, uploads and calendar updates is shown in BiteTracker only, never emailed.</p>
         <form method="post" novalidate data-testid="notifications-form">
           {% csrf_token %}<input type="hidden" name="section" value="notifications">
           {% for field in notifications_form %}{% include "partials/_field.html" with field=field switch=True %}{% endfor %}
           <div class="bt-callout bt-callout--info mb-3"><i class="bi bi-shield-lock" aria-hidden="true"></i>
-            <span>Security and account notices (password changes, role and school assignment changes) are always delivered.</span></div>
+            <span>Security and account notices (password changes, role and school assignment changes) are always delivered. Important changes to your own account (registration decisions, suspension or reactivation, role or school changes) are also emailed to your account address and can't be switched off.</span></div>
           <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save preferences</button>
         </form>
       </div>

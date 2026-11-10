@@ -7,6 +7,7 @@ import re
 from django import forms
 from django.conf import settings
 
+from web.accounts import access
 from web.accounts.models import AccessRequest, Role, UserProfile
 from web.core.uploads import validate_image
 
@@ -74,17 +75,23 @@ class NotificationPreferencesForm(forms.ModelForm):
     class Meta:
         model = UserProfile
         fields = ["notify_forecast", "notify_dataset_upload", "notify_dataset_validation", "notify_calendar",
-                  "notify_announcements"]
+                  "notify_announcements", "email_access_requests"]
         help_texts = {
             "notify_forecast": "When a forecast you generate finishes or fails.",
             "notify_dataset_upload": "When a dataset you upload passes validation.",
             "notify_dataset_validation": "When a dataset you upload fails validation.",
             "notify_calendar": "When someone else adds, changes or deletes an event for one of your schools.",
             "notify_announcements": "Announcements sent by a System Administrator.",
+            "email_access_requests": "Also email me when someone registers and is waiting for approval. "
+                                     "The in-app notification is always shown.",
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Only System Administrators receive registration requests.
+        user = getattr(self.instance, "user", None)
+        if user is None or not access.is_system_admin(user):
+            self.fields.pop("email_access_requests")
         for field in self.fields.values():
             _switch(field)
 

@@ -1,0 +1,17 @@
+{% autoescape off %}{% comment %}Plain-text part. Values are inserted as text; nothing here is interpreted as HTML.{% endcomment %}BiteTracker
+===========
+
+Hello {{ greeting_name }},
+
+{% for paragraph in paragraphs %}{{ paragraph }}
+
+{% endfor %}{% for label, value in details %}{{ label }}: {{ value }}
+{% endfor %}{% if details %}
+{% endif %}{% if next_step %}{{ next_step }}
+
+{% endif %}{% if action_url %}{{ action_label }}: {{ action_url }}
+
+{% endif %}--
+This is an automatic account notice from BiteTracker (Food4Education meal planning).
+It was sent only to you. Please don't reply to this email; contact your BiteTracker System Administrator instead.
+{% endautoescape %}

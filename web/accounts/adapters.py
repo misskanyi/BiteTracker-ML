@@ -7,7 +7,9 @@ The rules, in order:
 3. A new Google identity whose email belongs to an existing account is NOT merged: the
    person is asked to sign in with their password and link Google in Settings -> Security.
 4. Any other new Google identity creates an inactive account with a pending AccessRequest,
-   and every System Administrator is notified. No role or school is granted.
+   and every System Administrator is notified (in-app and by email); the applicant is emailed
+   that the request was received. No role or school is granted. Only the first sign-in creates
+   the request, so repeat sign-ins never notify or email again.
 5. Every sign-in (password or Google) passes `pre_login`: only approved, active accounts
    get a session. Pending, rejected and suspended people see the access-status page.
 
@@ -140,6 +142,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
 def _announce_access_request(access_request: AccessRequest) -> None:
     from web.audit.models import AuditLog
     from web.audit.services import log_action
+    from web.notifications import emails
     from web.notifications.models import Notification
     from web.notifications.services import notify, system_admins
 
@@ -151,3 +154,6 @@ def _announce_access_request(access_request: AccessRequest) -> None:
            f"{who} ({access_request.email}) is waiting for account approval.",
            url=reverse("administration:access_request_detail", args=[access_request.pk]),
            event_key=f"access_request:{access_request.pk}:submitted")
+    # Emails go out only after the registration is committed; one per recipient.
+    emails.registration_received(access_request)
+    emails.access_request_for_admins(access_request)

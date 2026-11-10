@@ -38,6 +38,7 @@ from web.administration.forms import (
 from web.schools import eligibility
 from web.audit.models import AuditLog
 from web.audit.services import log_action, visible_logs
+from web.notifications import emails
 from web.notifications.models import Notification
 from web.notifications.services import notify
 from web.schools.models import DatasetUpload
@@ -154,6 +155,7 @@ def _approve(request, access_request, data) -> bool:
            f"You approved {_applicant_label(access_request)} as {Role(role).label}{school_text}.",
            url=reverse("administration:access_request_detail", args=[access_request.pk]), include_actor=True,
            event_key=f"access_request:{access_request.pk}:approved_by")
+    emails.registration_approved(access_request, role, schools)
     return True
 
 
@@ -184,6 +186,7 @@ def _reject(request, access_request, reason: str) -> bool:
            f"You rejected {_applicant_label(access_request)}.",
            url=reverse("administration:access_request_detail", args=[access_request.pk]), include_actor=True,
            event_key=f"access_request:{access_request.pk}:rejected_by")
+    emails.registration_rejected(access_request)
     return True
 
 
@@ -321,21 +324,27 @@ def user_edit(request, pk: int):
                 log_action(request.user, AuditLog.Action.USER_UPDATED, target=target, target_user=target,
                            target_label=target.get_username(), details={"fields": changed})
 
-            old_role = access.role_of(target)
-            if "role" in data and data["role"] != old_role:
+            old_role, access_event = access.role_of(target), None
+            role_changed = "role" in data and data["role"] != old_role
+            if role_changed:
                 access.set_role(target, data["role"])
-                log_action(request.user, AuditLog.Action.ROLE_CHANGED, target=target, target_user=target,
-                           target_label=target.get_username(), details={"from": old_role, "to": data["role"]})
+                access_event = log_action(request.user, AuditLog.Action.ROLE_CHANGED, target=target, target_user=target,
+                                          target_label=target.get_username(), details={"from": old_role, "to": data["role"]})
                 notify([target], Notification.Type.ACCOUNT, "Your role has changed",
                        f"Your BiteTracker role is now {Role(data['role']).label}.", url=reverse("accounts:profile"))
 
             added, removed = access.set_school_assignments(target, form.assigned_schools(), request.user, scope=scope)
             if added or removed:
-                log_action(request.user, AuditLog.Action.SCHOOLS_ASSIGNED, target=target, target_user=target,
-                           target_label=target.get_username(),
-                           details={"added": _school_codes(added), "removed": _school_codes(removed)})
+                schools_event = log_action(request.user, AuditLog.Action.SCHOOLS_ASSIGNED, target=target,
+                                           target_user=target, target_label=target.get_username(),
+                                           details={"added": _school_codes(added), "removed": _school_codes(removed)})
+                access_event = access_event or schools_event
                 notify([target], Notification.Type.ACCOUNT, "Your school assignments have changed",
                        _assignment_message(added, removed), url=reverse("accounts:profile"))
+            if access_event is not None:
+                # One email for the whole edit, sent only after it commits.
+                emails.access_changed(target, access_event.pk, old_role=old_role if role_changed else None,
+                                      added=added, removed=removed)
         messages.success(request, f"Account “{target.username}” was updated.")
         return redirect("administration:user_detail", pk=target.pk)
     return _render(request, "administration/user_form.html", "users", {"form": form, "target": target, "creating": False})
@@ -362,17 +371,29 @@ def user_toggle_active(request, pk: int):
         messages.error(request, "This account has a registration request that is not approved. "
                                 "Approve it from Access requests to give access.")
         return redirect("administration:user_detail", pk=pk)
-    activate = not target.is_active
+    # The form says which change was intended, so a resubmitted or stale form never flips the account back.
+    intended = request.POST.get("action")
+    activate = {"reactivate": True, "suspend": False}.get(intended, not target.is_active)
+    if activate == target.is_active:
+        messages.info(request, f"Account “{target.username}” is already {'active' if activate else 'suspended'}; nothing was changed.")
+        return redirect("administration:user_detail", pk=pk)
     if (not activate and access.role_of(target) == Role.SYSTEM_ADMIN and access.active_system_admin_count() <= 1):
         messages.error(request, "This is the only active System Administrator, so the account cannot be suspended.")
         return redirect("administration:user_detail", pk=pk)
-    target.is_active = activate
-    target.save(update_fields=["is_active"])
-    log_action(request.user, AuditLog.Action.USER_ACTIVATED if activate else AuditLog.Action.USER_DEACTIVATED,
-               target=target, target_user=target, target_label=target.get_username())
-    if activate:
-        notify([target], Notification.Type.ACCOUNT, "Your account has been reactivated",
-               "You can use BiteTracker again.", url=reverse("accounts:profile"))
+    with transaction.atomic():
+        # Conditional update: two concurrent submits can't both change (and email about) the account.
+        if not User.objects.filter(pk=target.pk, is_active=not activate).update(is_active=activate):
+            messages.info(request, f"Account “{target.username}” was already changed; nothing was changed.")
+            return redirect("administration:user_detail", pk=pk)
+        target.is_active = activate
+        event = log_action(request.user, AuditLog.Action.USER_ACTIVATED if activate else AuditLog.Action.USER_DEACTIVATED,
+                           target=target, target_user=target, target_label=target.get_username())
+        if activate:
+            notify([target], Notification.Type.ACCOUNT, "Your account has been reactivated",
+                   "You can use BiteTracker again.", url=reverse("accounts:profile"))
+            emails.account_reactivated(target, event.pk)
+        else:
+            emails.account_suspended(target, event.pk)
     messages.success(request, f"Account “{target.username}” was {'reactivated' if activate else 'suspended'}.")
     return redirect("administration:user_detail", pk=pk)
 
@@ -431,16 +452,22 @@ def school_detail(request, pk: int):
         action = request.POST.get("action")
         if action == "assign" and form.is_valid():  # form refuses schools not eligible for new assignments
             target = form.cleaned_data["user"]
-            SchoolAssignment.objects.get_or_create(user=target, school=school, defaults={"assigned_by": request.user})
-            _log_assignment(request, target, school, added=True)
+            with transaction.atomic():
+                _, created = SchoolAssignment.objects.get_or_create(user=target, school=school,
+                                                                    defaults={"assigned_by": request.user})
+                if created:
+                    _log_assignment(request, target, school, added=True)
             messages.success(request, f"{target.get_full_name() or target.username} was assigned to {school}.")
             return redirect("administration:school_detail", pk=pk)
         if action == "unassign":
             target = get_object_or_404(User, pk=request.POST.get("user"))
             if target.pk not in manageable_ids:
                 raise PermissionDenied
-            if SchoolAssignment.objects.filter(user=target, school=school).delete()[0]:
-                _log_assignment(request, target, school, added=False)
+            with transaction.atomic():
+                removed = SchoolAssignment.objects.filter(user=target, school=school).delete()[0]
+                if removed:
+                    _log_assignment(request, target, school, added=False)
+            if removed:
                 messages.success(request, f"{target.get_full_name() or target.username} was removed from {school}.")
             return redirect("administration:school_detail", pk=pk)
     assignments = school.assignments.select_related("user", "user__profile", "assigned_by").order_by(
@@ -456,11 +483,12 @@ def school_detail(request, pk: int):
 
 
 def _log_assignment(request, target, school, added: bool):
-    log_action(request.user, AuditLog.Action.SCHOOLS_ASSIGNED, target=target, target_user=target, school=school,
+    event = log_action(request.user, AuditLog.Action.SCHOOLS_ASSIGNED, target=target, target_user=target, school=school,
                target_label=target.get_username(),
                details={"added": [school.school_id]} if added else {"removed": [school.school_id]})
     notify([target], Notification.Type.ACCOUNT, "Your school assignments have changed",
            f"{'Added' if added else 'Removed'}: {school}.", url=reverse("accounts:profile"))
+    emails.access_changed(target, event.pk, added=[school] if added else (), removed=() if added else [school])
 
 
 @access.admin_required
