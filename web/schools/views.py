@@ -2,15 +2,15 @@
 
 Uploading validates a file and records the attempt. It never replaces the
 active dataset, never retrains the model and never changes saved artifacts.
+
+School Managers upload records for their assigned schools only; System Administrators
+verify them. Users see only their own uploads (administrators see all).
 """
 
 from __future__ import annotations
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.contrib.auth.decorators import permission_required
 from django.core.files.base import ContentFile
-from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -18,18 +18,32 @@ from django.views.decorators.http import require_http_methods
 
 from services import upload_service, upload_templates
 from web.accounts import access
-from web.accounts.models import Role
 from web.audit.models import AuditLog
 from web.audit.services import log_action
 from web.core.forms import DatasetUploadForm
 from web.core.uploads import download_response
 from web.notifications.models import Notification
-from web.notifications.services import notify
+from web.notifications.services import notify, system_admins
 from web.schools.models import DatasetUpload
 
 
+def _check_school_scope(user, summary: dict) -> dict:
+    """A valid file is downgraded to invalid if it contains schools the uploader isn't assigned to."""
+    if summary["status"] != upload_service.VALID:
+        return summary
+    codes = access.accessible_school_codes(user)
+    outside = [] if codes is None else [s for s in summary.get("school_ids", []) if s not in codes]
+    if outside:
+        shown = ", ".join(outside[:5]) + (f" and {len(outside) - 5} more" if len(outside) > 5 else "")
+        summary = {**summary, "status": upload_service.INVALID,
+                   "errors": [*summary.get("errors", []),
+                              f"The file contains records for schools not assigned to you: {shown}. "
+                              "Upload records only for your assigned schools."]}
+    return summary
+
+
 @require_http_methods(["GET", "POST"])
-@permission_required("schools.add_datasetupload", raise_exception=True)
+@access.upload_required
 def upload(request):
     is_post = request.method == "POST"
     form = DatasetUploadForm(
@@ -40,7 +54,7 @@ def upload(request):
     if is_post and form.is_valid():
         uploaded = form.cleaned_data["file"]
         content = uploaded.read()
-        summary = upload_service.validate_dataset(content, uploaded.name)
+        summary = _check_school_scope(request.user, upload_service.validate_dataset(content, uploaded.name))
         record = DatasetUpload(
             uploaded_by=request.user,
             original_filename=uploaded.name[:255],
@@ -64,15 +78,15 @@ def upload(request):
 
     return render(request, "schools/upload.html", {
         "form": form,
-        "recent_uploads": DatasetUpload.objects.select_related("uploaded_by")[:10],
+        "recent_uploads": access.visible_uploads(request.user)[:10],
         "max_size_mb": settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024),
         "letter_max_size_mb": settings.MAX_LETTER_SIZE_BYTES // (1024 * 1024),
     })
 
 
-@permission_required("schools.view_datasetupload", raise_exception=True)
 def upload_detail(request, pk: int):
-    record = get_object_or_404(DatasetUpload.objects.select_related("uploaded_by", "reviewed_by"), pk=pk)
+    # Someone else's upload 404s rather than 403s, so its existence is not revealed.
+    record = get_object_or_404(access.visible_uploads(request.user), pk=pk)
     return render(request, "schools/upload_detail.html", {
         "upload": record, "summary": record.validation_summary,
         "can_download": access.can_download_upload(request.user, record),
@@ -112,11 +126,8 @@ def letter_template(request):
 
 
 def _reviewers(record: DatasetUpload):
-    """Administrators who may decide on this upload."""
-    admins = get_user_model().objects.filter(is_active=True).filter(
-        Q(is_superuser=True) | Q(profile__role__in=[Role.SYSTEM_ADMIN, Role.PROGRAMME_ADMIN])
-    ).distinct().select_related("profile")
-    return [admin for admin in admins if access.can_decide_upload(admin, record)]
+    """System Administrators who may decide on this upload (not the uploader)."""
+    return [admin for admin in system_admins() if access.can_decide_upload(admin, record)]
 
 
 def _record_upload_events(user, record: DatasetUpload) -> None:
@@ -133,7 +144,8 @@ def _record_upload_events(user, record: DatasetUpload) -> None:
         notify(_reviewers(record), Notification.Type.DATASET_REVIEW, f"Upload awaiting review: {record.original_filename}",
                f"Submitted by {user.get_username()} with a supporting letter. "
                f"{record.n_records or 0} records, quality score {record.quality_score}/100.",
-               url=reverse("administration:upload_review", args=[record.pk]), actor=user)
+               url=reverse("administration:upload_review", args=[record.pk]), actor=user,
+               event_key=f"upload:{record.pk}:submitted")
     else:
         errors = record.validation_summary.get("errors") or []
         notify([user], Notification.Type.DATASET_INVALID, f"Dataset failed validation: {record.original_filename}",

@@ -12,6 +12,8 @@ plotly==6.9.0
 Django==5.2.17
 whitenoise==6.12.0
 gunicorn==26.2.0
+# Google sign-in (OAuth 2.0 / OpenID Connect); the extra pulls in requests and PyJWT[crypto]
+django-allauth[socialaccount]==65.19.7
 
 # Persistence & config
 joblib==1.5.3

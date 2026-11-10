@@ -1,0 +1,4 @@
+{# Which data a forecast run came from. Synthetic development runs must never pass for research results. #}
+{% if run.is_synthetic %}<span class="badge status-pill--synthetic" title="{{ run.results_label }}: not a Food4Education research result" data-testid="run-data-synthetic"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>Synthetic · development only</span>
+{% elif "FOOD4EDUCATION" in run.results_label %}<span class="badge status-pill--real" title="{{ run.results_label }}" data-testid="run-data-real">Food4Education</span>
+{% else %}<span class="badge bt-badge-neutral" title="{{ run.results_label }}">{{ run.results_label|truncatechars:28 }}</span>{% endif %}

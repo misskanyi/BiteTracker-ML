@@ -41,7 +41,7 @@
         <ul class="small">
           <li><strong>Predicted</strong>: model estimate. <strong>Recommended</strong>: prediction + safety buffer.</li>
           <li><strong>Risk</strong>: how uncertain the day is.</li>
-          <li>Can't foresee closures or one-off events. See <a href="{% url 'core:performance' %}">Model performance</a> for accuracy.</li>
+          <li>Can't foresee closures or one-off events.{% if IS_SYSTEM_ADMIN %} See <a href="{% url 'core:performance' %}">Model performance</a> for accuracy.{% endif %}</li>
         </ul>
       </details>
 

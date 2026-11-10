@@ -1,20 +1,23 @@
-{# Notification bell: unread count and the latest few notifications. Rendered with the page; no polling. #}
-<div class="dropdown">
+{% comment %}
+  Notification bell: unread count and the latest notifications. Rendered with the page, then kept
+  current by static/js/notifications.js, which polls notifications:feed and shows new ones as toasts.
+  Works without JavaScript (plain POST forms).
+{% endcomment %}
+<div class="dropdown" data-bt-notify data-feed-url="{% url 'notifications:feed' %}" data-latest-id="{{ NOTIFICATIONS_LATEST_ID }}"
+     data-user="{{ user.pk }}" data-mark-all-url="{% url 'notifications:mark_all_read' %}">
   <button type="button" class="bt-icon-btn bt-glass-button bt-bell" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
-          aria-label="Notifications{% if NOTIFICATIONS_UNREAD %}, {{ NOTIFICATIONS_UNREAD }} unread{% endif %}" data-testid="notification-bell">
+          aria-label="Notifications{% if NOTIFICATIONS_UNREAD %}, {{ NOTIFICATIONS_UNREAD }} unread{% endif %}" data-testid="notification-bell" data-notify-button>
     <i class="bi bi-bell" aria-hidden="true"></i>
-    {% if NOTIFICATIONS_UNREAD %}<span class="bt-bell__count" data-testid="unread-count">{% if NOTIFICATIONS_UNREAD > 99 %}99+{% else %}{{ NOTIFICATIONS_UNREAD }}{% endif %}</span>{% endif %}
+    <span class="bt-bell__count" data-testid="unread-count" data-notify-count{% if not NOTIFICATIONS_UNREAD %} hidden{% endif %}>{% if NOTIFICATIONS_UNREAD > 99 %}99+{% else %}{{ NOTIFICATIONS_UNREAD }}{% endif %}</span>
   </button>
   <div class="dropdown-menu dropdown-menu-end bt-menu bt-notify-menu">
     <div class="bt-notify-menu__head">
       <span class="fw-semibold">Notifications</span>
       <div class="bt-notify-menu__actions">
-        {% if NOTIFICATIONS_UNREAD %}
-        <form method="post" action="{% url 'notifications:mark_all_read' %}">
+        <form method="post" action="{% url 'notifications:mark_all_read' %}" data-notify-mark-all{% if not NOTIFICATIONS_UNREAD %} hidden{% endif %}>
           {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button type="submit" class="btn btn-link btn-sm p-0">Mark all read</button>
+          <button type="submit" class="btn btn-link btn-sm p-0" data-testid="mark-all-read">Mark all read</button>
         </form>
-        {% endif %}
         {% if NOTIFICATIONS_RECENT %}
         <form method="post" action="{% url 'notifications:clear_all' %}" data-confirm="Clear all notifications? This can't be undone.">
           {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -23,10 +26,11 @@
         {% endif %}
       </div>
     </div>
+    <div data-notify-panel>
     {% if NOTIFICATIONS_RECENT %}
     <ul class="list-unstyled mb-0 bt-notify-list">
       {% for n in NOTIFICATIONS_RECENT %}
-      <li class="bt-notify-item{% if not n.is_read %} is-unread{% endif %}">
+      <li class="bt-notify-item{% if not n.is_read %} is-unread{% endif %}" data-notification-id="{{ n.pk }}">
         <form method="post" action="{% url 'notifications:open' n.pk %}">
           {% csrf_token %}
           <button type="submit" class="bt-notify-item__button">
@@ -34,20 +38,29 @@
             <span class="bt-notify-item__body">
               <span class="bt-notify-item__title">{% if not n.is_read %}<span class="visually-hidden">Unread: </span>{% endif %}{{ n.title }}</span>
               {% if n.message %}<span class="bt-notify-item__message">{{ n.message|truncatechars:110 }}</span>{% endif %}
-              <span class="bt-notify-item__time">{{ n.created_at|timesince }} ago</span>
+              <span class="bt-notify-item__time"><time datetime="{{ n.created_at|date:'c' }}" title="{{ n.created_at|date:'j M Y, H:i' }}">{{ n.created_at|timesince }} ago</time>{% if n.url %} · <span class="bt-notify-item__dest">Open</span>{% endif %}</span>
             </span>
           </button>
         </form>
-        <form method="post" action="{% url 'notifications:delete' n.pk %}" class="bt-notify-item__dismiss">
-          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button type="submit" class="bt-dismiss" aria-label="Remove notification: {{ n.title }}" title="Remove"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-        </form>
+        <div class="bt-notify-item__tools">
+          {% if not n.is_read %}
+          <form method="post" action="{% url 'notifications:mark_read' n.pk %}" data-notify-read>
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="bt-dismiss" aria-label="Mark as read: {{ n.title }}" title="Mark as read"><i class="bi bi-check2" aria-hidden="true"></i></button>
+          </form>
+          {% endif %}
+          <form method="post" action="{% url 'notifications:delete' n.pk %}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="bt-dismiss" aria-label="Remove notification: {{ n.title }}" title="Remove"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+          </form>
+        </div>
       </li>
       {% endfor %}
     </ul>
     {% else %}
     <div class="empty-state py-4"><i class="bi bi-bell-slash"></i><p class="mb-0 small">You're all caught up.</p></div>
     {% endif %}
+    </div>
     <div class="bt-notify-menu__foot"><a href="{% url 'notifications:list' %}">View all notifications</a> · <a href="{% url 'accounts:settings' %}?tab=notifications">Preferences</a></div>
   </div>
 </div>

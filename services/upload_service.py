@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = (".csv", ".xlsx")
 
 VALID, INVALID, UNREADABLE = "valid", "invalid", "unreadable"
+MAX_SCHOOL_IDS = 500
 
 
 def _unreadable(message: str) -> dict:
@@ -49,6 +50,9 @@ def validate_dataset(file_bytes: bytes, filename: str) -> dict:
 
     report = validate_upload(df)
     n_schools = int(df[settings.SCHOOL_ID_COLUMN].nunique()) if settings.SCHOOL_ID_COLUMN in df.columns else None
+    # School codes only (no data rows), so access checks can confirm the uploader may submit for them.
+    school_ids = (sorted({str(v).strip() for v in df[settings.SCHOOL_ID_COLUMN].dropna()} - {""})[:MAX_SCHOOL_IDS]
+                  if settings.SCHOOL_ID_COLUMN in df.columns else [])
     return {
         "status": VALID if report.is_valid else INVALID,
         "errors": list(report.errors),
@@ -57,6 +61,7 @@ def validate_dataset(file_bytes: bytes, filename: str) -> dict:
         "n_columns": int(len(df.columns)),
         "columns": [str(c) for c in df.columns],
         "n_schools": n_schools,
+        "school_ids": school_ids,
         "date_range": list(report.date_range) if report.date_range else None,
         "coverage_months": report.coverage_months,
         "missing_values": report.missing_values,

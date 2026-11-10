@@ -42,6 +42,9 @@
       <div class="card-body"><p class="small text-muted mb-0">No users are assigned to this school.</p></div>
       {% endif %}
       <div class="card-footer">
+        {% if unavailable_reason %}
+        <p class="small mb-0" data-testid="school-unavailable"><span class="badge status-pill--synthetic me-1">Unavailable</span>Users can't be newly assigned to this school ({{ unavailable_reason }}). Existing assignments are kept until you remove them.</p>
+        {% else %}
         <form method="post" class="d-flex flex-wrap gap-2 align-items-end" novalidate>
           {% csrf_token %}<input type="hidden" name="action" value="assign">
           <div class="flex-grow-1">
@@ -51,6 +54,8 @@
           </div>
           <button type="submit" class="btn btn-primary btn-sm">Assign</button>
         </form>
+        {% for e in form.non_field_errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        {% endif %}
       </div>
     </section>
   </div>

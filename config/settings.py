@@ -7,11 +7,15 @@ regardless of the current working directory the app/scripts are run from.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# The local .env (credentials, live data URLs) is not loaded under pytest, so tests never depend
+# on, or act on, a developer's secrets. BITETRACKER_SKIP_DOTENV=1 does the same elsewhere.
+if "pytest" not in sys.modules and not os.getenv("BITETRACKER_SKIP_DOTENV"):
+    load_dotenv()
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 

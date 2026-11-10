@@ -31,7 +31,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -63,11 +62,15 @@ def logged_in(client, user):
 
 @pytest.fixture
 def uploader(client, db):
-    staff = get_user_model().objects.create_user("data_officer", password=PASSWORD)
-    staff.user_permissions.add(
-        Permission.objects.get(codename="add_datasetupload"), Permission.objects.get(codename="view_datasetupload")
-    )
-    client.force_login(staff)
+    """A School Manager assigned to the stub schools: uploads need that role (or System Administrator)."""
+    client.force_login(operator("data_officer"))
+    return client
+
+
+@pytest.fixture
+def admin_logged_in(client, db):
+    """Model evaluation is a System Administrator page."""
+    client.force_login(get_user_model().objects.create_superuser("evaluator", password=PASSWORD))
     return client
 
 
@@ -121,10 +124,13 @@ def test_dashboard_shows_schools_model_chart_and_status(logged_in, stub_artifact
     assert response.status_code == 200
     for name in ("Greenfield Primary", "Riverside Primary", "Highlands Academy"):
         assert name in html
-    assert 'data-testid="model-name">Linear Regression<' in html  # from metadata, not hardcoded
+    assert 'data-testid="model-card"' not in html  # model evaluation is administrator-only
     assert 'id="dashboard-history-chart"' in html
     assert "Synthetic" in html and "SYNTHETIC DEVELOPMENT DATA" in html
     assert "No forecasts yet" in html
+    logged_in.force_login(get_user_model().objects.create_superuser("dash_admin", password="Str0ng-test-passw0rd!"))
+    admin_html = logged_in.get(reverse("core:dashboard")).content.decode()
+    assert 'data-testid="model-name">Linear Regression<' in admin_html  # from metadata, not hardcoded
 
 
 def test_dashboard_lists_recent_forecast_runs(logged_in, stub_artifacts):
@@ -340,8 +346,8 @@ def test_real_model_forecast_through_django(logged_in, real_artifacts):
 # --- Model performance ------------------------------------------------------------------------------
 
 
-def test_performance_page_shows_saved_metrics(logged_in, stub_artifacts):
-    html = logged_in.get(reverse("core:performance")).content.decode()
+def test_performance_page_shows_saved_metrics(admin_logged_in, stub_artifacts):
+    html = admin_logged_in.get(reverse("core:performance")).content.decode()
     assert "SYNTHETIC DEVELOPMENT RESULTS" in html
     assert 'data-testid="selected-model">Linear Regression' in html
     assert 'data-testid="validation-mae">11.00<' in html
@@ -353,8 +359,8 @@ def test_performance_page_shows_saved_metrics(logged_in, stub_artifacts):
     assert 'id="baselines-chart"' in html
 
 
-def test_real_performance_page_never_calls_r2_accuracy(logged_in, real_artifacts):
-    html = logged_in.get(reverse("core:performance")).content.decode()
+def test_real_performance_page_never_calls_r2_accuracy(admin_logged_in, real_artifacts):
+    html = admin_logged_in.get(reverse("core:performance")).content.decode()
     r2 = real_artifacts.metadata["final_test_r2"]
     assert f"{r2:.3f}" in html
     assert f"{r2 * 100:.1f}%" not in html
@@ -362,9 +368,9 @@ def test_real_performance_page_never_calls_r2_accuracy(logged_in, real_artifacts
     assert "unequivocally the best model" in html  # selection caveat shown when folds vary
 
 
-def test_performance_missing_artifacts_shows_friendly_error(logged_in, stub_artifacts):
+def test_performance_missing_artifacts_shows_friendly_error(admin_logged_in, stub_artifacts):
     stub_artifacts.naive_metrics_path.unlink()
-    response = logged_in.get(reverse("core:performance"))
+    response = admin_logged_in.get(reverse("core:performance"))
     assert b'data-testid="performance-error"' in response.content
     assert _no_paths(response.content)
 
@@ -384,11 +390,17 @@ def _valid_upload_frame(stub_artifacts) -> pd.DataFrame:
     return stub_artifacts.frame[["date", "school_id", "school_name", "meals_served", "students_present", "enrolled_students"]].head(80)
 
 
-def test_upload_requires_permission(logged_in, stub_artifacts):
-    response = logged_in.get(reverse("schools:upload"))
+def test_upload_requires_school_manager_or_admin(client, stub_artifacts):
+    from web.accounts import access
+    from web.accounts.models import Role
+
+    stakeholder = operator("stakeholder")
+    access.set_role(stakeholder, Role.PLANNING_STAKEHOLDER)
+    client.force_login(stakeholder)
+    response = client.get(reverse("schools:upload"))
     assert response.status_code == 403
     assert b'data-testid="error-403"' in response.content
-    assert logged_in.post(reverse("schools:upload"), {"file": _csv_upload(_valid_upload_frame(stub_artifacts)), "letter": _letter()}).status_code == 403
+    assert client.post(reverse("schools:upload"), {"file": _csv_upload(_valid_upload_frame(stub_artifacts)), "letter": _letter()}).status_code == 403
     assert DatasetUpload.objects.count() == 0
 
 

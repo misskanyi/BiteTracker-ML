@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% comment %}
+  Shown only if someone opens the Google sign-in URL directly (GET). Starting the flow needs a
+  CSRF-protected POST (SOCIALACCOUNT_LOGIN_ON_GET = False), so this page asks for one click.
+{% endcomment %}
+{% block title %}{% if process == "connect" %}Link Google{% else %}Continue with Google{% endif %}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-sm-10 col-md-6 col-lg-4">
+    <div class="card shadow-sm"><div class="card-body p-4 text-center">
+      {% include "partials/_brand.html" with variant="stacked" %}
+      <h1 class="h5 mt-2">{% if process == "connect" %}Link your Google account{% else %}Continue with Google{% endif %}</h1>
+      <p class="small text-muted">You'll be sent to Google to confirm who you are, then brought back to BiteTracker.</p>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn bt-google-btn w-100">Continue to Google</button>
+      </form>
+      <a class="btn btn-link btn-sm mt-2" href="{% url 'accounts:login' %}">Cancel</a>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

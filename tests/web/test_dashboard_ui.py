@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from tests.support.service_fixtures import stub_metadata
@@ -95,17 +96,24 @@ def test_no_baseline_note_when_model_beats_every_baseline(logged_in, stub_artifa
     assert 'data-testid="baseline-note"' not in _dashboard(logged_in)
 
 
-def test_baseline_note_when_a_baseline_beats_the_model_on_test_mae(logged_in, stub_artifacts):
+@pytest.fixture
+def admin_logged_in(client, db):
+    """Model evaluation (the dashboard model card) is for System Administrators only."""
+    client.force_login(get_user_model().objects.create_superuser("evaluator_admin", password="Str0ng-test-passw0rd!"))
+    return client
+
+
+def test_baseline_note_when_a_baseline_beats_the_model_on_test_mae(admin_logged_in, stub_artifacts):
     metadata = stub_metadata()
     metadata["naive_baseline_comparison"][0]["Baseline Test MAE"] = 8.5  # Persistence beats model's 10.0
     stub_artifacts.write_metadata(metadata)
-    html = _dashboard(logged_in)
+    html = _dashboard(admin_logged_in)
     assert 'data-testid="baseline-note"' in html
     assert "<strong>Persistence / Last Observation</strong> had a lower MAE (8.5 vs 10.0 meals)" in html
 
 
-def test_model_card_separates_validation_and_test_metrics(logged_in, stub_artifacts):
-    html = _dashboard(logged_in)
+def test_model_card_separates_validation_and_test_metrics(admin_logged_in, stub_artifacts):
+    html = _dashboard(admin_logged_in)
     assert "Validation · training period" in html and "Held-out test period" in html
     assert "accuracy" not in html.lower()
 

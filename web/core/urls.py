@@ -12,4 +12,5 @@ urlpatterns = [
     path("forecast/runs/<int:pk>/", views.forecast_run, name="forecast_run"),
     path("performance/", views.performance, name="performance"),
     path("donors/", views.donors, name="donors"),
+    path("privacy/", views.privacy, name="privacy"),
 ]

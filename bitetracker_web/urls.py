@@ -12,6 +12,7 @@ urlpatterns = [
     path("health/", health, name="health"),
     path("admin/", admin.site.urls),
     path("accounts/", include("web.accounts.urls")),
+    path("auth/", include("web.accounts.oauth_urls")),
     path("data/", include("web.schools.urls")),
     path("calendar/", include("web.schoolcalendar.urls")),
     path("notifications/", include("web.notifications.urls")),

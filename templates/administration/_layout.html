@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-{% include "partials/_page_header.html" with title="Administration" icon="bi-people" subtitle=admin_subtitle|default:"Manage accounts, schools and the activity log." %}
+{% include "partials/_page_header.html" with title="Administration" icon="bi-people" subtitle=admin_subtitle|default:"Approve registrations, manage accounts and schools, verify uploads." %}
 <nav class="bt-tabs mb-4" aria-label="Administration sections">
-  {% for t in admin_tabs %}<a class="bt-tabs__link{% if t.active %} is-active{% endif %}" href="{{ t.url }}"{% if t.active %} aria-current="page"{% endif %}><i class="bi {{ t.icon }}" aria-hidden="true"></i>{{ t.label }}</a>{% endfor %}
+  {% for t in admin_tabs %}<a class="bt-tabs__link{% if t.active %} is-active{% endif %}" href="{{ t.url }}"{% if t.active %} aria-current="page"{% endif %}><i class="bi {{ t.icon }}" aria-hidden="true"></i>{{ t.label }}{% if t.count %} <span class="badge rounded-pill bt-badge-primary ms-1" data-testid="tab-count-{{ t.key }}">{{ t.count }}<span class="visually-hidden"> pending</span></span>{% endif %}</a>{% endfor %}
 </nav>
 {% block admin_content %}{% endblock %}
 {% endblock %}

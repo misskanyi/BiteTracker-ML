@@ -70,6 +70,7 @@ class DatasetUpload(models.Model):
         PENDING = "pending", "Awaiting review"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+        CLARIFICATION = "clarification", "Clarification requested"
 
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="dataset_uploads"
@@ -146,3 +147,8 @@ class ForecastRun(models.Model):
 
     def __str__(self) -> str:
         return f"{self.school_code} · {self.get_horizon_days_display()} · {self.created_at:%Y-%m-%d %H:%M}"
+
+    @property
+    def is_synthetic(self) -> bool:
+        """Produced by a model trained on synthetic development data (not a research result)."""
+        return "SYNTHETIC" in (self.results_label or "").upper()

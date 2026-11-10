@@ -11,6 +11,7 @@ import logging
 from datetime import timedelta
 from urllib.parse import urlencode
 
+from django.contrib.auth.decorators import login_not_required
 from django.core.paginator import Paginator
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -18,7 +19,8 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from config import settings as ml_settings
-from services import ServiceError, data_service, donor_service, forecast_service, model_service, performance_service, planning_service
+from services import (ServiceError, data_service, donor_service, forecast_service, model_service, performance_service,
+                      planning_service, status_service)
 from web.accounts import access
 from web.core import charts
 from web.core.errors import user_message
@@ -32,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 NO_SCHOOLS_MESSAGE = (
     "No schools are assigned to your account yet, so there is no school data to show. "
-    "Ask a Programme Admin or System Admin to assign your schools."
+    "Ask a System Administrator to assign your schools."
 )
 
 DEFAULT_HISTORY_DAYS = 90
@@ -60,15 +62,48 @@ def _baselines_beating_model(metadata: dict) -> list[dict]:
 
 
 def _visible_runs(user):
-    """Forecast runs for the schools the user may see (all runs for System Admins)."""
+    """Forecast runs the user may open.
+
+    System Administrators: every run (synthetic runs are labelled in the UI).
+    Everyone else: runs for their assigned schools only and, unless the active model is itself
+    synthetic, never synthetic development runs, so old test forecasts are not mistaken for
+    research results.
+    """
     runs = ForecastRun.objects.select_related("user")
     codes = access.accessible_school_codes(user)
-    return runs if codes is None else runs.filter(school_code__in=codes)
+    if codes is None:
+        return runs
+    runs = runs.filter(school_code__in=codes)
+    if status_service.get_data_status()["kind"] != "synthetic":
+        runs = runs.exclude(results_label__icontains="SYNTHETIC")
+    return runs
 
 
 def _schools_for(user) -> list[dict]:
     """Dataset schools within the user's scope. Raises ServiceError if the data is unavailable."""
     return access.filter_school_records(user, data_service.list_schools())
+
+
+def _no_school_data_message(user) -> str:
+    """Why a non-administrator sees no school data: no assignments, or assignments with no records
+    in the active dataset (e.g. a legacy synthetic school)."""
+    assigned = list(access.accessible_schools(user).order_by("name", "school_id"))
+    if not assigned:
+        return NO_SCHOOLS_MESSAGE
+    names = ", ".join(f"{s.name or s.school_id} ({s.school_id})" for s in assigned)
+    return (
+        f"Your assigned school{'s' if len(assigned) > 1 else ''} ({names}) "
+        f"{'have' if len(assigned) > 1 else 'has'} no records in the active dataset, so there is no school "
+        "data to show. Ask a System Administrator to assign a school from the active dataset."
+    )
+
+
+def _assigned_schools_not_in_dataset(user, shown: list[dict]) -> list[School]:
+    """Assigned school records (non-administrators) whose exact ID isn't among the dataset schools shown."""
+    if access.is_system_admin(user):
+        return []
+    shown_codes = {s["school_id"] for s in shown}
+    return list(access.accessible_schools(user).exclude(school_id__in=shown_codes).order_by("name", "school_id"))
 
 
 def dashboard(request):
@@ -77,12 +112,17 @@ def dashboard(request):
         context.update(_dashboard_data(request.user))
     except ServiceError as exc:
         context["data_error"] = user_message(exc)
-    try:
-        metadata = model_service.load_model_metadata()
-        context["model_metadata"] = metadata
-        context["baselines_beating_model"] = _baselines_beating_model(metadata)
-    except ServiceError as exc:
-        context["model_error"] = user_message(exc)
+    if "schools" in context:  # some data shown: still say which assigned schools are not in the dataset
+        context["unavailable_schools"] = _assigned_schools_not_in_dataset(request.user, context["schools"])
+    # Model evaluation (metrics, baselines, performance link) is for System Administrators only.
+    context["show_model_card"] = access.can_view_model_evaluation(request.user)
+    if context["show_model_card"]:
+        try:
+            metadata = model_service.load_model_metadata()
+            context["model_metadata"] = metadata
+            context["baselines_beating_model"] = _baselines_beating_model(metadata)
+        except ServiceError as exc:
+            context["model_error"] = user_message(exc)
     return render(request, "core/dashboard.html", context)
 
 
@@ -90,7 +130,7 @@ def _dashboard_data(user) -> dict:
     """Demand figures for the user's schools only."""
     summary = access.filter_school_records(user, data_service.recent_demand_summary())
     if not summary:
-        return {"data_error": NO_SCHOOLS_MESSAGE}
+        return {"data_error": _no_school_data_message(user)}
     date_range = data_service.get_date_range()
     latest = date_range["end"]
     reporting = [s for s in summary if s["latest_date"] == latest]
@@ -125,7 +165,7 @@ def history(request):
     except ServiceError as exc:
         return render(request, "core/history.html", {"data_error": user_message(exc)})
     if not schools:
-        return render(request, "core/history.html", {"data_error": NO_SCHOOLS_MESSAGE})
+        return render(request, "core/history.html", {"data_error": _no_school_data_message(request.user)})
 
     form = HistoryFilterForm(request.GET or None, schools=schools)
     context = {"form": form}
@@ -194,7 +234,7 @@ def forecast(request):
     except ServiceError as exc:
         return render(request, "core/forecast.html", {"data_error": user_message(exc)})
     if not schools:
-        return render(request, "core/forecast.html", {"data_error": NO_SCHOOLS_MESSAGE})
+        return render(request, "core/forecast.html", {"data_error": _no_school_data_message(request.user)})
 
     if request.method == "POST":
         form = ForecastForm(request.POST, schools=schools)
@@ -324,6 +364,7 @@ def forecast_history(request):
     })
 
 
+@access.model_evaluation_required
 def performance(request):
     try:
         perf = performance_service.get_model_performance()
@@ -342,5 +383,16 @@ def donors(request):
     except ServiceError as exc:
         return render(request, "core/donors.html", {"data_error": user_message(exc)})
     if not impact["schools"]:
-        return render(request, "core/donors.html", {"data_error": NO_SCHOOLS_MESSAGE})
+        return render(request, "core/donors.html", {"data_error": _no_school_data_message(request.user)})
     return render(request, "core/donors.html", {"impact": impact, "chart": charts.donor_reach_chart(impact["schools"])})
+
+
+@login_not_required
+def privacy(request):
+    """Public privacy notice. Not served (404) until every owner-confirmed and server-verified fact
+    in web/core/privacy.py is filled in, so it is never published with gaps."""
+    from web.core import privacy as notice
+
+    if not notice.is_published():
+        raise Http404("The privacy notice has not been published yet.")
+    return render(request, "core/privacy.html", {"facts": notice.FACTS, "contact_email": notice.CONTACT_EMAIL})

@@ -75,13 +75,13 @@
         </dl>
         <h3 class="bt-subheading mt-3">Assigned schools</h3>
         {% if schools is None %}
-          <p class="small mb-0">System Admins can work with every school.</p>
+          <p class="small mb-0">System Administrators can work with every school.</p>
         {% elif schools %}
           <ul class="list-unstyled mb-0 bt-school-list" data-testid="profile-schools">
             {% for school in schools %}<li><i class="bi bi-building me-2" aria-hidden="true"></i>{{ school.name|default:school.school_id }} <span class="text-muted small">({{ school.school_id }})</span></li>{% endfor %}
           </ul>
         {% else %}
-          <p class="small text-muted mb-0">No schools are assigned to you yet. Ask a Programme Admin or System Admin.</p>
+          <p class="small text-muted mb-0">No schools are assigned to you yet. Ask a System Administrator.</p>
         {% endif %}
         <p class="bt-footnote mt-3 mb-0">Role and school assignments are managed by administrators.</p>
       </div>

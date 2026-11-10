@@ -1,5 +1,5 @@
-"""Administration forms. Choices are built from the acting administrator's own scope, so a
-Programme Admin cannot even submit a higher role or another programme's school."""
+"""Administration forms (System Administrators only). Role and school choices still come from
+the acting user's scope in web.accounts.access, so a crafted POST can't submit anything else."""
 
 from __future__ import annotations
 
@@ -10,9 +10,22 @@ from web.accounts import access
 from web.accounts.forms import PHONE_RE
 from web.accounts.models import Role
 from web.audit.models import AuditLog
+from web.schools import eligibility
 from web.schools.models import DatasetUpload, School
 
 _text = {"class": "form-control"}
+
+SCHOOLS_HELP = "Only schools in the active dataset can be assigned."
+DATASET_UNAVAILABLE_ERROR = ("The active dataset could not be read, so schools can't be assigned right now. "
+                             "Try again once the data is available.")
+
+
+def _setup_eligible_schools(field, admin, codes) -> None:
+    """New assignments: schools in the admin's scope whose exact ID is in the active dataset.
+    The queryset is also the server-side validation, so a crafted POST can't pick anything else."""
+    field.queryset = eligibility.eligible_schools(access.accessible_schools(admin), codes).order_by("name", "school_id")
+    field.label_from_instance = eligibility.school_label
+    field.help_text = SCHOOLS_HELP if codes is not None else DATASET_UNAVAILABLE_ERROR
 
 
 class _UserFieldsMixin:
@@ -20,11 +33,9 @@ class _UserFieldsMixin:
 
     def _setup_scope_fields(self, admin, target=None):
         self.admin, self.target = admin, target
+        self.dataset_codes = eligibility.active_dataset_school_codes()
         self.fields["role"].choices = access.assignable_roles(admin)
-        self.fields["schools"].queryset = access.accessible_schools(admin).order_by("name", "school_id")
-        if access.is_programme_admin(admin):
-            self.fields["schools"].required = True
-            self.fields["schools"].help_text = "School Operators you manage must have at least one of your schools."
+        _setup_eligible_schools(self.fields["schools"], admin, self.dataset_codes)
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip()
@@ -62,7 +73,7 @@ class UserCreateForm(_UserFieldsMixin, forms.Form):
     def __init__(self, *args, admin, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_scope_fields(admin)
-        self.fields["role"].initial = Role.SCHOOL_OPERATOR
+        self.fields["role"].initial = Role.SCHOOL_MANAGER
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
@@ -95,19 +106,43 @@ class UserEditForm(_UserFieldsMixin, forms.Form):
     role = forms.ChoiceField(widget=forms.Select(attrs={"class": "form-select"}))
     schools = forms.ModelMultipleChoiceField(queryset=School.objects.none(), required=False,
                                              widget=forms.CheckboxSelectMultiple)
+    keep_unavailable = forms.ModelMultipleChoiceField(
+        label="Existing assignments to unavailable schools", queryset=School.objects.none(), required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="These schools can't be newly assigned. They stay assigned while ticked; untick to remove one.",
+    )
 
     def __init__(self, *args, admin, target, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_scope_fields(admin, target)
+        # Current assignments (within the admin's scope) that are not eligible today. Shown, never
+        # dropped silently: they are kept unless the administrator unticks them.
+        eligible_ids = set(self.fields["schools"].queryset.values_list("pk", flat=True))
+        unavailable = (access.accessible_schools(admin).filter(assignments__user=target)
+                       .exclude(pk__in=eligible_ids).distinct().order_by("name", "school_id"))
+        if unavailable.exists():
+            field = self.fields["keep_unavailable"]
+            field.queryset = unavailable
+            codes = self.dataset_codes
+            field.label_from_instance = (
+                lambda s: f"{eligibility.school_label(s)} · {eligibility.unavailable_reason(s, codes)}")
+            if not self.is_bound:
+                field.initial = list(unavailable)
+        else:
+            del self.fields["keep_unavailable"]
         if target.pk == admin.pk:
             # Nobody changes their own role.
             del self.fields["role"]
+
+    def assigned_schools(self) -> list:
+        """The full assignment set to save: newly chosen eligible schools plus kept unavailable ones."""
+        return [*self.cleaned_data["schools"], *self.cleaned_data.get("keep_unavailable", [])]
 
     def clean_role(self):
         role = self.cleaned_data["role"]
         was_sysadmin = access.role_of(self.target) == Role.SYSTEM_ADMIN
         if was_sysadmin and role != Role.SYSTEM_ADMIN and self.target.is_active and access.active_system_admin_count() <= 1:
-            raise forms.ValidationError("This is the only active System Admin, so their role cannot be changed.")
+            raise forms.ValidationError("This is the only active System Administrator, so their role cannot be changed.")
         return role
 
 
@@ -132,11 +167,18 @@ class AssignUserForm(forms.Form):
 
     def __init__(self, *args, admin, school, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["user"].queryset = (
-            access.manageable_users(admin).filter(is_active=True).exclude(school_assignments__school=school)
-            .order_by("first_name", "last_name", "username")
-        )
+        # Only eligible schools take new users; existing assignments can still be removed on the page.
+        self.unavailable_reason = eligibility.unavailable_reason(school, eligibility.active_dataset_school_codes())
+        users = access.manageable_users(admin).filter(is_active=True).exclude(school_assignments__school=school)
+        self.fields["user"].queryset = (users.none() if self.unavailable_reason else users).order_by(
+            "first_name", "last_name", "username")
         self.fields["user"].label_from_instance = lambda u: f"{u.get_full_name() or u.username} ({u.username})"
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.unavailable_reason:
+            raise forms.ValidationError(f"Users can't be newly assigned to this school: {self.unavailable_reason}.")
+        return cleaned
 
 
 class AnnouncementForm(forms.Form):
@@ -163,17 +205,64 @@ class LogFilterForm(forms.Form):
 
 class UploadReviewForm(forms.Form):
     decision = forms.ChoiceField(
-        choices=[(DatasetUpload.ReviewStatus.APPROVED, "Approve"), (DatasetUpload.ReviewStatus.REJECTED, "Reject")],
+        choices=[(DatasetUpload.ReviewStatus.APPROVED, "Approve"),
+                 (DatasetUpload.ReviewStatus.CLARIFICATION, "Request clarification"),
+                 (DatasetUpload.ReviewStatus.REJECTED, "Reject")],
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
     )
     comment = forms.CharField(
         label="Comment to the uploader", required=False, max_length=2000,
-        help_text="Required when rejecting: say what is wrong with the data or the letter.",
+        help_text="Required when rejecting or asking for clarification: say what is wrong or what you need.",
         widget=forms.Textarea(attrs={**_text, "rows": 3}),
     )
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("decision") == DatasetUpload.ReviewStatus.REJECTED and not cleaned.get("comment", "").strip():
-            self.add_error("comment", "Explain why the upload is rejected.")
+        decision = cleaned.get("decision")
+        if not cleaned.get("comment", "").strip():
+            if decision == DatasetUpload.ReviewStatus.REJECTED:
+                self.add_error("comment", "Explain why the upload is rejected.")
+            elif decision == DatasetUpload.ReviewStatus.CLARIFICATION:
+                self.add_error("comment", "Say what the uploader needs to clarify.")
         return cleaned
+
+
+# --- Registration (access) requests -------------------------------------------------------------
+
+
+class AccessApproveForm(forms.Form):
+    """Approval must grant exactly one role and, for non-administrators, at least one school."""
+
+    role = forms.ChoiceField(choices=Role.choices, widget=forms.Select(attrs={"class": "form-select"}))
+    schools = forms.ModelMultipleChoiceField(
+        queryset=School.objects.none(), required=False, widget=forms.CheckboxSelectMultiple,
+        help_text="School Managers and Resource Planning Stakeholders see only these schools.",
+    )
+    note = forms.CharField(label="Note for the audit record", required=False, max_length=1000,
+                           widget=forms.TextInput(attrs=_text))
+
+    def __init__(self, *args, admin, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].choices = access.assignable_roles(admin)
+        self.dataset_codes = eligibility.active_dataset_school_codes()
+        _setup_eligible_schools(self.fields["schools"], admin, self.dataset_codes)
+        self.fields["schools"].help_text = (
+            f"School Managers and Resource Planning Stakeholders see only these schools. {SCHOOLS_HELP}"
+            if self.dataset_codes is not None else DATASET_UNAVAILABLE_ERROR)
+
+    def clean(self):
+        cleaned = super().clean()
+        role = cleaned.get("role")
+        if role and role != Role.SYSTEM_ADMIN and not cleaned.get("schools"):
+            self.add_error("schools", DATASET_UNAVAILABLE_ERROR if self.dataset_codes is None
+                           else "Assign at least one school for this role.")
+        if role == Role.SYSTEM_ADMIN:
+            cleaned["schools"] = []  # System Administrators see every school
+        return cleaned
+
+
+class AccessRejectForm(forms.Form):
+    reason = forms.CharField(
+        label="Reason (kept in the audit record, not shown to the applicant)", max_length=1000,
+        widget=forms.Textarea(attrs={**_text, "rows": 2}),
+    )

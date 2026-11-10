@@ -4,12 +4,17 @@ Django's built-in User model is kept unchanged. Everything BiteTracker adds abou
 a person lives in `UserProfile` (one row per user, created automatically) and
 `SchoolAssignment` (which schools a user may work with).
 
-Roles:
-- School Operator: assigned schools only.
-- Programme Admin: the schools assigned to them form their programme; they manage
-  School Operators within it.
-- System Admin: every school and every account. Kept in sync with Django's
-  `is_superuser` flag, so existing superusers are System Admins.
+Roles (as defined in the project documentation):
+- School Manager: their assigned schools only. Views history, generates forecasts,
+  uploads school records for verification.
+- Resource Planning Stakeholder: read-only access to the schools assigned to them,
+  for comparing schools and planning resources.
+- System Administrator: every school and every account. Approves registrations,
+  assigns roles and schools, verifies uploads. Kept in sync with Django's
+  `is_superuser` flag, so existing superusers are System Administrators.
+
+`AccessRequest` records a self-registration (Google sign-in) and the administrator's
+decision. Accounts created by an administrator have no request and are approved.
 """
 
 from __future__ import annotations
@@ -24,9 +29,9 @@ from web.schools.models import School
 
 
 class Role(models.TextChoices):
-    SCHOOL_OPERATOR = "school_operator", "School Operator"
-    PROGRAMME_ADMIN = "programme_admin", "Programme Admin"
-    SYSTEM_ADMIN = "system_admin", "System Admin"
+    SCHOOL_MANAGER = "school_manager", "School Manager"
+    PLANNING_STAKEHOLDER = "planning_stakeholder", "Resource Planning Stakeholder"
+    SYSTEM_ADMIN = "system_admin", "System Administrator"
 
 
 def avatar_upload_path(instance: UserProfile, filename: str) -> str:
@@ -45,7 +50,7 @@ class UserProfile(models.Model):
         FORECAST = "forecast", "Forecasts"
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    role = models.CharField(max_length=20, choices=Role.choices, default=Role.SCHOOL_OPERATOR)
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.SCHOOL_MANAGER)
     phone = models.CharField(max_length=20, blank=True)
     avatar = models.FileField(upload_to=avatar_upload_path, blank=True, help_text="Stored under data/uploads/avatars/.")
 
@@ -61,6 +66,9 @@ class UserProfile(models.Model):
     notify_dataset_validation = models.BooleanField("Dataset validation errors", default=True)
     notify_calendar = models.BooleanField("School calendar updates", default=True)
     notify_announcements = models.BooleanField("Important system announcements", default=True)
+    # Optional email (System Administrators): new registration requests. Account and security
+    # emails about the user's own account are essential and are always sent.
+    email_access_requests = models.BooleanField("Email me new registration requests", default=True)
 
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -82,3 +90,41 @@ class SchoolAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.get_username()} → {self.school}"
+
+
+class AccessRequest(models.Model):
+    """A self-registration waiting for, or decided by, a System Administrator.
+
+    One per user: signing in again never creates a second request. The row is kept
+    after a decision as the audit record of who decided what, and when.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending approval"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="access_request")
+    provider = models.CharField(max_length=30, default="google")
+    # Copied at registration from the provider's verified identity, so the record stays readable.
+    email = models.EmailField()
+    full_name = models.CharField(max_length=300, blank=True)
+    requested_role = models.CharField(max_length=30, choices=Role.choices, blank=True)
+    applicant_note = models.CharField(
+        "note from applicant", max_length=500, blank=True,
+        help_text="Optional: the school(s) or organisation the applicant works with.",
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    granted_role = models.CharField(max_length=30, choices=Role.choices, blank=True)
+    decision_note = models.CharField(max_length=1000, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self) -> str:
+        return f"{self.email} ({self.get_status_display()})"

@@ -195,22 +195,34 @@ BiteTracker is a Django web application. Every page except the login page requir
 
 | Page | URL | What it does |
 |---|---|---|
-| Login / logout | `/accounts/login/` | Django authentication. Logout is a POST form (CSRF-protected). |
+| Login / logout | `/accounts/login/` | Username/email + password, or **Continue with Google** (when configured). Logout is a POST form (CSRF-protected). |
+| Registration status | `/accounts/access/` | What a Google applicant sees while pending, or after being rejected or suspended |
 | Dashboard | `/` | Data status (synthetic/real), number of schools, latest recorded day, recent demand per school, the selected model (read from its metadata), a quick-forecast form, a meals-served chart for all schools, and recent forecast runs |
 | Historical demand | `/history/` | Choose a school and date range; summary figures, a trend chart and a paginated table of daily records |
 | Forecast & planning | `/forecast/` | Choose a school and horizon (next school day, next 7 school days, next 30 school days) and optional assumptions; generates the forecast and planning recommendation |
 | Forecast result | `/forecast/runs/<id>/` | Predicted demand and recommended preparation (shown separately), safety buffer, risk level, estimated cost, optional capacity comparison, chart, day-by-day table, assumptions and forecast origin date |
 | Forecast history | `/forecast/runs/` | Every forecast generated through the app, filterable by school |
-| Model performance | `/performance/` | Selected model, how it was selected, validation and held-out test metrics, and comparison with the two naive baselines |
-| Data upload | `/data/upload/` | Upload a CSV/XLSX file, validate it and record the result (users with the upload permission only) |
+| Model performance | `/performance/` | Selected model, how it was selected, validation and held-out test metrics, and comparison with the two naive baselines (System Administrators only) |
+| Data upload | `/data/upload/` | Upload a CSV/XLSX file for your assigned schools with a supporting letter, for administrator verification (School Managers and System Administrators) |
+| Administration | `/administration/` | Access requests, users, schools, upload verification, activity logs, support issues, announcements (System Administrators only) |
+| Notifications | `/notifications/` | Every notification; the header bell and pop-up toasts update every 20 seconds |
 | Admin | `/admin/` | Django Admin for schools, upload records, forecast records and users (staff only) |
 
 ### Authentication and access
 
-- Django's built-in authentication (`django.contrib.auth`). `LoginRequiredMiddleware` protects every page except the login page.
-- There is no self-registration. An administrator creates accounts in Django Admin (or with `createsuperuser`).
-- Dataset upload requires the `schools.add_datasetupload` permission. Django Admin requires staff status.
-- The project-design roles (School Manager, Resource Planning Stakeholder, System Administrator) are **not** set up as Django groups yet; access is controlled with Django's user, staff and permission flags.
+- Django's built-in authentication (`django.contrib.auth`). `LoginRequiredMiddleware` protects every page except login, the registration-status page and the Google sign-in routes.
+- Every account has one of the three project roles (`web/accounts/models.py`, enforced server-side in `web/accounts/access.py`):
+
+| Role | Can | Cannot |
+|---|---|---|
+| **School Manager** | Dashboard, history, 1/7/30-day forecasts, planning and budget for their **assigned schools**; upload records and letters for those schools; edit their schools' calendar | See other schools; approve users; verify uploads; see model evaluation or audit logs |
+| **Resource Planning Stakeholder** | View history, forecasts and planning for, and compare, their **assigned schools**; generate forecasts (computed, not saved to school data) | Change any school data (uploads, calendar); approve users; change roles; verify uploads |
+| **System Administrator** | Everything above for every school; approve/reject registrations; assign roles and schools; suspend/reactivate accounts; verify uploads; model performance; audit logs | Demote or suspend themselves, or the last System Administrator |
+
+- School scope is applied to every query (dashboard, history, forecasts, forecast runs, donors, calendar, uploads, files). Changing an id in a URL returns 404; a forbidden action returns 403.
+- **Google sign-in with approval** (django-allauth, `web/accounts/adapters.py`): the first sign-in creates an *inactive* account and a pending **access request**, and notifies System Administrators. Nothing is granted until an administrator approves it on *Administration → Access requests* with a role and schools. Pending, rejected and suspended people see `/accounts/access/` and never get a session. Google must report the email as verified; a Google identity whose email belongs to an existing account is **not** merged automatically — that user signs in with their password and links Google in *Settings → Security*.
+- Accounts created by an administrator (Administration, Django Admin or `createsuperuser`) are approved immediately. Existing accounts were kept as they were; migration `accounts.0003` renamed the stored roles (School Operator → School Manager, Programme Admin → Resource Planning Stakeholder).
+- Django Admin requires staff status (System Administrators).
 
 ### Forecast & planning
 
@@ -658,7 +670,6 @@ An AWS EC2 deployment (Nginx, Gunicorn, systemd, SQLite in a persistent state di
 ## Future Improvements
 
 - Add the missing real-data inputs (real school calendar, weather source, exam/event dates) for the Food4Education dataset, then retrain and re-evaluate against the persistence baseline.
-- Add Django groups for the School Manager, Resource Planning Stakeholder and System Administrator roles.
 - Add an administrator review and approval step so that verified uploads can join the training data.
 - Compare forecasts with verified enrolment as a planning reference.
 - Expose the services through a REST API.

@@ -1,0 +1,118 @@
+{
+  "purpose": "EXPERIMENT ONLY - BiteTracker Nairobi weather study; not used in production",
+  "source": "Open-Meteo (https://open-meteo.com), CC BY 4.0",
+  "requested_location": {
+    "name": "Nairobi, Kenya",
+    "latitude": -1.2864,
+    "longitude": 36.8172
+  },
+  "shared_location_note": "One Nairobi point is used for all five schools (all are in Nairobi).",
+  "requested_period": {
+    "start": "2023-01-01",
+    "end": "2025-11-30"
+  },
+  "timezone": "Africa/Nairobi",
+  "units": {
+    "wx_precip_mm": "mm (daily total)",
+    "wx_temp_mean_c": "°C (2 m, daily mean)",
+    "wx_temp_max_c": "°C (2 m, daily max)",
+    "wx_rh_mean_pct": "% (2 m, daily mean)"
+  },
+  "downloaded_at_utc": "2026-11-09T12:42:05.301436+00:00",
+  "files": {
+    "nairobi_weather_observed_daily.csv": {
+      "kind": "observed (reanalysis)",
+      "api": "https://archive-api.open-meteo.com/v1/archive",
+      "units_reported": {
+        "time": "iso8601",
+        "precipitation_sum": "mm",
+        "temperature_2m_mean": "°C",
+        "temperature_2m_max": "°C",
+        "relative_humidity_2m_mean": "%"
+      },
+      "grid_latitude": -1.3005272,
+      "grid_longitude": 36.824646,
+      "grid_elevation_m": 1671.0,
+      "timezone": "Africa/Nairobi",
+      "utc_offset_seconds": 10800,
+      "coverage": {
+        "rows": 1065,
+        "complete_days": 1065,
+        "first_complete_date": "2023-01-01",
+        "last_complete_date": "2025-11-30",
+        "missing_by_column": {
+          "wx_precip_mm": 0,
+          "wx_temp_mean_c": 0,
+          "wx_temp_max_c": 0,
+          "wx_rh_mean_pct": 0
+        }
+      }
+    },
+    "nairobi_weather_forecast_lead1_daily.csv": {
+      "kind": "archived forecast, lead 1 day(s)",
+      "api": "https://previous-runs-api.open-meteo.com/v1/forecast",
+      "hourly_variables": [
+        "precipitation_previous_day1",
+        "temperature_2m_previous_day1",
+        "relative_humidity_2m_previous_day1"
+      ],
+      "lead_definition": "each hourly value comes from the model run issued 1 day(s) (24*1 h) before that hour; aggregated to Africa/Nairobi calendar days (precip sum, temp mean/max, RH mean); days with any missing hour are left empty",
+      "units_reported": {
+        "time": "iso8601",
+        "precipitation_previous_day1": "mm",
+        "temperature_2m_previous_day1": "°C",
+        "relative_humidity_2m_previous_day1": "%"
+      },
+      "grid_latitude": -1.3005272,
+      "grid_longitude": 36.824646,
+      "grid_elevation_m": 1671.0,
+      "timezone": "Africa/Nairobi",
+      "utc_offset_seconds": 10800,
+      "coverage": {
+        "rows": 1065,
+        "complete_days": 681,
+        "first_complete_date": "2024-01-20",
+        "last_complete_date": "2025-11-30",
+        "missing_by_column": {
+          "wx_precip_mm": 384,
+          "wx_temp_mean_c": 384,
+          "wx_temp_max_c": 384,
+          "wx_rh_mean_pct": 384
+        }
+      }
+    },
+    "nairobi_weather_forecast_lead2_daily.csv": {
+      "kind": "archived forecast, lead 2 day(s)",
+      "api": "https://previous-runs-api.open-meteo.com/v1/forecast",
+      "hourly_variables": [
+        "precipitation_previous_day2",
+        "temperature_2m_previous_day2",
+        "relative_humidity_2m_previous_day2"
+      ],
+      "lead_definition": "each hourly value comes from the model run issued 2 day(s) (24*2 h) before that hour; aggregated to Africa/Nairobi calendar days (precip sum, temp mean/max, RH mean); days with any missing hour are left empty",
+      "units_reported": {
+        "time": "iso8601",
+        "precipitation_previous_day2": "mm",
+        "temperature_2m_previous_day2": "°C",
+        "relative_humidity_2m_previous_day2": "%"
+      },
+      "grid_latitude": -1.3005272,
+      "grid_longitude": 36.824646,
+      "grid_elevation_m": 1671.0,
+      "timezone": "Africa/Nairobi",
+      "utc_offset_seconds": 10800,
+      "coverage": {
+        "rows": 1065,
+        "complete_days": 680,
+        "first_complete_date": "2024-01-21",
+        "last_complete_date": "2025-11-30",
+        "missing_by_column": {
+          "wx_precip_mm": 385,
+          "wx_temp_mean_c": 385,
+          "wx_temp_max_c": 385,
+          "wx_rh_mean_pct": 385
+        }
+      }
+    }
+  }
+}

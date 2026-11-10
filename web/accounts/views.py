@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from django.contrib import messages
-from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth import views as auth_views
+from django.contrib.auth.decorators import login_not_required
+from django.conf import settings
 from django.contrib.auth.forms import PasswordChangeForm
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponseBadRequest, JsonResponse
@@ -13,8 +15,15 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from web.accounts import access
-from web.accounts.forms import AppearanceForm, NotificationPreferencesForm, ProfileForm, ThemeForm
-from web.accounts.models import UserProfile
+from web.accounts.adapters import PENDING_MESSAGE, STATUS_SESSION_KEY
+from web.accounts.forms import (
+    AccessRequestDetailsForm,
+    AppearanceForm,
+    NotificationPreferencesForm,
+    ProfileForm,
+    ThemeForm,
+)
+from web.accounts.models import AccessRequest, UserProfile
 from web.audit.models import AuditLog
 from web.audit.services import log_action
 from web.core.about import about_context
@@ -41,6 +50,86 @@ class LoginView(auth_views.LoginView):
 
     def get_default_redirect_url(self):
         return landing_url(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        return {**super().get_context_data(**kwargs), "google_enabled": settings.GOOGLE_OAUTH_ENABLED}
+
+
+# --- Registration status (Google sign-in) -------------------------------------------------------
+
+STATUS_COPY = {
+    access.PENDING: ("Registration pending approval", "bi-hourglass-split", PENDING_MESSAGE),
+    access.REJECTED: ("Registration not approved", "bi-x-octagon",
+                      "Your registration request was reviewed and not approved, so you can't access BiteTracker. "
+                      "If you think this is a mistake, contact your programme's System Administrator."),
+    access.SUSPENDED: ("Account suspended", "bi-slash-circle",
+                       "Your BiteTracker account has been suspended by an administrator. "
+                       "Contact your System Administrator if you need access again."),
+}
+
+
+@login_not_required
+@require_http_methods(["GET", "POST"])
+def access_status(request):
+    """What happens next for someone who signed in with Google but has no access (yet).
+
+    Shown without a session: the account is identified only by a value the server put in
+    this browser's session after Google verified the person, so nobody can look up another
+    applicant by changing the URL.
+    """
+    if request.user.is_authenticated:
+        return redirect(landing_url(request.user))
+    user = get_user_model().objects.filter(pk=request.session.get(STATUS_SESSION_KEY)).first()
+    if user is None:
+        return redirect("accounts:login")
+    status = access.account_status(user)
+    if status == access.APPROVED:
+        request.session.pop(STATUS_SESSION_KEY, None)
+        messages.success(request, "Your account has been approved. Continue with Google to sign in.")
+        return redirect("accounts:login")
+
+    access_request = access.access_request_of(user)
+    form = None
+    if status == access.PENDING and access_request is not None:
+        form = AccessRequestDetailsForm(request.POST or None, instance=access_request)
+        if request.method == "POST" and form.is_valid():
+            form.save()
+            messages.success(request, "Thank you. The administrator will see these details with your request.")
+            return redirect("accounts:access_status")
+    elif request.method == "POST":
+        return redirect("accounts:access_status")
+    title, icon, message = STATUS_COPY[status]
+    return render(request, "accounts/access_status.html", {
+        "status": status, "title": title, "icon": icon, "message": message,
+        "access_request": access_request, "applicant": user, "form": form,
+    })
+
+
+@login_not_required
+@require_POST
+def access_status_leave(request):
+    request.session.pop(STATUS_SESSION_KEY, None)
+    return redirect("accounts:login")
+
+
+@login_not_required
+def oauth_cancelled(request):
+    messages.info(request, "Google sign-in was cancelled.")
+    return redirect("accounts:login")
+
+
+@login_not_required
+def oauth_error(request):
+    messages.error(request, "Google sign-in could not be completed. Please try again.")
+    return redirect("accounts:login")
+
+
+@login_not_required
+def oauth_signup_unavailable(request):
+    request.session.pop("socialaccount_sociallogin", None)
+    messages.error(request, "BiteTracker couldn't create a registration request from this Google account. "
+                            "Contact your System Administrator.")
+    return redirect("accounts:login")
 
 
 # --- My Profile -------------------------------------------------------------------------------
@@ -135,7 +224,7 @@ def settings_view(request):
             update_session_auth_hash(request, password_form.user)  # keep this session signed in
             log_action(user, AuditLog.Action.PASSWORD_CHANGED, target=user, target_user=user)
             notify([user], Notification.Type.SECURITY, "Your password was changed",
-                   "Your BiteTracker password was changed. If this wasn't you, contact a System Admin immediately.",
+                   "Your BiteTracker password was changed. If this wasn't you, contact a System Administrator immediately.",
                    url=reverse("accounts:settings") + "?tab=security", include_actor=True)
             messages.success(request, "Your password has been changed.")
             return redirect(f"{reverse('accounts:settings')}?tab=security")
@@ -150,6 +239,8 @@ def settings_view(request):
         "notifications_form": notifications_form,
         "password_form": password_form,
         "about": about_context(),
+        "google_enabled": settings.GOOGLE_OAUTH_ENABLED,
+        "google_linked": user.socialaccount_set.filter(provider="google").exists(),
     })
 
 

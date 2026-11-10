@@ -1,0 +1,30 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Access requests{% endblock %}
+{% block admin_content %}
+<div class="bt-chips mb-3" role="group" aria-label="Filter by request status">
+  {% for value, label in statuses %}<a class="bt-chip{% if status == value %} is-active{% endif %}" href="?status={{ value }}"{% if status == value %} aria-current="true"{% endif %}>{{ label }}{% for k, n in counts.items %}{% if k == value %} ({{ n }}){% endif %}{% endfor %}</a>{% endfor %}
+  <a class="bt-chip{% if not status %} is-active{% endif %}" href="?status=all"{% if not status %} aria-current="true"{% endif %}>All</a>
+</div>
+<p class="small text-muted">People who signed in with Google. Nobody can use BiteTracker until you approve them with a role and their schools.</p>
+<div class="card">
+  {% if page.object_list %}
+  <div class="table-responsive"><table class="table table-hover align-middle mb-0" data-testid="access-requests-table">
+    <thead class="table-light"><tr><th>Name</th><th>Verified email</th><th>Requested</th><th>Requested role</th><th>Status</th><th>Decided</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>{% for r in page %}
+      <tr>
+        <td>{{ r.full_name|default:"—" }}<div class="bt-cell-sub">{{ r.user.username }}</div></td>
+        <td class="small">{{ r.email }}</td>
+        <td class="small text-nowrap">{{ r.created_at|date:"j M Y H:i" }}</td>
+        <td class="small">{{ r.get_requested_role_display|default:"—" }}</td>
+        <td>{% include "administration/_access_status_badge.html" with status=r.status label=r.get_status_display %}</td>
+        <td class="small text-nowrap">{% if r.decided_at %}{{ r.decided_at|date:"j M Y" }}<div class="bt-cell-sub">{{ r.decided_by.get_username|default:"—" }}</div>{% else %}—{% endif %}</td>
+        <td class="text-end"><a class="btn btn-sm {% if r.status == 'pending' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{% url 'administration:access_request_detail' r.pk %}">{% if r.status == 'pending' %}Review{% else %}View{% endif %}</a></td>
+      </tr>
+    {% endfor %}</tbody>
+  </table></div>
+  <div class="card-footer">{% include "partials/_pagination.html" %}</div>
+  {% else %}
+  <div class="card-body"><div class="empty-state"><i class="bi bi-person-check"></i><p class="mb-0">{% if status == "pending" %}No requests are waiting for approval.{% else %}No requests.{% endif %}</p></div></div>
+  {% endif %}
+</div>
+{% endblock %}

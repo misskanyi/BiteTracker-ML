@@ -7,6 +7,8 @@ app_name = "administration"
 
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="administration:users"), name="index"),
+    path("access-requests/", views.access_requests, name="access_requests"),
+    path("access-requests/<int:pk>/", views.access_request_detail, name="access_request_detail"),
     path("users/", views.users, name="users"),
     path("users/new/", views.user_create, name="user_create"),
     path("users/<int:pk>/", views.user_detail, name="user_detail"),

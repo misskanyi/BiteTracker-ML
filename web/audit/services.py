@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 
 from web.accounts import access
 from web.audit.models import AuditLog
@@ -32,15 +32,6 @@ def log_action(actor, action: str, *, target=None, target_label: str = "", schoo
 
 
 def visible_logs(user) -> QuerySet[AuditLog]:
-    """System Admins read everything; Programme Admins read entries about their own
-    schools, the operators they manage, and their own actions."""
+    """The administrative audit log is for System Administrators only."""
     logs = AuditLog.objects.select_related("actor", "school", "target_user")
-    if access.is_system_admin(user):
-        return logs
-    if access.is_programme_admin(user):
-        return logs.filter(
-            Q(school__in=access.accessible_schools(user))
-            | Q(target_user__in=access.manageable_users(user))
-            | Q(actor=user)
-        ).distinct()
-    return logs.none()
+    return logs if access.is_system_admin(user) else logs.none()

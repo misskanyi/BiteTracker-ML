@@ -29,6 +29,7 @@ Every colour in the marks is a BiteTracker token from `static/css/tokens.css`:
 | `icons/` | `icon-light/-dark` | Collapsed sidebar, mobile top bar, Django admin header, loaders |
 | | `app-light/-dark` | `app-light.png` is the Apple touch icon; both are app-tile designs |
 | | `icon-white` | Not used; identical to `icon-dark` (see below) |
+| `email/` | `logo-icon-96.png` | Account-email header, attached inline (Content-ID). A 96×96 PNG resize of `icons/icon-light.png`, shown at 48×48; regenerate it from that file if the icon changes |
 | `favicons/` | `favicon-simple` | Browser tab (SVG, with the 256px PNG as fallback) |
 | | `favicon` | Not used; the full mark is too detailed at 16–32px |
 
