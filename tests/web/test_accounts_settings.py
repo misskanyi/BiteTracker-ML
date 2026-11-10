@@ -53,7 +53,7 @@ def planner(client):
 
 def test_new_users_get_a_profile_with_least_privilege():
     user = get_user_model().objects.create_user("new", password=PASSWORD)
-    assert user.profile.role == Role.SCHOOL_OPERATOR
+    assert user.profile.role == Role.SCHOOL_MANAGER
     assert access.accessible_school_codes(user) == set()
     admin = get_user_model().objects.create_superuser("root", "root@example.com", PASSWORD)
     assert access.role_of(admin) == Role.SYSTEM_ADMIN
@@ -63,7 +63,7 @@ def test_new_users_get_a_profile_with_least_privilege():
 def test_profile_page_shows_real_account_details(client, planner):
     html = client.get(reverse("accounts:profile")).content.decode()
     assert "Amina Otieno" in html and "amina@example.com" in html
-    assert "School Operator" in html and "Active" in html
+    assert "School Manager" in html and "Active" in html
     assert 'data-testid="profile-schools"' in html and "SCH001" in html
 
 
@@ -91,7 +91,7 @@ def test_profile_form_cannot_change_role_email_or_schools(client, planner):
         "email": "evil@example.com", "is_superuser": "on", "schools": ["999"],
     })
     planner.refresh_from_db()
-    assert access.role_of(planner) == Role.SCHOOL_OPERATOR and not planner.is_superuser
+    assert access.role_of(planner) == Role.SCHOOL_MANAGER and not planner.is_superuser
     assert planner.email == "amina@example.com"
     assert SchoolAssignment.objects.filter(user=planner).count() == 3
 

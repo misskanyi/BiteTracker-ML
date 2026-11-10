@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 NO_SCHOOLS_MESSAGE = (
     "No schools are assigned to your account yet, so there is no school data to show. "
-    "Ask a Programme Admin or System Admin to assign your schools."
+    "Ask a System Administrator to assign your schools."
 )
 
 DEFAULT_HISTORY_DAYS = 90
@@ -60,7 +60,7 @@ def _baselines_beating_model(metadata: dict) -> list[dict]:
 
 
 def _visible_runs(user):
-    """Forecast runs for the schools the user may see (all runs for System Admins)."""
+    """Forecast runs for the schools the user may see (all runs for System Administrators)."""
     runs = ForecastRun.objects.select_related("user")
     codes = access.accessible_school_codes(user)
     return runs if codes is None else runs.filter(school_code__in=codes)
@@ -324,6 +324,7 @@ def forecast_history(request):
     })
 
 
+@access.model_evaluation_required
 def performance(request):
     try:
         perf = performance_service.get_model_performance()

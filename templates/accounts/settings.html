@@ -78,6 +78,23 @@
         </form>
       </div>
     </section>
+    {% if google_enabled or google_linked %}
+    <section class="card mb-4" aria-labelledby="google-heading" data-testid="google-link-card">
+      <div class="card-header bt-card-header"><h2 class="bt-card-title" id="google-heading"><i class="bi bi-google" aria-hidden="true"></i>Google sign-in</h2></div>
+      <div class="card-body">
+        {% if google_linked %}
+        <p class="mb-0"><i class="bi bi-check-circle-fill text-success me-1" aria-hidden="true"></i>Your Google account is linked. You can use <strong>Continue with Google</strong> on the log-in page.</p>
+        {% else %}
+        <p class="small text-muted">Link the Google account that uses your email address, then sign in with one click. You confirm with Google; BiteTracker never sees your Google password.</p>
+        <form method="post" action="{% url 'google_login' %}">
+          {% csrf_token %}<input type="hidden" name="process" value="connect">
+          <input type="hidden" name="next" value="{% url 'accounts:settings' %}?tab=security">
+          <button type="submit" class="btn btn-outline-primary" data-testid="google-connect"><i class="bi bi-google me-1" aria-hidden="true"></i>Link Google account</button>
+        </form>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
     <section class="card" aria-labelledby="session-heading">
       <div class="card-header bt-card-header"><h2 class="bt-card-title" id="session-heading"><i class="bi bi-door-open" aria-hidden="true"></i>Sign-in</h2></div>
       <div class="card-body">

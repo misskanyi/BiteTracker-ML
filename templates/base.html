@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {% if user.is_authenticated %}<meta name="bt-theme-url" content="{% url 'accounts:theme' %}">{% endif %}
+  {% if user.is_authenticated %}<meta name="bt-theme-url" content="{% url 'accounts:theme' %}">
+  <meta name="csrf-token" content="{{ csrf_token }}">{% endif %}
   <title>{% block title %}BiteTracker{% endblock %} · BiteTracker</title>
   {% include "partials/_theme_init.html" %}
   {% include "partials/_debug_log.html" %}
@@ -49,6 +50,8 @@
     {% include "partials/_loader.html" with variant="pulse" decorative=True %}
   </div>
   <p class="visually-hidden" role="status" id="bt-page-loader-status"></p>
+  {# New-notification toasts (static/js/notifications.js). Announced politely; the bell keeps them unread. #}
+  <div class="bt-toasts" id="bt-toasts" aria-live="polite" aria-relevant="additions" data-testid="toast-region"></div>
   {% else %}
   </main>
   {% endif %}
@@ -56,6 +59,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{% static 'js/theme.js' %}"></script>
   <script src="{% static 'js/layout.js' %}"></script>
+  {% if user.is_authenticated %}<script src="{% static 'js/notifications.js' %}"></script>{% endif %}
   {% block extra_js %}{% endblock %}
 </body>
 </html>

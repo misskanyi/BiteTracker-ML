@@ -35,9 +35,10 @@ def visible_events(user):
 
 
 def can_edit(user, event: CalendarEvent) -> bool:
+    """School Managers edit their schools' events; Resource Planning Stakeholders are read-only."""
     if event.school_id is None:
         return access.is_system_admin(user)
-    return access.can_access_school_code(user, event.school.school_id)
+    return access.can_edit_school_data(user, event.school.school_id)
 
 
 def _parse_month(value: str | None, fallback: date) -> date:
@@ -72,7 +73,7 @@ def calendar_view(request):
     filters = {"school": school_id, "type": event_type, "year": year or ""}
     context = {
         "view": view, "schools": schools, "years": years, "event_types": CalendarEvent.EventType.choices,
-        "filters": filters, "today": today, "can_add": access.is_system_admin(user) or schools.exists(),
+        "filters": filters, "today": today, "can_add": access.can_edit_school_data(user),
         "feeding_statuses": CalendarEvent.FeedingStatus.choices,
     }
 
@@ -129,7 +130,7 @@ def _event_details(event: CalendarEvent) -> dict:
 
 @require_http_methods(["GET", "POST"])
 def event_create(request):
-    if not access.is_system_admin(request.user) and not access.accessible_schools(request.user).exists():
+    if not access.can_edit_school_data(request.user):
         raise PermissionDenied
     initial = {}
     try:

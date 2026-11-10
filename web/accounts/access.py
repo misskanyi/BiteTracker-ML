@@ -1,7 +1,11 @@
-"""Server-side authorisation: roles, school scope and who may manage whom.
+"""Server-side authorisation: roles, school scope, account status and who may manage whom.
 
 Every view that shows school data or changes an account goes through these
 functions. Hiding a link in the sidebar is never the access check.
+
+- School Manager: assigned schools; may change data for them (uploads, calendar).
+- Resource Planning Stakeholder: assigned schools, read-only.
+- System Administrator: everything, and the only role with administration rights.
 """
 
 from __future__ import annotations
@@ -12,7 +16,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q, QuerySet
 
-from web.accounts.models import Role, SchoolAssignment, UserProfile
+from web.accounts.models import AccessRequest, Role, SchoolAssignment, UserProfile
 from web.schools.models import DatasetUpload, School
 
 
@@ -22,7 +26,7 @@ def get_profile(user) -> UserProfile:
         return user.profile
     except UserProfile.DoesNotExist:
         profile, _ = UserProfile.objects.get_or_create(
-            user=user, defaults={"role": Role.SYSTEM_ADMIN if user.is_superuser else Role.SCHOOL_OPERATOR}
+            user=user, defaults={"role": Role.SYSTEM_ADMIN if user.is_superuser else Role.SCHOOL_MANAGER}
         )
         user.profile = profile
         return profile
@@ -42,13 +46,51 @@ def is_system_admin(user) -> bool:
     return user.is_authenticated and user.is_active and role_of(user) == Role.SYSTEM_ADMIN
 
 
-def is_programme_admin(user) -> bool:
-    return user.is_authenticated and user.is_active and role_of(user) == Role.PROGRAMME_ADMIN
+def is_school_manager(user) -> bool:
+    return user.is_authenticated and user.is_active and role_of(user) == Role.SCHOOL_MANAGER
+
+
+def is_planning_stakeholder(user) -> bool:
+    return user.is_authenticated and user.is_active and role_of(user) == Role.PLANNING_STAKEHOLDER
 
 
 def is_admin(user) -> bool:
-    """Programme Admins and System Admins may open Administration."""
-    return is_system_admin(user) or is_programme_admin(user)
+    """Who may open Administration: System Administrators only."""
+    return is_system_admin(user)
+
+
+def can_view_model_evaluation(user) -> bool:
+    """Model evaluation results are an administrator function."""
+    return is_system_admin(user)
+
+
+# --- Account status ---------------------------------------------------------------------------
+
+APPROVED, PENDING, REJECTED, SUSPENDED = "approved", "pending", "rejected", "suspended"
+STATUS_LABELS = {APPROVED: "Active", PENDING: "Pending approval", REJECTED: "Rejected", SUSPENDED: "Suspended"}
+
+
+def access_request_of(user) -> AccessRequest | None:
+    try:
+        return user.access_request
+    except AccessRequest.DoesNotExist:
+        return None
+
+
+def account_status(user) -> str:
+    """approved, pending, rejected or suspended.
+
+    Accounts without an access request were created by an administrator and are
+    approved; an approved account that is inactive is suspended.
+    """
+    request = access_request_of(user)
+    if request is not None and request.status != AccessRequest.Status.APPROVED:
+        return PENDING if request.status == AccessRequest.Status.PENDING else REJECTED
+    return APPROVED if user.is_active else SUSPENDED
+
+
+def is_approved(user) -> bool:
+    return account_status(user) == APPROVED
 
 
 # --- School scope ---------------------------------------------------------------------------
@@ -64,7 +106,7 @@ def accessible_schools(user) -> QuerySet[School]:
 
 
 def accessible_school_codes(user) -> set[str] | None:
-    """Dataset school IDs the user may see, or None for every school (System Admins).
+    """Dataset school IDs the user may see, or None for every school (System Administrators).
 
     Historical demand data lives in the pipeline CSV keyed by school ID, so this is
     the filter applied to service-layer results.
@@ -84,36 +126,38 @@ def filter_school_records(user, records: list[dict], key: str = "school_id") -> 
     return list(records) if codes is None else [r for r in records if r.get(key) in codes]
 
 
+def can_edit_school_data(user, school_code: str | None = None) -> bool:
+    """School Managers (for their assigned schools) and System Administrators.
+
+    Resource Planning Stakeholders are read-only. With no school code: may the user
+    edit data for at least one school?
+    """
+    if is_system_admin(user):
+        return True
+    if not is_school_manager(user):
+        return False
+    if school_code is None:
+        return accessible_schools(user).exists()
+    return can_access_school_code(user, school_code)
+
+
+def can_upload(user) -> bool:
+    """Submitting school records for verification."""
+    return can_edit_school_data(user)
+
+
 # --- Account management ---------------------------------------------------------------------
 
 
 def assignable_roles(admin) -> list[tuple[str, str]]:
-    """Roles an administrator may give. Programme Admins can never grant a higher role."""
-    if is_system_admin(admin):
-        return list(Role.choices)
-    if is_programme_admin(admin):
-        return [(Role.SCHOOL_OPERATOR.value, Role.SCHOOL_OPERATOR.label)]
-    return []
+    """Roles an administrator may give: every role, for System Administrators only."""
+    return list(Role.choices) if is_system_admin(admin) else []
 
 
 def manageable_users(admin) -> QuerySet:
-    """Accounts the administrator may view and change.
-
-    Programme Admins manage School Operators whose every assigned school lies within
-    their own schools (operators with no schools yet are unclaimed, so included).
-    """
+    """Accounts the user may view and change: all of them for System Administrators, else none."""
     User = get_user_model()
-    if is_system_admin(admin):
-        return User.objects.all()
-    if not is_programme_admin(admin):
-        return User.objects.none()
-    scope = accessible_schools(admin)
-    return (
-        User.objects.filter(is_superuser=False, profile__role=Role.SCHOOL_OPERATOR)
-        .exclude(school_assignments__school__in=School.objects.exclude(pk__in=scope.values("pk")))
-        .exclude(pk=admin.pk)
-        .distinct()
-    )
+    return User.objects.all() if is_system_admin(admin) else User.objects.none()
 
 
 def can_manage_user(admin, target) -> bool:
@@ -124,17 +168,22 @@ def can_manage_user(admin, target) -> bool:
 
 
 def reviewable_uploads(admin) -> QuerySet[DatasetUpload]:
-    """Stored uploads (and their letters) the administrator may review.
+    """Stored uploads (and their letters) awaiting or past verification: System Administrators only.
 
-    System Admins see every upload; Programme Admins see uploads from the operators
-    they manage. `can_decide_upload` stops anyone deciding on their own upload.
+    `can_decide_upload` stops anyone deciding on their own upload.
     """
     uploads = DatasetUpload.objects.exclude(review_status="").select_related("uploaded_by", "reviewed_by")
-    if is_system_admin(admin):
+    return uploads if is_system_admin(admin) else uploads.none()
+
+
+def visible_uploads(user) -> QuerySet[DatasetUpload]:
+    """Upload records a user may open: their own, or every upload for System Administrators."""
+    uploads = DatasetUpload.objects.select_related("uploaded_by", "reviewed_by")
+    if is_system_admin(user):
         return uploads
-    if is_programme_admin(admin):
-        return uploads.filter(uploaded_by__in=manageable_users(admin))
-    return uploads.none()
+    if not user.is_authenticated:
+        return uploads.none()
+    return uploads.filter(uploaded_by=user)
 
 
 def can_decide_upload(admin, upload: DatasetUpload) -> bool:
@@ -172,8 +221,8 @@ def set_role(user, role: str) -> None:
 def set_school_assignments(user, schools, assigned_by, scope: QuerySet[School] | None = None) -> tuple[set, set]:
     """Make the user's assignments within `scope` (None = all schools) equal `schools`.
 
-    Assignments outside the scope are left alone, so a Programme Admin can never
-    remove another programme's schools. Returns (added, removed) School sets.
+    Assignments outside the scope are left alone, so a partial update can never
+    remove schools outside the scope. Returns (added, removed) School sets.
     """
     wanted = set(schools)
     current_qs = SchoolAssignment.objects.filter(user=user).select_related("school")
@@ -192,19 +241,32 @@ def set_school_assignments(user, schools, assigned_by, scope: QuerySet[School] |
 # --- View decorators ------------------------------------------------------------------------
 
 
-def admin_required(view):
+def system_admin_required(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
-        if not is_admin(request.user):
+        if not is_system_admin(request.user):
             raise PermissionDenied
         return view(request, *args, **kwargs)
     return wrapper
 
 
-def system_admin_required(view):
+# Administration is System Administrator only; the old name is kept for existing views.
+admin_required = system_admin_required
+
+
+def model_evaluation_required(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
-        if not is_system_admin(request.user):
+        if not can_view_model_evaluation(request.user):
+            raise PermissionDenied
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
+def upload_required(view):
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not can_upload(request.user):
             raise PermissionDenied
         return view(request, *args, **kwargs)
     return wrapper

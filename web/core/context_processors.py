@@ -27,12 +27,11 @@ NAV_SECTIONS = [
             "schoolcalendar:calendar", "schoolcalendar:event_detail", "schoolcalendar:event_create",
             "schoolcalendar:event_update", "schoolcalendar:event_delete",
         }, None),
-        ("Model performance", "bi-bar-chart-line", "core:performance", {"performance"}, None),
+        ("Model performance", "bi-bar-chart-line", "core:performance", {"performance"}, access.can_view_model_evaluation),
         ("Donor insights", "bi-heart", "core:donors", {"donors"}, None),
     ]),
     ("Data management", [
-        ("Data upload", "bi-cloud-arrow-up", "schools:upload", {"upload", "upload_detail"},
-         lambda user: user.has_perm("schools.add_datasetupload")),
+        ("Data upload", "bi-cloud-arrow-up", "schools:upload", {"upload", "upload_detail"}, access.can_upload),
         ("Schools", "bi-buildings", "admin:schools_school_changelist", set(),
          lambda user: user.is_staff and user.has_perm("schools.view_school")),
     ]),
@@ -43,6 +42,7 @@ NAV_SECTIONS = [
             "administration:school_detail", "administration:school_edit", "administration:logs",
             "administration:issues", "administration:issue_detail", "administration:announce",
             "administration:uploads", "administration:upload_review",
+            "administration:access_requests", "administration:access_request_detail",
         }, access.is_admin),
         ("Django admin", "bi-shield-lock", "admin:index", set(), lambda user: user.is_staff),
     ]),
@@ -116,6 +116,8 @@ def account(request) -> dict:
         "IS_SYSTEM_ADMIN": access.is_system_admin(user),
         "NOTIFICATIONS_UNREAD": Notification.objects.filter(recipient=user, is_read=False).count(),
         "NOTIFICATIONS_RECENT": list(Notification.objects.filter(recipient=user)[:6]),
+        "NOTIFICATIONS_LATEST_ID": Notification.objects.filter(recipient=user).order_by("-pk").values_list(
+            "pk", flat=True).first() or 0,
     }
 
 

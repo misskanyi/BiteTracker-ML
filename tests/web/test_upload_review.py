@@ -4,10 +4,12 @@ What this file checks:
 - The Excel data template has exactly the validator's columns, and its example rows validate.
 - The Word letter template is a real .docx that the letter validator accepts.
 - A supporting letter is required; its content must match its extension.
-- Valid uploads store the letter, wait for review and notify reviewers; invalid ones store nothing.
-- Data files and letters are downloadable only by the uploader and administrators in scope.
-- Review queue scope: System Admins see all, Programme Admins only their operators, operators nothing.
-- Rejecting needs a comment; every decision is audited and the uploader notified.
+- Valid uploads store the letter, wait for review and notify System Administrators (once);
+  invalid ones store nothing.
+- A School Manager can only submit records for their assigned schools.
+- Data files, letters and upload records are visible only to the uploader and System Administrators.
+- Review queue: System Administrators only; School Managers and Stakeholders get 403.
+- Rejecting or requesting clarification needs a comment; every decision is audited and the uploader notified.
 - Nobody decides on their own upload.
 """
 
@@ -19,7 +21,6 @@ import zipfile
 import pandas as pd
 import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
@@ -52,16 +53,14 @@ def sysadmin(db):
 
 @pytest.fixture
 def uploader_user(db):
-    user = operator("data_officer", codes=("SCH001",))
-    user.user_permissions.add(Permission.objects.get(codename="add_datasetupload"),
-                              Permission.objects.get(codename="view_datasetupload"))
-    return user
+    """A School Manager (uploads need that role or System Administrator)."""
+    return operator("data_officer", codes=("SCH001",))
 
 
 @pytest.fixture
-def prog_admin(db):
+def stakeholder(db):
     user = operator("pa", codes=("SCH001", "SCH002"))
-    access.set_role(user, Role.PROGRAMME_ADMIN)
+    access.set_role(user, Role.PLANNING_STAKEHOLDER)
     return user
 
 
@@ -115,7 +114,8 @@ def test_upload_page_links_templates(client, uploader_user):
 
 
 def _post(client, stub_artifacts, letter):
-    frame = stub_artifacts.frame[["date", "school_id", "school_name", "meals_served"]].head(80)
+    frame = stub_artifacts.frame[["date", "school_id", "school_name", "meals_served"]]
+    frame = frame[frame["school_id"] == "SCH001"].head(80)  # the uploader's own school only
     data = {"file": SimpleUploadedFile("school_data.csv", frame.to_csv(index=False).encode())}
     if letter is not None:
         data["letter"] = letter
@@ -141,7 +141,7 @@ def test_letter_content_must_match_type(client, uploader_user, stub_artifacts, m
     assert DatasetUpload.objects.count() == 0
 
 
-def test_valid_upload_stores_letter_and_notifies_reviewers(client, uploader_user, sysadmin, prog_admin,
+def test_valid_upload_stores_letter_and_notifies_reviewers(client, uploader_user, sysadmin, stakeholder,
                                                             stub_artifacts, media_root):
     client.force_login(uploader_user)
     _post(client, stub_artifacts, SimpleUploadedFile("Head Teacher letter.pdf", PDF))
@@ -150,7 +150,24 @@ def test_valid_upload_stores_letter_and_notifies_reviewers(client, uploader_user
     assert record.letter_filename == "Head Teacher letter.pdf"
     assert record.supporting_letter.name.startswith("letters/") and "Head" not in record.supporting_letter.name
     notified = set(Notification.objects.filter(type=Notification.Type.DATASET_REVIEW).values_list("recipient__username", flat=True))
-    assert notified == {"root", "pa"}
+    assert notified == {"root"}  # System Administrators verify; Stakeholders are read-only
+    assert Notification.objects.get(recipient=sysadmin, type=Notification.Type.DATASET_REVIEW).event_key == \
+        f"upload:{record.pk}:submitted"
+
+
+def test_upload_for_unassigned_school_is_refused(client, stub_artifacts, media_root):
+    """Changing school_id in the file can't submit data for someone else's school."""
+    manager = operator("manager_sch2", codes=("SCH002",))
+    client.force_login(manager)
+    frame = stub_artifacts.frame[["date", "school_id", "school_name", "meals_served"]]
+    frame = frame[frame["school_id"] == "SCH001"].head(80)
+    client.post(reverse("schools:upload"), {
+        "file": SimpleUploadedFile("school_data.csv", frame.to_csv(index=False).encode()),
+        "letter": SimpleUploadedFile("letter.pdf", PDF)})
+    record = DatasetUpload.objects.get()
+    assert record.validation_status == "invalid" and record.review_status == "" and not record.file
+    assert any("not assigned to you: SCH001" in e for e in record.validation_summary["errors"])
+    assert not Notification.objects.filter(type=Notification.Type.DATASET_REVIEW).exists()
 
 
 def test_invalid_upload_stores_no_letter_and_is_not_queued(client, uploader_user, stub_artifacts, media_root):
@@ -190,13 +207,38 @@ def test_operators_cannot_open_review_pages(client, uploader_user, media_root):
     assert client.get(reverse("administration:upload_review", args=[record.pk])).status_code == 403
 
 
-def test_programme_admin_sees_only_their_operators(client, uploader_user, prog_admin, media_root):
+def test_stakeholders_cannot_verify_or_open_uploads(client, uploader_user, stakeholder, media_root):
+    record = _pending_upload(uploader_user, media_root)
+    client.force_login(stakeholder)
+    assert client.get(reverse("administration:uploads")).status_code == 403
+    assert client.post(reverse("administration:upload_review", args=[record.pk]),
+                       {"decision": "approved"}).status_code == 403
+    # Someone else's upload record and files are hidden (404), even with a guessed id.
+    assert client.get(reverse("schools:upload_detail", args=[record.pk])).status_code == 404
+    assert client.get(reverse("schools:upload_letter", args=[record.pk])).status_code == 404
+    record.refresh_from_db()
+    assert record.review_status == DatasetUpload.ReviewStatus.PENDING
+
+
+def test_upload_list_shows_only_own_uploads(client, uploader_user, media_root):
     mine = _pending_upload(uploader_user, media_root)
-    other = _pending_upload(operator("elsewhere", codes=("SCH003",)), media_root)
-    client.force_login(prog_admin)
-    response = client.get(reverse("administration:uploads"))
-    assert list(response.context["page"].object_list) == [mine]
-    assert client.get(reverse("administration:upload_review", args=[other.pk])).status_code == 404
+    _pending_upload(operator("elsewhere", codes=("SCH003",)), media_root)
+    client.force_login(uploader_user)
+    response = client.get(reverse("schools:upload"))
+    assert list(response.context["recent_uploads"]) == [mine]
+
+
+def test_clarification_request_needs_comment_and_notifies_uploader(client, uploader_user, sysadmin, media_root):
+    record = _pending_upload(uploader_user, media_root)
+    client.force_login(sysadmin)
+    response = client.post(reverse("administration:upload_review", args=[record.pk]), {"decision": "clarification"})
+    assert b"Say what the uploader needs to clarify" in response.content
+    client.post(reverse("administration:upload_review", args=[record.pk]),
+                {"decision": "clarification", "comment": "Which term do these dates cover?"})
+    record.refresh_from_db()
+    assert record.review_status == DatasetUpload.ReviewStatus.CLARIFICATION
+    note = Notification.objects.get(recipient=uploader_user, type=Notification.Type.DATASET_REVIEW)
+    assert "clarification requested" in note.title and note.message == "Which term do these dates cover?"
 
 
 def test_reject_requires_comment(client, uploader_user, sysadmin, media_root):

@@ -4,8 +4,9 @@
 - switched that kind of notification off in Settings (account, security and
   support notices are always delivered),
 - may not see the school the notification is about,
-- are inactive, or performed the action themselves (unless `include_actor`),
-- already have the same unread notification from the last minute (double submits).
+- are inactive (unless `include_inactive`), or performed the action themselves (unless `include_actor`),
+- already have the same unread notification from the last minute (double submits),
+- were already notified about the same `event_key` (e.g. one registration request).
 """
 
 from __future__ import annotations
@@ -41,11 +42,12 @@ def wants(user, notification_type: str) -> bool:
 
 
 def notify(recipients, notification_type: str, title: str, message: str = "", *, url: str = "", school=None,
-           actor=None, include_actor: bool = False) -> list[Notification]:
+           actor=None, include_actor: bool = False, event_key: str = "",
+           include_inactive: bool = False) -> list[Notification]:
     seen, created = set(), []
     recent = timezone.now() - DUPLICATE_WINDOW
     for user in recipients:
-        if user.pk in seen or not user.is_active:
+        if user.pk in seen or not (user.is_active or include_inactive):
             continue
         seen.add(user.pk)
         if actor is not None and user.pk == actor.pk and not include_actor:
@@ -54,16 +56,21 @@ def notify(recipients, notification_type: str, title: str, message: str = "", *,
             continue
         if school is not None and not access.can_access_school_code(user, school.school_id):
             continue
-        if Notification.objects.filter(recipient=user, type=notification_type, title=title, url=url,
-                                       is_read=False, created_at__gte=recent).exists():
+        if event_key:
+            # A keyed event is identified by its key alone: same key never twice, different keys always.
+            if Notification.objects.filter(recipient=user, event_key=event_key).exists():
+                continue
+        elif Notification.objects.filter(recipient=user, type=notification_type, title=title, url=url,
+                                         is_read=False, created_at__gte=recent).exists():
             continue
         created.append(Notification(recipient=user, type=notification_type, title=title[:200], message=message,
-                                    url=url, school=school))
-    return Notification.objects.bulk_create(created)
+                                    url=url, school=school, event_key=event_key[:120]))
+    # The unique (recipient, event_key) constraint backs the check above against concurrent requests.
+    return Notification.objects.bulk_create(created, ignore_conflicts=bool(event_key))
 
 
 def users_for_school(school):
-    """Active users who can see a school: those assigned to it and every System Admin."""
+    """Active users who can see a school: those assigned to it and every System Administrator."""
     users = get_user_model().objects.filter(is_active=True)
     if school is not None:
         users = users.filter(

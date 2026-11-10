@@ -138,12 +138,13 @@ def test_school_notifications_skip_users_without_access(db):
 
 def test_bell_shows_unread_count_and_empty_state(client, amina):
     html = client.get(reverse("accounts:profile")).content.decode()
-    assert 'data-testid="notification-bell"' in html and 'data-testid="unread-count"' not in html
+    assert 'data-testid="notification-bell"' in html
+    assert 'data-testid="unread-count" data-notify-count hidden>0</span>' in html  # nothing unread: badge hidden
     assert "You're all caught up" in html
     notify([amina], Type.ANNOUNCEMENT, "One")
     notify([amina], Type.ANNOUNCEMENT, "Two")
     html = client.get(reverse("accounts:profile")).content.decode()
-    assert '<span class="bt-bell__count" data-testid="unread-count">2</span>' in html
+    assert '<span class="bt-bell__count" data-testid="unread-count" data-notify-count>2</span>' in html
 
 
 def test_mark_read_mark_all_and_open(client, amina):

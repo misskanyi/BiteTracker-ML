@@ -22,7 +22,7 @@ from django.contrib.staticfiles import finders
 from django.urls import reverse
 
 from web.core import charts
-from tests.support.web_fixtures import operator
+from tests.support.web_fixtures import assign_schools, operator
 
 PASSWORD = "Str0ng-test-passw0rd!"
 
@@ -110,15 +110,16 @@ def test_theme_init_also_runs_on_login_page(client, db):
 
 def test_planner_sees_main_navigation_only(client, planner):
     sidebar = _sidebar(_page(client, planner))
-    for url in ("core:dashboard", "core:history", "core:forecast", "core:forecast_history", "core:performance"):
+    for url in ("core:dashboard", "core:history", "core:forecast", "core:forecast_history"):
         assert f'href="{reverse(url)}"' in sidebar
-    assert reverse("schools:upload") not in sidebar
+    assert reverse("core:performance") not in sidebar  # model evaluation: System Administrators only
+    assert reverse("schools:upload") not in sidebar  # no assigned school, nothing to upload for
     assert reverse("admin:index") not in sidebar
     assert reverse("admin:schools_school_changelist") not in sidebar
 
 
-def test_upload_link_requires_upload_permission(client, planner):
-    planner.user_permissions.add(Permission.objects.get(codename="add_datasetupload"))
+def test_upload_link_shown_to_school_manager_with_schools(client, planner):
+    assign_schools(planner)
     sidebar = _sidebar(_page(client, planner))
     assert f'href="{reverse("schools:upload")}"' in sidebar
     assert reverse("admin:index") not in sidebar
@@ -243,8 +244,8 @@ def test_sidebar_uses_horizontal_logo_and_icon_for_collapsed_state(client, plann
     assert "icon-light.svg" in brand and "bt-collapse-show" in brand
 
 
-def test_slow_pages_get_a_page_loader_message(client, planner):
-    html = _page(client, planner)
+def test_slow_pages_get_a_page_loader_message(client, db):
+    html = _page(client, get_user_model().objects.create_superuser("evaluator", password=PASSWORD))
     assert 'id="bt-page-loader"' in html and "bt-loader--pulse" in html
     assert f'href="{reverse("core:performance")}"' in html and 'data-loading-nav="Analysing model performance…"' in html
 

@@ -1,0 +1,60 @@
+{% extends "administration/_layout.html" %}
+{% block title %}Access request: {{ req.email }}{% endblock %}
+{% block admin_content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'administration:access_requests' %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>All access requests</a></nav>
+<h2 class="h4 mb-3">{{ req.full_name|default:req.email }}</h2>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <section class="card h-100"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-person-vcard" aria-hidden="true"></i>Applicant</h3></div><div class="card-body">
+      <dl class="bt-metric-list mb-0" data-testid="access-request-info">
+        <div><dt>Name</dt><dd>{{ req.full_name|default:"—" }}</dd></div>
+        <div><dt>Verified email</dt><dd>{{ req.email }} <span class="badge bt-badge-neutral ms-1"><i class="bi bi-google me-1" aria-hidden="true"></i>Verified by Google</span></dd></div>
+        <div><dt>Username</dt><dd>{{ applicant.username }}</dd></div>
+        <div><dt>Registered</dt><dd>{{ req.created_at|date:"j M Y, H:i" }}</dd></div>
+        <div><dt>Requested role</dt><dd>{{ req.get_requested_role_display|default:"Not given" }}</dd></div>
+        <div><dt>Note from applicant</dt><dd>{{ req.applicant_note|default:"—" }}</dd></div>
+        <div><dt>Status</dt><dd>{% include "administration/_access_status_badge.html" with status=req.status label=req.get_status_display %}</dd></div>
+        {% if req.decided_at %}
+        <div><dt>Decided</dt><dd>{{ req.decided_at|date:"j M Y, H:i" }} by {{ req.decided_by.get_username|default:"deleted account" }}</dd></div>
+        {% if req.granted_role %}<div><dt>Role granted</dt><dd>{{ req.get_granted_role_display }}</dd></div>{% endif %}
+        {% if req.decision_note %}<div><dt>Decision note</dt><dd>{{ req.decision_note }}</dd></div>{% endif %}
+        {% endif %}
+      </dl>
+      {% if req.status == "approved" %}<a class="btn btn-outline-secondary btn-sm mt-3" href="{% url 'administration:user_detail' applicant.pk %}">Manage this user</a>{% endif %}
+    </div></section>
+  </div>
+
+  <div class="col-lg-7">
+    {% if req.status == "pending" %}
+    <section class="card bt-form-card mb-4"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-person-check" aria-hidden="true"></i>Approve</h3></div><div class="card-body">
+      <form method="post" novalidate data-testid="approve-form">
+        {% csrf_token %}<input type="hidden" name="action" value="approve">
+        {% include "partials/_form_errors.html" with form=approve_form %}
+        {% include "partials/_field.html" with field=approve_form.role %}
+        {% include "partials/_field.html" with field=approve_form.schools %}
+        {% include "partials/_field.html" with field=approve_form.note %}
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Approve and give access</button>
+      </form>
+      <p class="small text-muted mt-2 mb-0">System Administrators can see every school, approve users and verify uploads. Grant it only to people who run BiteTracker.</p>
+    </div></section>
+    <section class="card bt-form-card"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-person-x" aria-hidden="true"></i>Reject</h3></div><div class="card-body">
+      <form method="post" novalidate data-testid="reject-form">
+        {% csrf_token %}<input type="hidden" name="action" value="reject">
+        {% include "partials/_field.html" with field=reject_form.reason %}
+        <button type="submit" class="btn btn-outline-danger">Reject request</button>
+      </form>
+      <p class="small text-muted mt-2 mb-0">The account stays blocked. The request is kept as an audit record.</p>
+    </div></section>
+    {% else %}
+    <section class="card"><div class="card-body"><p class="mb-0">This request has been {{ req.get_status_display|lower }}. {% if req.status == "approved" %}Change the role, schools or suspend the account from User management.{% endif %}</p></div></section>
+    {% endif %}
+  </div>
+
+  <div class="col-12">
+    <section class="card"><div class="card-header bt-card-header"><h3 class="bt-card-title"><i class="bi bi-journal-text" aria-hidden="true"></i>Audit history</h3></div>
+      {% include "administration/_log_table.html" with logs=logs %}
+    </section>
+  </div>
+</div>
+{% endblock %}

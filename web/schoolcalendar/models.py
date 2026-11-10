@@ -31,7 +31,7 @@ class CalendarEvent(models.Model):
 
     title = models.CharField(max_length=200)
     event_type = models.CharField(max_length=30, choices=EventType.choices)
-    # Blank school = applies to every school (only System Admins can create these).
+    # Blank school = applies to every school (only System Administrators can create these).
     school = models.ForeignKey(School, null=True, blank=True, on_delete=models.PROTECT, related_name="calendar_events")
     start_date = models.DateField()
     end_date = models.DateField()

@@ -763,8 +763,10 @@ a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
 .bt-link-danger { color: var(--bt-danger); }
 .bt-link-danger:hover { color: var(--bt-danger); text-decoration: underline; }
 .bt-notify-item { position: relative; }
-.bt-notify-item__button { padding-right: 2.4rem; }
-.bt-notify-item__dismiss { position: absolute; top: 0.5rem; right: 0.5rem; }
+.bt-notify-item__button { padding-right: 4.4rem; }
+.bt-notify-item__tools { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.125rem; }
+.bt-notify-item__dest { color: var(--bt-primary); font-weight: var(--bt-weight-label); }
+.bt-notify-item__tools [data-notify-read] .bt-dismiss:hover { background: var(--bt-primary-soft); color: var(--bt-primary); }
 .bt-dismiss {
   display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
   background: transparent; color: var(--bt-text-subtle); font-size: 0.75rem; cursor: pointer; opacity: 0;
@@ -961,3 +963,73 @@ html.bt-reduce-motion .kpi-card:hover, html.bt-reduce-motion .btn:active, html.b
   html.bt-theme-transition, html.bt-theme-transition *, html.bt-theme-transition *::before, html.bt-theme-transition *::after { transition: none !important; }
   .kpi-card:hover, .btn:active, .bt-icon-btn:active, .bt-avatar--button:active { transform: none; }
 }
+
+/* --- Toast notifications (static/js/notifications.js) ------------------------------------ */
+/* Top-right, below the header; stacked, never more than three at once, never over the topbar. */
+.bt-toasts {
+  position: fixed; z-index: 1085; top: calc(var(--bt-topbar-h) + var(--bt-space-3)); right: var(--bt-space-4);
+  display: flex; flex-direction: column; gap: var(--bt-space-2); width: min(360px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.bt-toast {
+  position: relative; display: flex; align-items: flex-start; gap: var(--bt-space-3); overflow: hidden;
+  padding: 0.75rem 0.75rem 0.85rem 0.9rem; border-radius: var(--bt-radius);
+  background: var(--bt-glass-menu); border: 1px solid var(--bt-glass-border);
+  -webkit-backdrop-filter: var(--bt-glass-blur); backdrop-filter: var(--bt-glass-blur);
+  box-shadow: var(--bt-shadow-lg), var(--bt-glass-highlight); color: var(--bt-text);
+  pointer-events: auto; animation: bt-toast-in var(--bt-dur-slow) var(--bt-ease) both;
+}
+.bt-toast::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--bt-primary); }
+.bt-toast.is-leaving { animation: bt-toast-out var(--bt-dur) var(--bt-ease) both; }
+.bt-toast__icon {
+  flex: 0 0 auto; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--bt-primary-soft); color: var(--bt-primary); font-size: 1rem;
+}
+.bt-toast__body { flex: 1 1 auto; min-width: 0; }
+.bt-toast__title { margin: 0; font-size: var(--bt-text-sm); font-weight: var(--bt-weight-heading); line-height: 1.3; }
+.bt-toast__message {
+  margin: 0.125rem 0 0; font-size: var(--bt-text-xs); color: var(--bt-text-muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.bt-toast__actions { margin-top: 0.35rem; }
+.bt-toast__actions button { padding: 0; border: 0; background: none; font-size: var(--bt-text-xs); font-weight: var(--bt-weight-label); color: var(--bt-primary); }
+.bt-toast__actions button:hover { text-decoration: underline; }
+.bt-toast__close {
+  flex: 0 0 auto; display: inline-grid; place-items: center; width: 28px; height: 28px; margin: -0.2rem -0.2rem 0 0;
+  padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--bt-text-subtle); font-size: 0.75rem;
+}
+.bt-toast__close:hover { background: var(--bt-primary-soft); color: var(--bt-primary); }
+.bt-toast__close:focus-visible, .bt-toast__actions button:focus-visible { outline: 2px solid var(--bt-focus); outline-offset: 2px; }
+.bt-toast__timer {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--bt-primary); opacity: 0.45;
+  transform-origin: left; animation: bt-toast-timer var(--bt-toast-ms, 5000ms) linear forwards;
+}
+.bt-toast.is-paused .bt-toast__timer { animation-play-state: paused; }
+@keyframes bt-toast-in { from { opacity: 0; transform: translateX(16px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes bt-toast-out { to { opacity: 0; transform: translateX(16px); } }
+@keyframes bt-toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.bt-bell__count.is-bumped { animation: bt-bell-bump var(--bt-dur-slow) var(--bt-ease-spring); }
+@keyframes bt-bell-bump { 50% { transform: scale(1.25); } }
+@media (max-width: 575.98px) {
+  .bt-toasts { right: var(--bt-space-3); left: var(--bt-space-3); width: auto; top: calc(var(--bt-topbar-h) + var(--bt-space-2)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bt-toast, .bt-toast.is-leaving, .bt-bell__count.is-bumped { animation: none; }
+}
+html.bt-reduce-motion .bt-toast, html.bt-reduce-motion .bt-toast.is-leaving { animation: none; }
+
+/* --- Sign-in: Google button and registration status ----------------------------------- */
+.bt-auth-divider { display: flex; align-items: center; gap: var(--bt-space-3); margin: var(--bt-space-4) 0; color: var(--bt-text-subtle); font-size: var(--bt-text-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+.bt-auth-divider::before, .bt-auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--bt-border); }
+.bt-google-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  background: var(--bt-surface); color: var(--bt-text); border: 1px solid var(--bt-border-strong); font-weight: var(--bt-weight-label);
+}
+.bt-google-btn:hover, .bt-google-btn:focus-visible { background: var(--bt-surface-muted); color: var(--bt-text); border-color: var(--bt-primary); }
+.bt-google-btn__logo { width: 18px; height: 18px; }
+.bt-access-status { text-align: center; }
+.bt-access-status__icon {
+  display: inline-grid; place-items: center; width: 52px; height: 52px; margin-bottom: var(--bt-space-3); border-radius: 50%;
+  background: var(--bt-primary-soft); color: var(--bt-primary); font-size: 1.4rem;
+}
+.bt-access-status--rejected .bt-access-status__icon, .bt-access-status--suspended .bt-access-status__icon { background: var(--bt-danger-soft); color: var(--bt-danger); }

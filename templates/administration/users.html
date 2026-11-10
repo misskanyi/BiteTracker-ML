@@ -10,13 +10,11 @@
         {% for value, label in roles %}<option value="{{ value }}"{% if role == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
     <div><label class="form-label small" for="user-status">Status</label>
       <select id="user-status" name="status" class="form-select form-select-sm"><option value="">All</option>
-        <option value="active"{% if status == "active" %} selected{% endif %}>Active</option>
-        <option value="inactive"{% if status == "inactive" %} selected{% endif %}>Inactive</option></select></div>
+        {% for value, label in statuses %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
     <button type="submit" class="btn btn-outline-secondary btn-sm">Search</button>
   </form>
   {% if can_create %}<a class="btn btn-primary" href="{% url 'administration:user_create' %}" data-testid="create-user"><i class="bi bi-person-plus me-1" aria-hidden="true"></i>Create user</a>{% endif %}
 </div>
-{% if not IS_SYSTEM_ADMIN %}<p class="small text-muted">As a Programme Admin you manage School Operators assigned only to your schools.</p>{% endif %}
 
 <div class="card">
   {% if page.object_list %}
@@ -25,15 +23,15 @@
       <thead class="table-light"><tr><th>Name</th><th>Email</th><th>Role</th><th>Schools</th><th>Status</th><th>Joined</th><th>Last login</th><th><span class="visually-hidden">Actions</span></th></tr></thead>
       <tbody>
       {% for u in page %}
-        <tr{% if not u.is_active %} class="bt-row-muted"{% endif %}>
+        <tr{% if u.account_status != "approved" %} class="bt-row-muted"{% endif %}>
           <td><a href="{% url 'administration:user_detail' u.pk %}">{{ u.get_full_name|default:u.username }}</a><div class="bt-cell-sub">{{ u.username }}</div></td>
           <td class="small">{{ u.email|default:"—" }}</td>
-          <td>{% include "administration/_role_badge.html" with label=u.role_label %}</td>
-          <td class="small">{% if u.role_label == "System Admin" %}All schools{% else %}{% for a in u.school_assignments.all|slice:":2" %}{{ a.school.name|default:a.school.school_id }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-muted">None</span>{% endfor %}{% if u.school_assignments.all|length > 2 %} +{{ u.school_assignments.all|length|add:"-2" }}{% endif %}{% endif %}</td>
-          <td>{% if u.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-danger">Inactive</span>{% endif %}</td>
+          <td>{% if u.account_status == "pending" or u.account_status == "rejected" %}<span class="text-muted small">Not assigned</span>{% else %}{% include "administration/_role_badge.html" with label=u.role_label %}{% endif %}</td>
+          <td class="small">{% if u.account_status == "pending" or u.account_status == "rejected" %}<span class="text-muted">—</span>{% elif u.role_label == "System Administrator" %}All schools{% else %}{% for a in u.school_assignments.all|slice:":2" %}{{ a.school.name|default:a.school.school_id }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-muted">None</span>{% endfor %}{% if u.school_assignments.all|length > 2 %} +{{ u.school_assignments.all|length|add:"-2" }}{% endif %}{% endif %}</td>
+          <td>{% include "administration/_access_status_badge.html" with status=u.account_status label=u.account_status_label %}</td>
           <td class="small text-nowrap">{{ u.date_joined|date:"j M Y" }}</td>
           <td class="small text-nowrap">{{ u.last_login|date:"j M Y"|default:"Never" }}</td>
-          <td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="{% url 'administration:user_detail' u.pk %}">View</a></td>
+          <td class="text-end">{% if u.account_status == "pending" %}<a class="btn btn-primary btn-sm" href="{% url 'administration:access_request_detail' u.access_request.pk %}">Review</a>{% else %}<a class="btn btn-outline-secondary btn-sm" href="{% url 'administration:user_detail' u.pk %}">View</a>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

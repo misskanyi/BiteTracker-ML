@@ -1,5 +1,5 @@
-"""Administration forms. Choices are built from the acting administrator's own scope, so a
-Programme Admin cannot even submit a higher role or another programme's school."""
+"""Administration forms (System Administrators only). Role and school choices still come from
+the acting user's scope in web.accounts.access, so a crafted POST can't submit anything else."""
 
 from __future__ import annotations
 
@@ -22,9 +22,6 @@ class _UserFieldsMixin:
         self.admin, self.target = admin, target
         self.fields["role"].choices = access.assignable_roles(admin)
         self.fields["schools"].queryset = access.accessible_schools(admin).order_by("name", "school_id")
-        if access.is_programme_admin(admin):
-            self.fields["schools"].required = True
-            self.fields["schools"].help_text = "School Operators you manage must have at least one of your schools."
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip()
@@ -62,7 +59,7 @@ class UserCreateForm(_UserFieldsMixin, forms.Form):
     def __init__(self, *args, admin, **kwargs):
         super().__init__(*args, **kwargs)
         self._setup_scope_fields(admin)
-        self.fields["role"].initial = Role.SCHOOL_OPERATOR
+        self.fields["role"].initial = Role.SCHOOL_MANAGER
 
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
@@ -107,7 +104,7 @@ class UserEditForm(_UserFieldsMixin, forms.Form):
         role = self.cleaned_data["role"]
         was_sysadmin = access.role_of(self.target) == Role.SYSTEM_ADMIN
         if was_sysadmin and role != Role.SYSTEM_ADMIN and self.target.is_active and access.active_system_admin_count() <= 1:
-            raise forms.ValidationError("This is the only active System Admin, so their role cannot be changed.")
+            raise forms.ValidationError("This is the only active System Administrator, so their role cannot be changed.")
         return role
 
 
@@ -163,17 +160,60 @@ class LogFilterForm(forms.Form):
 
 class UploadReviewForm(forms.Form):
     decision = forms.ChoiceField(
-        choices=[(DatasetUpload.ReviewStatus.APPROVED, "Approve"), (DatasetUpload.ReviewStatus.REJECTED, "Reject")],
+        choices=[(DatasetUpload.ReviewStatus.APPROVED, "Approve"),
+                 (DatasetUpload.ReviewStatus.CLARIFICATION, "Request clarification"),
+                 (DatasetUpload.ReviewStatus.REJECTED, "Reject")],
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
     )
     comment = forms.CharField(
         label="Comment to the uploader", required=False, max_length=2000,
-        help_text="Required when rejecting: say what is wrong with the data or the letter.",
+        help_text="Required when rejecting or asking for clarification: say what is wrong or what you need.",
         widget=forms.Textarea(attrs={**_text, "rows": 3}),
     )
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("decision") == DatasetUpload.ReviewStatus.REJECTED and not cleaned.get("comment", "").strip():
-            self.add_error("comment", "Explain why the upload is rejected.")
+        decision = cleaned.get("decision")
+        if not cleaned.get("comment", "").strip():
+            if decision == DatasetUpload.ReviewStatus.REJECTED:
+                self.add_error("comment", "Explain why the upload is rejected.")
+            elif decision == DatasetUpload.ReviewStatus.CLARIFICATION:
+                self.add_error("comment", "Say what the uploader needs to clarify.")
         return cleaned
+
+
+# --- Registration (access) requests -------------------------------------------------------------
+
+
+class AccessApproveForm(forms.Form):
+    """Approval must grant exactly one role and, for non-administrators, at least one school."""
+
+    role = forms.ChoiceField(choices=Role.choices, widget=forms.Select(attrs={"class": "form-select"}))
+    schools = forms.ModelMultipleChoiceField(
+        queryset=School.objects.none(), required=False, widget=forms.CheckboxSelectMultiple,
+        help_text="School Managers and Resource Planning Stakeholders see only these schools.",
+    )
+    note = forms.CharField(label="Note for the audit record", required=False, max_length=1000,
+                           widget=forms.TextInput(attrs=_text))
+
+    def __init__(self, *args, admin, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].choices = access.assignable_roles(admin)
+        self.fields["schools"].queryset = access.accessible_schools(admin).filter(is_active=True).order_by(
+            "name", "school_id")
+
+    def clean(self):
+        cleaned = super().clean()
+        role = cleaned.get("role")
+        if role and role != Role.SYSTEM_ADMIN and not cleaned.get("schools"):
+            self.add_error("schools", "Assign at least one school for this role.")
+        if role == Role.SYSTEM_ADMIN:
+            cleaned["schools"] = []  # System Administrators see every school
+        return cleaned
+
+
+class AccessRejectForm(forms.Form):
+    reason = forms.CharField(
+        label="Reason (kept in the audit record, not shown to the applicant)", max_length=1000,
+        widget=forms.Textarea(attrs={**_text, "rows": 2}),
+    )

@@ -136,6 +136,12 @@ sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh createsuperuser
 
 `bootstrap.sh` never overwrites an existing Nginx site, so certbot's changes survive a rerun.
 
+## Roles, Google sign-in and notifications
+
+See [GOOGLE_SIGNIN_AND_ACCESS.md](GOOGLE_SIGNIN_AND_ACCESS.md) for the Google Cloud Console setup, the two
+`GOOGLE_OAUTH_*` environment variables, the migrations, and the rollback order. Old code can't read the new
+role names, so reverse the migrations before rolling back.
+
 ## Day-to-day
 
 - **Logs:** `journalctl -u bitetracker -f`, `/var/log/nginx/bitetracker.*.log`, `/var/log/bitetracker-backup.log`

@@ -72,6 +72,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",
+    # Google sign-in (OAuth 2.0 / OpenID Connect). Only the Google provider routes are
+    # mounted (web/accounts/oauth_urls.py); allauth's own signup and password pages are not.
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     "web.accounts",
     "web.core",
     "web.schools",
@@ -91,6 +97,10 @@ MIDDLEWARE = [
     # Every view requires login unless explicitly marked @login_not_required.
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
+    # Signs out any account that is pending approval, rejected or suspended (defence in depth:
+    # such accounts are also inactive, so Django never authenticates them).
+    "web.accounts.middleware.AccountStatusMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -162,6 +172,45 @@ AUTHENTICATION_BACKENDS = ["web.accounts.backends.UsernameOrEmailBackend"]
 LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:dashboard"
 LOGOUT_REDIRECT_URL = "accounts:login"
+
+# --- Google sign-in (django-allauth) ---------------------------------------------------------
+# Credentials come only from the environment. With either value blank the "Continue with
+# Google" button is hidden and the Google routes return 404.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+GOOGLE_OAUTH_ENABLED = bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
+
+ACCOUNT_ADAPTER = "web.accounts.adapters.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "web.accounts.adapters.SocialAccountAdapter"
+# Nobody signs up with a password: accounts come from administrators or Google + approval.
+ACCOUNT_LOGIN_METHODS = {"username", "email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*"]
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Google's verified-email claim is required instead (adapter)
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_PREVENT_ENUMERATION = False
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+# Never sign in to, or attach Google to, an existing account just because the email matches.
+# Existing users link Google from Settings -> Security while signed in.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = False
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = False
+SOCIALACCOUNT_LOGIN_ON_GET = False  # starting a sign-in needs a CSRF-protected POST
+# The Google redirect URI is built from the request's host. Production always uses https://, even
+# if a proxy (Cloudflare "Flexible" SSL, plain-HTTP Nginx) forwards the request over http.
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = os.getenv("DJANGO_OAUTH_PROTOCOL", "http" if DEBUG else "https").strip().lower()
+SOCIALACCOUNT_STORE_TOKENS = False  # only identity is needed; no Google API access is kept
+SOCIALACCOUNT_ONLY = False
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APPS": [{"client_id": GOOGLE_OAUTH_CLIENT_ID, "secret": GOOGLE_OAUTH_CLIENT_SECRET, "key": ""}]
+        if GOOGLE_OAUTH_ENABLED else [],
+        "SCOPE": ["openid", "profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
+        "OAUTH_PKCE_ENABLED": True,
+        "EMAIL_AUTHENTICATION": False,
+    }
+}
 
 # --- Internationalisation -------------------------------------------------------------
 LANGUAGE_CODE = "en-gb"

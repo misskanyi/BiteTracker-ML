@@ -18,8 +18,8 @@ class AuditLog(models.Model):
         USER_UPDATED = "user_updated", "User details updated"
         ROLE_CHANGED = "role_changed", "Role changed"
         SCHOOLS_ASSIGNED = "schools_assigned", "School assignments changed"
-        USER_ACTIVATED = "user_activated", "Account activated"
-        USER_DEACTIVATED = "user_deactivated", "Account deactivated"
+        USER_ACTIVATED = "user_activated", "Account reactivated"
+        USER_DEACTIVATED = "user_deactivated", "Account suspended"
         PASSWORD_RESET = "password_reset", "Password reset by administrator"
         PASSWORD_CHANGED = "password_changed", "Password changed"
         PROFILE_UPDATED = "profile_updated", "Profile updated"
@@ -32,6 +32,11 @@ class AuditLog(models.Model):
         ANNOUNCEMENT_SENT = "announcement_sent", "Announcement sent"
         ISSUE_REPORTED = "issue_reported", "Problem reported"
         ISSUE_STATUS_CHANGED = "issue_status_changed", "Problem status changed"
+        ACCESS_REQUESTED = "access_requested", "Registration requested"
+        ACCESS_APPROVED = "access_approved", "Registration approved"
+        ACCESS_REJECTED = "access_rejected", "Registration rejected"
+        ACCESS_DENIED = "access_denied", "Blocked sign-in attempt"
+        GOOGLE_LINKED = "google_linked", "Google account linked"
 
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     # Kept as text so the log still reads correctly after an account is deleted.

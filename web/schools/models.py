@@ -70,6 +70,7 @@ class DatasetUpload(models.Model):
         PENDING = "pending", "Awaiting review"
         APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+        CLARIFICATION = "clarification", "Clarification requested"
 
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="dataset_uploads"

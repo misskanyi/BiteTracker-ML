@@ -7,7 +7,7 @@ import re
 from django import forms
 from django.conf import settings
 
-from web.accounts.models import UserProfile
+from web.accounts.models import AccessRequest, Role, UserProfile
 from web.core.uploads import validate_image
 
 PHONE_RE = re.compile(r"^\+?[0-9 ()-]{7,20}$")
@@ -80,7 +80,7 @@ class NotificationPreferencesForm(forms.ModelForm):
             "notify_dataset_upload": "When a dataset you upload passes validation.",
             "notify_dataset_validation": "When a dataset you upload fails validation.",
             "notify_calendar": "When someone else adds, changes or deletes an event for one of your schools.",
-            "notify_announcements": "Announcements sent by a System Admin.",
+            "notify_announcements": "Announcements sent by a System Administrator.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -92,3 +92,23 @@ class NotificationPreferencesForm(forms.ModelForm):
 class ThemeForm(forms.Form):
     theme = forms.ChoiceField(choices=UserProfile.Theme.choices)
 
+
+
+class AccessRequestDetailsForm(forms.ModelForm):
+    """What an applicant may add to their own pending request. Administrators decide the actual role."""
+
+    class Meta:
+        model = AccessRequest
+        fields = ["requested_role", "applicant_note"]
+        labels = {"requested_role": "Role you need", "applicant_note": "School(s) or organisation"}
+        widgets = {
+            "requested_role": forms.Select(attrs={"class": "form-select"}),
+            "applicant_note": forms.TextInput(attrs={"class": "form-control",
+                                                     "placeholder": "e.g. Head teacher, Kibera Primary (SCH004)"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Applicants can ask for a non-administrator role only.
+        self.fields["requested_role"].choices = [("", "Not sure"), *[
+            (value, label) for value, label in Role.choices if value != Role.SYSTEM_ADMIN]]
