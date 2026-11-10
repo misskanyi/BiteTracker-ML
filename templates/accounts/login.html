@@ -63,6 +63,7 @@
     </div>
     <p class="text-muted small mt-3">
       {% if google_enabled %}Problems signing in? Contact your administrator.{% else %}Need access? Contact your administrator.{% endif %}
+      {% if PRIVACY_PUBLISHED %}<br><a href="{% url 'core:privacy' %}" data-testid="privacy-link">Privacy notice</a>{% endif %}
     </p>
   </div>
 </div>

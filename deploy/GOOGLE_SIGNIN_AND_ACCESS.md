@@ -1,6 +1,6 @@
 # Releasing roles, Google sign-in and live notifications
 
-This runbook covers the `feature/rbac` release. It applies to the EC2 deployment described in
+This runbook covers the `feature/googlesignin` release. It applies to the EC2 deployment described in
 [README.md](README.md): Cloudflare → Nginx → Gunicorn → Django, with SQLite under `/var/lib/bitetracker`.
 
 > **Merging into `main` deploys.** `.github/workflows/deploy.yml` deploys every push to `main`.
@@ -85,16 +85,35 @@ routes return 404, and password login works as before.
 Merge the pull request into `main`. The deploy workflow runs the tests. `deploy.sh` then backs up
 the state directory, runs `collectstatic`, runs `migrate`, switches the release and checks `/health/`.
 
-To apply the migrations by hand instead, run them as root on the instance:
+Migrations must run from the **new** release, because the migration files ship with it. Before the
+deploy, `/opt/bitetracker/current` is still the old release. Running `manage.sh migrate` there applies
+nothing new, and `migrate --plan` shows an empty plan. Don't use it to pre-apply or preview this release.
+
+To deploy by hand instead of through GitHub Actions, run the same script the workflow runs. `deploy.sh`
+takes the backup, runs `check --deploy` (invalid settings stop it before the database is touched) and
+`migrate` from the new release, switches over, checks `/health/`, and restores the previous release
+and database itself if that check fails:
 
 ```
-sudo bash /opt/bitetracker/current/deploy/scripts/backup.sh pre-rbac
-sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh migrate --plan     # review
-sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh migrate --noinput
+# On your computer: package the exact commit (tracked files only; no models, data or databases)
+git archive --format=tar.gz -o bitetracker-<sha>.tar.gz <sha>
+# Copy it to the instance (for example via the private deploy S3 bucket), then on the instance:
+mkdir -p /tmp/bt-<sha>/src && tar -xzf bitetracker-<sha>.tar.gz -C /tmp/bt-<sha>/src
+sudo bash /opt/bitetracker/current/deploy/scripts/backup.sh pre-googlesignin     # extra manual backup
+sudo bash /tmp/bt-<sha>/src/deploy/scripts/deploy.sh bitetracker-<sha>.tar.gz <sha>
+```
+
+Confirm afterwards (the new release is now `current`):
+
+```
+sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh showmigrations accounts notifications audit schools account socialaccount
 ```
 
 These migrations are applied:
 - `accounts.0003_project_roles_and_access_requests`: role rename plus the AccessRequest table.
+- `accounts.0004` (the "email me new registration requests" preference, on by default) and
+  `notifications.0004` (the empty account-email outbox, `EmailDelivery`). No email is sent for
+  existing records.
 - `audit.0003`, `notifications.0003` (adds `event_key` and its unique constraint) and `schools.0003`
   (adds the "Clarification requested" status).
 - allauth's own `account` and `socialaccount` tables.
@@ -121,7 +140,7 @@ These migrations are applied:
 active, because it contains the reverse migrations:
 
 ```
-sudo bash /opt/bitetracker/current/deploy/scripts/backup.sh pre-rbac-rollback
+sudo bash /opt/bitetracker/current/deploy/scripts/backup.sh pre-googlesignin-rollback
 sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh migrate notifications 0002
 sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh migrate schools 0002
 sudo bash /opt/bitetracker/current/deploy/scripts/manage.sh migrate audit 0002
@@ -130,7 +149,8 @@ sudo bash /opt/bitetracker/current/deploy/scripts/rollback.sh
 ```
 
 - Roles go back to School Operator, Programme Admin and System Admin.
-- The access-request table is dropped. The audit log keeps the "Registration …" entries.
+- The access-request table and the account-email outbox are dropped (targets `0002` also undo
+  `accounts.0004` and `notifications.0004`). The audit log keeps the "Registration …" entries.
 - People who registered with Google stay **inactive**, so they remain blocked. Delete those accounts in Django Admin if you don't want them.
 - The allauth tables remain and are unused by the old code.
 

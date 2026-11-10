@@ -127,6 +127,7 @@ TEMPLATES = [
                 "web.core.context_processors.data_provenance",
                 "web.core.context_processors.navigation",
                 "web.core.context_processors.account",
+                "web.core.context_processors.privacy_notice",
             ],
         },
     },

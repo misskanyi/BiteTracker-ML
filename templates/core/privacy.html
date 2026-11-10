@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% comment %}
+  Public privacy notice. Behaviour described here is taken from the code; owner decisions and
+  server facts come only from web/core/privacy.py (the view returns 404 until all are set).
+  Keep this page in step with the code when data handling changes.
+{% endcomment %}
+{% block title %}Privacy notice{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <article class="col-12 col-lg-9 col-xl-8" data-testid="privacy-notice">
+    <div class="card shadow-sm"><div class="card-body p-4 p-md-5">
+      <div class="mb-3">{% include "partials/_brand.html" with variant="horizontal" %}</div>
+      <h1 class="h3 mb-1">Privacy notice</h1>
+      <p class="text-muted small mb-4">Effective {{ facts.effective_date|date:"j F Y" }}</p>
+
+      <h2 class="h5 mt-4">Who runs BiteTracker</h2>
+      <p>BiteTracker is a final-year university project developed by Sharon Kanyi for the BSc in Informatics and Computer Science at Strathmore University.</p>
+      <p>It forecasts daily school-meal demand to support meal planning. Food4Education provides the observed school-meal research records described below. Food4Education does not own or operate BiteTracker.</p>
+      <p>Questions about this notice or your information: <a href="mailto:{{ facts.contact_email }}">{{ facts.contact_email }}</a>.</p>
+
+      <h2 class="h5 mt-4">School-meal data</h2>
+      <ul>
+        <li><strong>Observed records</strong> come from Food4Education. They are daily counts per school, such as how many students were served, with schools identified only by de-identified codes. They contain no information about individual students.</li>
+        <li><strong>Simulated records</strong> were generated for development and testing. Forecasts and model results built from them are labelled <em>“Synthetic development data”</em> in BiteTracker and are not Food4Education results.</li>
+      </ul>
+
+      <h2 class="h5 mt-4">Information about you</h2>
+      <ul>
+        <li><strong>Your account:</strong> username, name, email address, and optionally a phone number and profile photo; your role, the schools assigned to you, and your settings (theme, landing page and which optional notifications you want).</li>
+        <li><strong>If you sign in with Google:</strong> BiteTracker asks Google only for your basic identity (scopes <code>openid</code>, <code>email</code> and <code>profile</code>). It keeps your Google account ID, name and email address, whether Google has verified that address, and any other basic profile details in Google's response, such as a profile-photo link. It does not keep Google access tokens, and it cannot read your email, files or other Google data.</li>
+        <li><strong>Registration requests:</strong> when you first sign in with Google, your account is created switched off and waits until a System Administrator approves it and assigns a role and schools. The request stores your name and email, any role and note you add, and the decision.</li>
+        <li><strong>What you add:</strong> uploaded datasets and supporting letters, school calendar events, problem reports and screenshots, and forecasts you run.</li>
+        <li><strong>Activity log:</strong> who did what and when, for account and data changes (for example approvals, role and school changes, suspensions, uploads and their reviews), including any notes an administrator records.</li>
+        <li><strong>Notifications and emails:</strong> in-app notifications sent to you, and a record of each account email (address, content and delivery status).</li>
+      </ul>
+
+      <h2 class="h5 mt-4">How it is used</h2>
+      <p>To run your account, decide what you can see and do, show forecasts for your schools, keep a record of important changes, and tell you about changes to your account. BiteTracker doesn't use your information for advertising, and the site contains no analytics or advertising trackers.</p>
+      <p>Email is sent only for account events: your registration being received and decided, your account being suspended or reactivated, and changes to your role or schools. System Administrators also receive an email for each new registration request, which they can switch off. Forecasts and other routine activity are shown in BiteTracker only and are never emailed.</p>
+
+      <h2 class="h5 mt-4">Who can see it</h2>
+      <ul>
+        <li><strong>System Administrators</strong> can see all accounts, registration requests, the activity log, uploads and problem reports.</li>
+        <li><strong>Other users</strong> can't see your account details. People assigned to the same school can see the username of whoever created a calendar event for that school.</li>
+        <li><strong>Your uploads and problem reports</strong> are visible only to you and System Administrators.</li>
+      </ul>
+
+      <h2 class="h5 mt-4">Services BiteTracker uses</h2>
+      <ul>
+        <li><strong>Amazon Web Services (AWS)</strong> hosts the application and its database in the {{ facts.aws_region }} region.</li>
+        {% if facts.cloudflare %}<li><strong>Cloudflare</strong> sits in front of bitetracker.xyz, so your requests and IP address pass through it.</li>{% endif %}
+        <li><strong>Google</strong> handles “Continue with Google” sign-in.</li>
+        <li><strong>Brevo</strong> delivers account emails, so it receives your email address and the email's content. Brevo adds an unsubscribe link to every email; if you use it, Brevo may stop delivering your BiteTracker account emails.</li>
+        <li><strong>jsDelivr</strong> serves some page components (Bootstrap and Plotly), so your browser sends it your IP address when loading pages.</li>
+      </ul>
+
+      <h2 class="h5 mt-4">Cookies and browser storage</h2>
+      <ul>
+        <li><code>sessionid</code> keeps you signed in, for up to two weeks.</li>
+        <li><code>csrftoken</code> protects forms against cross-site request forgery.</li>
+        <li><code>messages</code> briefly carries on-screen messages between pages.</li>
+        <li>Your browser's local storage remembers your theme, whether the sidebar is pinned and the last notification you saw.</li>
+      </ul>
+      <p>These are needed for the site to work; there are no tracking cookies.</p>
+
+      <h2 class="h5 mt-4">Logs and backups</h2>
+      <ul>
+        <li>The web server logs each request, including your IP address, the time and the address requested. These logs are kept for {{ facts.server_log_retention }}.</li>
+        {% if facts.scheduled_backups %}<li>{{ facts.scheduled_backups }}</li>{% endif %}
+        <li>A backup of the database and stored files is also taken before each software update. The {{ facts.backups_kept }} most recent backups are kept{% if facts.backup_offsite_copy %}, and each one is also copied, encrypted, to Amazon S3{% else %} on the same server{% endif %}.</li>
+      </ul>
+
+      <h2 class="h5 mt-4">How long information is kept</h2>
+      {% for paragraph in facts.retention %}<p>{{ paragraph }}</p>{% endfor %}
+
+      <h2 class="h5 mt-4">Your choices</h2>
+      <p>You can view and update your profile in BiteTracker, and choose which optional in-app notifications you receive in Settings → Notifications.</p>
+      {% for paragraph in facts.deletion %}<p>{{ paragraph }}</p>{% endfor %}
+
+      <h2 class="h5 mt-4">Security</h2>
+      <p>Connections to bitetracker.xyz use HTTPS. Passwords are stored only as salted hashes, and BiteTracker never sees your Google password. Access to school data is limited by role and assigned schools, and is checked on the server for every request.</p>
+
+      <h2 class="h5 mt-4">Changes to this notice</h2>
+      <p>If this notice changes, the new version is published on this page with a new effective date.</p>
+    </div></div>
+  </article>
+</div>
+{% endblock %}

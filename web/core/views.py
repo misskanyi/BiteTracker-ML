@@ -11,6 +11,7 @@ import logging
 from datetime import timedelta
 from urllib.parse import urlencode
 
+from django.contrib.auth.decorators import login_not_required
 from django.core.paginator import Paginator
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -384,3 +385,14 @@ def donors(request):
     if not impact["schools"]:
         return render(request, "core/donors.html", {"data_error": _no_school_data_message(request.user)})
     return render(request, "core/donors.html", {"impact": impact, "chart": charts.donor_reach_chart(impact["schools"])})
+
+
+@login_not_required
+def privacy(request):
+    """Public privacy notice. Not served (404) until every owner-confirmed and server-verified fact
+    in web/core/privacy.py is filled in, so it is never published with gaps."""
+    from web.core import privacy as notice
+
+    if not notice.is_published():
+        raise Http404("The privacy notice has not been published yet.")
+    return render(request, "core/privacy.html", {"facts": notice.FACTS})

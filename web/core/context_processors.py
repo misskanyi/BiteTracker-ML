@@ -138,3 +138,10 @@ def data_provenance(request) -> dict:
             "detail": "The data behind results could not be confirmed. Treat results as unverified.",
         }
     return {"DATA_STATUS": status, "DATA_LABEL": status["label"]}
+
+
+def privacy_notice(request):
+    """Whether /privacy/ is published, so links to it appear only once it is."""
+    from web.core import privacy
+
+    return {"PRIVACY_PUBLISHED": privacy.is_published()}
