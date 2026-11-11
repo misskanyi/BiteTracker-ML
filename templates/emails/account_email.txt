@@ -12,6 +12,6 @@ Hello {{ greeting_name }},
 {% endif %}{% if action_url %}{{ action_label }}: {{ action_url }}
 
 {% endif %}--
-This is an automatic account notice from BiteTracker (Food4Education meal planning).
+This is an automatic account notice from BiteTracker.
 It was sent only to you. Please don't reply to this email; contact your BiteTracker System Administrator instead.
 {% endautoescape %}
