@@ -4,10 +4,13 @@ Idempotent: accounts are matched on username. Running the command again resets
 each account's password, role, active flag and school assignments to the values
 below, so local and deployed environments end up with identical logins.
 
-    python manage.py seed_demo_accounts                    # default password
-    python manage.py seed_demo_accounts --password '...'   # or DEMO_ACCOUNT_PASSWORD
+    DEMO_ACCOUNT_PASSWORD='...' python manage.py seed_demo_accounts
+    python manage.py seed_demo_accounts --password '...'
     python manage.py seed_demo_accounts --schools KE001 KE002
     python manage.py seed_demo_accounts --remove           # delete the demo accounts
+
+A password is required: there is no built-in default, so the command refuses to run
+unless --password or DEMO_ACCOUNT_PASSWORD supplies one.
 
 Accounts created here have no AccessRequest, so they count as administrator-created
 and approved. Run `import_schools` first so there are schools to assign.
@@ -27,7 +30,6 @@ from web.accounts import access
 from web.accounts.models import Role
 from web.schools.models import School
 
-DEFAULT_PASSWORD = "BiteTracker@2026"
 DEFAULT_SCHOOL_COUNT = 3
 
 DEMO_ACCOUNTS = [
@@ -45,7 +47,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--password", help="Password for all demo accounts "
-                            "(default: $DEMO_ACCOUNT_PASSWORD, else the built-in demo password).")
+                            "(required unless $DEMO_ACCOUNT_PASSWORD is set; there is no default).")
         parser.add_argument("--schools", nargs="+", metavar="SCHOOL_ID",
                             help=f"School IDs to assign to the manager and stakeholder "
                                  f"(default: the first {DEFAULT_SCHOOL_COUNT} schools).")
@@ -60,7 +62,12 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Removed demo accounts ({deleted} rows deleted)."))
             return
 
-        password = password or os.environ.get("DEMO_ACCOUNT_PASSWORD") or DEFAULT_PASSWORD
+        password = password or os.environ.get("DEMO_ACCOUNT_PASSWORD")
+        if not password:
+            raise CommandError(
+                "No password supplied: pass --password or set DEMO_ACCOUNT_PASSWORD. "
+                "There is no default password."
+            )
         try:
             validate_password(password)
         except ValidationError as exc:
