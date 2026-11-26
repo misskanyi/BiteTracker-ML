@@ -347,7 +347,19 @@ b, strong { font-weight: var(--bt-weight-heading); }
 .form-control:disabled, .form-select:disabled { background-color: var(--bt-surface-muted); color: var(--bt-text-subtle); }
 .form-text { color: var(--bt-text-muted); font-size: var(--bt-text-xs); }
 .form-check-input:checked { background-color: var(--bt-btn-primary-bg); border-color: var(--bt-btn-primary-bg); }
-[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+/* Date fields: a visible, theme-coloured calendar icon on every browser (Safari draws none of its own).
+   Chrome's native indicator stays clickable but transparent over the icon; layout.js opens the picker
+   on a click anywhere in the field. Firefox keeps its own icon (excluded below to avoid two). */
+@supports not (-moz-appearance: none) {
+  input[type="date"].form-control {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%237C3AED'%3e%3cpath d='M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2M1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857zM6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2'/%3e%3c/svg%3e");
+    background-repeat: no-repeat; background-position: right 0.9rem center; background-size: 1.05rem;
+    padding-right: 2.75rem; cursor: pointer;
+  }
+  [data-theme="dark"] input[type="date"].form-control { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23A78BFA'%3e%3cpath d='M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2M1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857zM6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2'/%3e%3c/svg%3e"); }
+  input[type="date"].form-control:disabled { cursor: not-allowed; opacity: 0.7; }
+  input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
+}
 
 /* Password field with an inline show/hide toggle inside the input's right edge. */
 .bt-password-field { position: relative; }
@@ -1033,3 +1045,21 @@ html.bt-reduce-motion .bt-toast, html.bt-reduce-motion .bt-toast.is-leaving { an
   background: var(--bt-primary-soft); color: var(--bt-primary); font-size: 1.4rem;
 }
 .bt-access-status--rejected .bt-access-status__icon, .bt-access-status--suspended .bt-access-status__icon { background: var(--bt-danger-soft); color: var(--bt-danger); }
+
+/* Weather advisory (display only) and date-selection mode switch on the forecast page */
+.bt-weather__title { font-size: var(--bt-text-sm); font-weight: 700; margin: 0 0 0.25rem; color: inherit; }
+.bt-weather__days { padding-left: 1.1rem; margin: 0; }
+.bt-weather .bt-footnote { color: inherit; opacity: 0.85; }
+.bt-badge-rain { background: var(--bt-warning-soft); color: var(--bt-warning-text); font-weight: 600; }
+/* Radio-backed chips (same look as the History quick ranges): the checked option is the active chip. */
+.bt-mode-switch .bt-chip { cursor: pointer; margin: 0; }
+.bt-chip-input:checked + .bt-chip { color: var(--bt-on-primary); background: var(--bt-btn-primary-bg); border-color: var(--bt-btn-primary-bg); }
+.bt-chip-input:focus-visible + .bt-chip { outline: 2px solid var(--bt-primary); outline-offset: 2px; }
+
+/* Forecast vs actual: verification status of recorded meals served */
+.bt-actual-status { font-weight: 600; }
+.bt-actual-status--pending, .bt-actual-status--correction_requested { background: var(--bt-warning-soft); color: var(--bt-warning-text); }
+.bt-actual-status--verified { background: var(--bt-info-soft); color: var(--bt-info-text); }
+.bt-actual-status--published { background: var(--bs-success-bg-subtle, #d1e7dd); color: var(--bs-success-text-emphasis, #0a3622); }
+.bt-actual-status--rejected { background: var(--bs-danger-bg-subtle, #f8d7da); color: var(--bs-danger-text-emphasis, #58151c); }
+.bt-row-pending td { font-style: italic; }

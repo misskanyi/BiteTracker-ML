@@ -13,6 +13,7 @@
         <div><dt>County</dt><dd>{{ school.county|default:"—" }}</dd></div>
         <div><dt>Sub-county</dt><dd>{{ school.sub_county|default:"—" }}</dd></div>
         <div><dt>Verified enrolment</dt><dd>{{ school.verified_enrolment|default:"Not verified" }}</dd></div>
+        <div><dt>Weather location</dt><dd data-testid="school-location">{% if school.has_location %}{{ school.latitude }}, {{ school.longitude }}{% else %}Not set (no weather advisory){% endif %}</dd></div>
         <div><dt>Data source</dt><dd>{{ school.data_source|default:"—" }}</dd></div>
         <div><dt>Status</dt><dd>{% if school.is_active %}Active{% else %}Inactive{% endif %}</dd></div>
         <div><dt>Forecasts saved</dt><dd>{{ forecast_count }}</dd></div>

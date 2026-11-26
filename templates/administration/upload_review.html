@@ -6,11 +6,12 @@
 
 <section class="card mb-4"><div class="card-body">
   <dl class="bt-metric-list mb-3">
-    <div><dt>Status</dt><dd>{% include "schools/_review_status.html" with status=upload.review_status label=upload.get_review_status_display %}</dd></div>
+    <div><dt>Status</dt><dd>{% include "schools/_review_status.html" with status=upload.stage label=upload.stage_label %}</dd></div>
     <div><dt>Uploaded by</dt><dd>{{ upload.uploaded_by.get_username|default:"Deleted account" }}</dd></div>
     <div><dt>Submitted</dt><dd>{{ upload.uploaded_at|date:"j M Y, H:i" }}</dd></div>
     <div><dt>File size</dt><dd>{{ upload.file_size|filesizeformat }}</dd></div>
     {% if upload.reviewed_at %}<div><dt>Reviewed</dt><dd>{{ upload.reviewed_at|date:"j M Y, H:i" }} by {{ upload.reviewed_by.get_username|default:"deleted account" }}</dd></div>{% endif %}
+    {% if upload.published_at %}<div><dt>Published</dt><dd data-testid="upload-published">{{ upload.published_at|date:"j M Y, H:i" }} by {{ upload.published_by.get_username|default:"deleted account" }}</dd></div>{% endif %}
   </dl>
   <div class="d-flex flex-wrap gap-2" data-testid="review-downloads">
     <a class="btn btn-outline-primary btn-sm" href="{% url 'schools:upload_file' upload.pk %}"><i class="bi bi-file-earmark-spreadsheet me-1" aria-hidden="true"></i>Download data file</a>
@@ -19,6 +20,36 @@
   </div>
   {% if upload.review_comment %}<h3 class="bt-subheading mt-3">Review comment</h3><p class="mb-0">{{ upload.review_comment|linebreaksbr }}</p>{% endif %}
 </div></section>
+
+{% if upload.stage == "verified" or upload.stage == "published" %}
+<section class="card mb-4" data-testid="publish-panel"><div class="card-body">
+  <h3 class="bt-subheading">Forecasting history</h3>
+  <p class="small text-muted">Pending review → Verified → <strong>Published</strong>. {{ row_count }} school-day row{{ row_count|pluralize }} stored from this file. Only published rows are used by forecasts; the saved model stays in use (retraining is a separate process).</p>
+  {% if upload.stage == "published" %}
+    <p class="mb-0"><span class="badge text-bg-success">Published</span> These rows are part of forecasting history.</p>
+  {% else %}
+    {% if overlaps %}
+    <div class="bt-callout bt-callout--warning mb-3" role="alert" data-testid="upload-overlaps"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+      <span>{{ overlaps|length }} school-day{{ overlaps|length|pluralize }} overlap existing records{% if conflict_count %}, <strong>{{ conflict_count }} with a different meals-served value</strong>{% endif %}. Published rows replace earlier values for the same school-day.</span></div>
+    <div class="table-responsive mb-3"><table class="table table-sm bt-table mb-0">
+      <thead><tr><th scope="col">School</th><th scope="col">Date</th><th scope="col" class="text-end">This upload</th><th scope="col" class="text-end">Forecasting history</th><th scope="col" class="text-end">Recorded actual</th><th scope="col">Conflict</th></tr></thead>
+      <tbody>{% for o in overlaps|slice:":50" %}<tr>
+        <td>{{ o.school_id }}</td><td>{{ o.date|date:"j M Y" }}</td><td class="text-end">{{ o.new_value|floatformat:"-1" }}</td>
+        <td class="text-end">{{ o.history_value|floatformat:"-1"|default:"—" }}</td>
+        <td class="text-end">{% if o.actual_value is not None %}{{ o.actual_value }} <span class="bt-cell-sub">{{ o.actual_status }}</span>{% else %}—{% endif %}</td>
+        <td>{% if o.conflict %}<span class="badge text-bg-warning">Differs</span>{% else %}Same value{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table>{% if overlaps|length > 50 %}<p class="small text-muted mt-1">Showing the first 50.</p>{% endif %}</div>
+    {% endif %}
+    {% if can_decide %}
+    <form method="post" action="{% url 'administration:upload_publish' upload.pk %}" data-testid="upload-publish-form">{% csrf_token %}
+      {% if conflict_count %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="acknowledge_conflicts" id="ack-upload-conflicts"><label class="form-check-label" for="ack-upload-conflicts">I have reviewed the {{ conflict_count }} conflicting school-day{{ conflict_count|pluralize }} and want this upload's values to replace them</label></div>{% endif %}
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-database-add me-1" aria-hidden="true"></i>Publish to forecasting history</button>
+    </form>
+    {% endif %}
+  {% endif %}
+</div></section>
+{% endif %}
 
 <section class="card bt-form-card mb-4"><div class="card-body">
   {% if can_decide %}
@@ -32,7 +63,7 @@
     {% include "partials/_field.html" with field=form.comment %}
     <button type="submit" class="btn btn-primary">Save decision</button>
   </form>
-  <p class="small text-muted mt-2 mb-0">The uploader is notified. Approving records the decision only; it does not replace the active dataset or retrain the model.</p>
+  <p class="small text-muted mt-2 mb-0">The uploader is notified. Verifying records the decision only; publishing is a separate step, and neither retrains the model.</p>
   {% else %}
   <p class="mb-0 text-muted">You uploaded this file, so another administrator must review it.</p>
   {% endif %}

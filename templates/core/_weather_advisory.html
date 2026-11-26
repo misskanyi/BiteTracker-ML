@@ -1,0 +1,25 @@
+{# Morning heavy-rain advisory (display only). Context: advisory (services.weather_service.WeatherAdvisory). #}
+{% load humanize %}
+{% if advisory.status == "advisory" %}
+<section class="bt-callout bt-callout--warning mb-3 bt-weather" role="status" aria-labelledby="weather-heading" data-testid="weather-advisory" data-weather-status="advisory">
+  <i class="bi bi-cloud-rain-heavy" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <h2 class="bt-weather__title" id="weather-heading">Heavy-rain advisory · {{ advisory.window_label }}</h2>
+    <p class="mb-2">{{ advisory.message }}</p>
+    <ul class="bt-weather__days mb-2">
+      {% for d in advisory.advisory_days %}
+      <li data-testid="weather-advisory-day"><strong>{{ d.date|date:"D j M Y" }}</strong>: up to {{ d.max_hour_mm|floatformat:1 }} mm in one hour, {{ d.total_mm|floatformat:1 }} mm over 6–9 a.m.{% if d.max_probability_pct is not None %} · {{ d.max_probability_pct|floatformat:0 }}% chance of rain{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% include "core/_weather_source.html" %}
+  </div>
+</section>
+{% else %}
+<div class="bt-callout bt-callout--info mb-3 bt-weather" role="status" data-testid="weather-status" data-weather-status="{{ advisory.status }}">
+  <i class="bi {% if advisory.status == 'clear' %}bi-cloud-sun{% else %}bi-cloud-slash{% endif %}" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <span>{{ advisory.message }}</span>
+    {% if advisory.status == "clear" %}{% include "core/_weather_source.html" %}{% endif %}
+  </div>
+</div>
+{% endif %}

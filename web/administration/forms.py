@@ -149,7 +149,7 @@ class UserEditForm(_UserFieldsMixin, forms.Form):
 class SchoolForm(forms.ModelForm):
     class Meta:
         model = School
-        fields = ["name", "county", "sub_county", "verified_enrolment", "is_active"]
+        fields = ["name", "county", "sub_county", "verified_enrolment", "latitude", "longitude", "is_active"]
         labels = {"is_active": "Active school record"}
         help_texts = {"is_active": "Inactive schools keep their history and forecasts but cannot be picked for new calendar events."}
         widgets = {
@@ -157,8 +157,21 @@ class SchoolForm(forms.ModelForm):
             "county": forms.TextInput(attrs=_text),
             "sub_county": forms.TextInput(attrs=_text),
             "verified_enrolment": forms.NumberInput(attrs={**_text, "min": 0}),
+            "latitude": forms.NumberInput(attrs={**_text, "step": "0.00001", "min": -90, "max": 90}),
+            "longitude": forms.NumberInput(attrs={**_text, "step": "0.00001", "min": -180, "max": 180}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        lat, lon = cleaned.get("latitude"), cleaned.get("longitude")
+        if lat is not None and not -90 <= lat <= 90:
+            self.add_error("latitude", "Latitude must be between -90 and 90.")
+        if lon is not None and not -180 <= lon <= 180:
+            self.add_error("longitude", "Longitude must be between -180 and 180.")
+        if (lat is None) != (lon is None) and "latitude" not in self.errors and "longitude" not in self.errors:
+            raise forms.ValidationError("Enter both latitude and longitude, or leave both blank.")
+        return cleaned
 
 
 class AssignUserForm(forms.Form):
@@ -205,14 +218,16 @@ class LogFilterForm(forms.Form):
 
 class UploadReviewForm(forms.Form):
     decision = forms.ChoiceField(
-        choices=[(DatasetUpload.ReviewStatus.APPROVED, "Approve"),
-                 (DatasetUpload.ReviewStatus.CLARIFICATION, "Request clarification"),
-                 (DatasetUpload.ReviewStatus.REJECTED, "Reject")],
+        choices=[
+            (DatasetUpload.ReviewStatus.APPROVED, "Verify (publish to forecasting history as a separate step)"),
+            (DatasetUpload.ReviewStatus.CLARIFICATION, "Ask the uploader for clarification"),
+            (DatasetUpload.ReviewStatus.REJECTED, "Reject"),
+        ],
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
     )
     comment = forms.CharField(
         label="Comment to the uploader", required=False, max_length=2000,
-        help_text="Required when rejecting or asking for clarification: say what is wrong or what you need.",
+        help_text="Required when rejecting or asking for clarification: say what is wrong or unclear.",
         widget=forms.Textarea(attrs={**_text, "rows": 3}),
     )
 

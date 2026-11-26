@@ -23,6 +23,7 @@ NAV_SECTIONS = [
         ("Historical demand", "bi-graph-up", "core:history", {"history"}, None),
         ("Forecast & planning", "bi-calendar2-week", "core:forecast", {"forecast", "forecast_run"}, None),
         ("Forecast history", "bi-clock-history", "core:forecast_history", {"forecast_history"}, None),
+        ("Forecast vs actual", "bi-clipboard-data", "core:actuals", {"actuals", "actual_detail"}, None),
         ("School calendar", "bi-calendar3", "schoolcalendar:calendar", {
             "schoolcalendar:calendar", "schoolcalendar:event_detail", "schoolcalendar:event_create",
             "schoolcalendar:event_update", "schoolcalendar:event_delete",

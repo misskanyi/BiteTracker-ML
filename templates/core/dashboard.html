@@ -162,7 +162,7 @@
         <tr{% if run.is_synthetic %} class="bt-row-muted"{% endif %}>
           <td class="text-nowrap"><a href="{% url 'core:forecast_run' run.pk %}">{{ run.created_at|date:"j M Y, H:i" }}</a></td>
           <td>{{ run.school_name|default:run.school_code }}</td>
-          <td class="text-nowrap d-none d-xl-table-cell">{{ run.get_horizon_days_display }}</td>
+          <td class="text-nowrap d-none d-xl-table-cell">{{ run.period_label }}</td>
           <td class="text-end">{{ run.day1_predicted_meals|intcomma }}</td>
           <td class="text-end fw-semibold">{{ run.day1_recommended_meals|intcomma }}</td>
           <td><span class="badge risk-badge risk-{{ run.day1_risk_level|lower }}">{{ run.day1_risk_level }}</span></td>

@@ -19,10 +19,12 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from config import settings as ml_settings
-from services import (ServiceError, data_service, donor_service, forecast_service, model_service, performance_service,
-                      planning_service, status_service)
+from django.utils import timezone
+
+from services import (ServiceError, data_service, date_forecast_service, donor_service, forecast_service, model_service,
+                      performance_service, planning_service, status_service)
 from web.accounts import access
-from web.core import charts
+from web.core import charts, weather
 from web.core.errors import user_message
 from web.core.forecast_records import record_forecast_run, stored_cost_per_meal, stored_days
 from web.core.forms import ForecastForm, HistoryFilterForm
@@ -241,13 +243,24 @@ def forecast(request):
         if form.is_valid():
             data = form.cleaned_data
             try:
-                result = forecast_service.generate_forecast(
-                    data["school"], data["horizon"],
-                    expected_attendance=data["expected_attendance"],
-                    expected_rainfall_mm=data["expected_rainfall_mm"],
-                    expected_temperature_c=data["expected_temperature_c"],
-                    available_capacity=data["available_capacity"],
-                )
+                if data["mode"] == ForecastForm.MODE_HORIZON:
+                    result = forecast_service.generate_forecast(
+                        data["school"], data["horizon"],
+                        expected_attendance=data["expected_attendance"],
+                        expected_rainfall_mm=data["expected_rainfall_mm"],
+                        expected_temperature_c=data["expected_temperature_c"],
+                        available_capacity=data["available_capacity"],
+                    )
+                else:
+                    single = data["mode"] == ForecastForm.MODE_SINGLE
+                    result = date_forecast_service.forecast_selected_dates(
+                        data["school"], data["mode"],
+                        data["target_date"] if single else data["range_start"],
+                        None if single else data["range_end"],
+                        expected_attendance=data["expected_attendance"],
+                        available_capacity=data["available_capacity"],
+                        today=timezone.localdate(),
+                    )
             except ServiceError as exc:
                 message = user_message(exc)
                 form.add_error(None, message)
@@ -258,16 +271,22 @@ def forecast(request):
                 run = record_forecast_run(result, request.user, cost_per_meal=data["cost_per_meal_kes"])
                 notify([request.user], Notification.Type.FORECAST_COMPLETED,
                        f"Forecast ready: {run.school_name or run.school_code}",
-                       f"{run.get_horizon_days_display()} from {run.first_forecast_date:%d %b %Y}. "
-                       f"Day 1: {run.day1_predicted_meals} meals predicted, {run.day1_recommended_meals} recommended.",
+                       (f"{run.period_label}. " if run.is_date_selection else
+                        f"{run.period_label} from {run.first_forecast_date:%d %b %Y}. ")
+                       + f"Day 1: {run.day1_predicted_meals} meals predicted, {run.day1_recommended_meals} recommended.",
                        url=reverse("core:forecast_run", args=[run.pk]), school=run.school, include_actor=True)
                 return redirect("core:forecast_run", pk=run.pk)
     else:
-        initial = {k: request.GET[k] for k in ("school", "horizon") if k in request.GET}
+        initial = {k: request.GET[k] for k in ("school", "horizon", "mode", "target_date", "range_start", "range_end")
+                   if k in request.GET}
         form = ForecastForm(initial=initial, schools=schools)
 
     defaults_json = {
-        school_id: {**d, "origin_date": d["origin_date"].isoformat()} for school_id, d in defaults.items()
+        school_id: {
+            **d, "origin_date": d["origin_date"].isoformat(),
+            "next_school_day": _next_weekday(d["origin_date"]).isoformat(),
+        }
+        for school_id, d in defaults.items()
     }
     weather_unrecorded = bool(data_service.unrecorded_columns())
     if weather_unrecorded:
@@ -280,8 +299,16 @@ def forecast(request):
         form.fields["expected_attendance"].widget.attrs.update(disabled=True)
     return render(request, "core/forecast.html", {
         "form": form, "defaults": defaults_json, "weather_unrecorded": weather_unrecorded,
+        "max_range_days": date_forecast_service.MAX_RANGE_SCHOOL_DAYS,
         "attendance_unused": attendance_unused,
     })
+
+
+def _next_weekday(d):
+    d += timedelta(days=1)
+    while d.weekday() >= 5:
+        d += timedelta(days=1)
+    return d
 
 
 def _model_ignores_attendance() -> bool:
@@ -296,6 +323,11 @@ def _model_ignores_attendance() -> bool:
 def forecast_run(request, pk: int):
     # Out-of-scope runs 404 rather than 403, so their existence is not revealed.
     run = get_object_or_404(_visible_runs(request.user), pk=pk)
+    return render_forecast_run(request, run)
+
+
+def render_forecast_run(request, run: ForecastRun, actual_form=None, status: int = 200):
+    """The saved forecast page; `actual_form` carries a submitted record form back with its errors."""
     days = stored_days(run)
     try:
         recent = data_service.get_school_history(run.school_code, end=run.origin_date).tail(21)
@@ -326,7 +358,17 @@ def forecast_run(request, pk: int):
     ds = summary.get("decision_support", {})
     assumptions = [a for a in ds.get("assumptions", [])
                    if not (weather_unrecorded and a.startswith(("Rainfall basis", "Temperature basis")))]
+    # Display-only advisory, fetched live (cached) for the run's dates; never stored or fed to a model.
+    advisory = weather.advisory_for(run.school, run.school_code, [d["date"] for d in days])
+    for day in days:
+        day["weather"] = advisory.for_day(day["date"])
+    methods_used = list(dict.fromkeys(d["method_label"] for d in days if d.get("method_label")))
+    from web.core.actual_views import forecast_vs_actual_context
+
     return render(request, "core/forecast_result.html", {
+        **forecast_vs_actual_context(request, run, actual_form),
+        "advisory": advisory,
+        "methods_used": methods_used,
         "run": run,
         "days": days,
         "summary": summary,
@@ -338,7 +380,7 @@ def forecast_run(request, pk: int):
         "cost_error": cost_error,
         "default_cost": planning_service.default_cost_per_meal(),
         "chart": charts.forecast_chart(recent, days, run.school_name or run.school_code),
-    })
+    }, status=status)
 
 
 def _safe_unrecorded() -> set[str]:

@@ -18,21 +18,56 @@
         <div class="card-body">
           <h2 class="bt-card-title mb-3" id="config-heading"><span class="bt-step" aria-hidden="true">1</span>What to forecast</h2>
           <div class="row g-3">
-            <div class="col-md-7">
+            <div class="col-md-6">
               <label class="form-label" for="{{ form.school.id_for_label }}">{{ form.school.label }}</label>
               {{ form.school }}
               {% for e in form.school.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
-            <div class="col-md-5">
+            <div class="col-md-6">
+              <fieldset>
+                <legend class="form-label fs-6 mb-2">{{ form.mode.label }}</legend>
+                <div class="bt-chips bt-mode-switch" role="radiogroup" data-testid="mode-switch">
+                  {% for radio in form.mode %}
+                    <input type="radio" class="bt-chip-input visually-hidden" name="{{ form.mode.html_name }}" id="{{ radio.id_for_label }}" value="{{ radio.data.value }}"{% if radio.data.selected or not form.mode.value and radio.data.value == "horizon" %} checked{% endif %}>
+                    <label class="bt-chip" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                  {% endfor %}
+                </div>
+              </fieldset>
+            </div>
+            <div class="col-md-5" data-mode-panel="horizon">
               <label class="form-label" for="{{ form.horizon.id_for_label }}">{{ form.horizon.label }}</label>
               {{ form.horizon }}
               {% for e in form.horizon.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
+            <div class="col-md-5" data-mode-panel="single">
+              <label class="form-label" for="{{ form.target_date.id_for_label }}">{{ form.target_date.label }}</label>
+              {{ form.target_date }}
+              {% for e in form.target_date.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-7" data-mode-panel="range">
+              <div class="row g-2">
+                <div class="col-6">
+                  <label class="form-label" for="{{ form.range_start.id_for_label }}">{{ form.range_start.label }}</label>
+                  {{ form.range_start }}
+                  {% for e in form.range_start.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="{{ form.range_end.id_for_label }}">{{ form.range_end.label }}</label>
+                  {{ form.range_end }}
+                  {% for e in form.range_end.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+            </div>
           </div>
           <div class="bt-callout bt-callout--info mt-3" id="origin-note" role="status">
             <i class="bi bi-calendar-event" aria-hidden="true"></i>
-            <span>Starts from the last recorded date, not from today. <span id="origin-detail"></span> School days only (Mon–Fri).</span>
+            <span>
+              <span data-mode-panel="horizon">Starts from the last recorded date, not from today.</span>
+              <span id="origin-detail"></span> School days only (Mon–Fri).
+              <span data-mode-panel="single range">The next school day (<span id="next-day-detail"></span>) uses the saved model; later dates use a direct planning estimate checked against a weekday-average baseline. Up to {{ max_range_days }} school days per range.</span>
+            </span>
           </div>
+          <p class="bt-footnote mt-2 mb-0">Upcoming dates within about two weeks also show a heavy-rain advisory for 6–9 a.m. when the school has a location set. Weather is advisory only.</p>
         </div>
       </section>
 
@@ -70,6 +105,7 @@
             {% endwith %}
           </div>
 
+          <div data-mode-panel="horizon">
           <h3 class="bt-subheading mt-4">Weather</h3>
           {% if weather_unrecorded %}
             <div class="bt-callout bt-callout--warning mb-3" id="weather-note" role="note" data-testid="weather-not-recorded">
@@ -87,6 +123,8 @@
             </div>
             {% endif %}{% endfor %}
           </div>
+          </div>
+          <p class="bt-footnote mt-3 mb-0" data-mode-panel="single range">Weather inputs apply to the next-school-days horizons only. For selected dates, weather is shown as an advisory and never changes the meal estimate.</p>
         </div>
       </section>
 
@@ -160,8 +198,15 @@
       var d = defaults[select.value];
       if (!d) return;
       var origin = new Date(d.origin_date + "T00:00:00");
+      var fmt = {day: "numeric", month: "long", year: "numeric"};
       document.getElementById("origin-detail").textContent =
-        "Data ends " + origin.toLocaleDateString("en-GB", {day: "numeric", month: "long", year: "numeric"}) + ".";
+        "Latest record: " + origin.toLocaleDateString("en-GB", fmt) + ".";
+      var next = new Date(d.next_school_day + "T00:00:00");
+      document.getElementById("next-day-detail").textContent = next.toLocaleDateString("en-GB", fmt);
+      ["id_target_date", "id_range_start", "id_range_end"].forEach(function (id) {
+        var input = document.getElementById(id);
+        if (input) input.min = d.next_school_day;
+      });
       Object.keys(fields).forEach(function (name) {
         var hint = document.querySelector('[data-hint="' + name + '"]');
         if (hint) hint.textContent = fields[name](d);
@@ -169,6 +214,18 @@
     }
     select.addEventListener("change", update);
     update();
+
+    // Show only the inputs for the chosen date mode (all stay visible without JavaScript).
+    var radios = document.querySelectorAll('input[name="mode"]');
+    function showMode() {
+      var checked = document.querySelector('input[name="mode"]:checked');
+      var mode = checked ? checked.value : "horizon";
+      document.querySelectorAll("[data-mode-panel]").forEach(function (panel) {
+        panel.hidden = panel.getAttribute("data-mode-panel").split(" ").indexOf(mode) === -1;
+      });
+    }
+    radios.forEach(function (r) { r.addEventListener("change", showMode); });
+    showMode();
   })();
 </script>
 {% endblock %}

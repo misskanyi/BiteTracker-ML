@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Forecast vs actual{% endblock %}
+{% block content %}
+{% include "partials/_page_header.html" with title="Forecast vs actual" icon="bi-clipboard-data" subtitle="Recorded meals served against saved forecasts, data freshness per school, and the school follow-up report." %}
+
+{% if no_schools %}
+  <div class="alert alert-info" role="status">No schools are assigned to your account yet. Ask a System Administrator to assign your schools.</div>
+{% else %}
+
+<form method="get" class="card mb-3" data-testid="fva-filter"><div class="card-body row g-2 align-items-end">
+  {% if form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2 mb-0" role="alert">{% for e in form.non_field_errors %}{{ e }} {% endfor %}</div></div>{% endif %}
+  <div class="col-md-4">{% include "partials/_field.html" with field=form.school %}</div>
+  <div class="col-sm-4 col-md-2">{% include "partials/_field.html" with field=form.start %}</div>
+  <div class="col-sm-4 col-md-2">{% include "partials/_field.html" with field=form.end %}</div>
+  <div class="col-sm-4 col-md-2">{% include "partials/_field.html" with field=form.status %}</div>
+  <div class="col-md-2 mb-3 d-flex gap-2"><button class="btn btn-outline-success btn-sm" type="submit">Apply</button></div>
+  <div class="col-12 d-flex flex-wrap align-items-center gap-2">
+    <a class="btn btn-primary btn-sm" href="{{ export_url }}" data-testid="followup-export"><i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Export follow-up report</a>
+    <span class="bt-footnote">CSV for {{ start|date:"j M Y" }} – {{ end|date:"j M Y" }} and the selected schools. Recorded counts and forecast estimates are separate columns; surplus is positive, potential shortfall negative. No learner identifiers, letters or review notes.</span>
+  </div>
+</div></form>
+
+<section class="card mb-4" aria-labelledby="freshness-heading" data-testid="freshness">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="freshness-heading"><i class="bi bi-database-check" aria-hidden="true"></i>Data freshness</h2></div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0 bt-table">
+      <thead><tr><th scope="col">School</th><th scope="col">Latest usable record</th><th scope="col" class="text-end">Pending review</th><th scope="col" class="text-end">Correction requested</th><th scope="col" class="text-end">Verified, not published</th><th scope="col" class="text-end">Published</th></tr></thead>
+      <tbody>
+        {% for f in freshness %}
+        <tr>
+          <td>{{ f.school.name|default:f.code }} <span class="bt-cell-sub">{{ f.code }}</span></td>
+          <td data-testid="latest-usable">{{ f.latest|date:"D j M Y"|default:"No records" }}</td>
+          <td class="text-end">{{ f.counts.pending|default:0 }}</td>
+          <td class="text-end">{{ f.counts.correction_requested|default:0 }}</td>
+          <td class="text-end">{{ f.counts.verified|default:0 }}</td>
+          <td class="text-end">{{ f.counts.published|default:0 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-body pt-2"><p class="bt-footnote mb-0">“Latest usable record” is the newest day in forecasting history: forecasts start from it. Only published records are added; the saved model stays in use until it is retrained separately.</p></div>
+</section>
+
+<section class="card" aria-labelledby="records-heading">
+  <div class="card-header bt-card-header">
+    <h2 class="bt-card-title" id="records-heading"><i class="bi bi-table" aria-hidden="true"></i>Recorded meals served</h2>
+    {% if accuracy %}<span class="badge bt-badge-primary" data-testid="overview-accuracy">MAE {{ accuracy.mae }} meals · {{ accuracy.n }} verified day{{ accuracy.n|pluralize }}</span>{% endif %}
+  </div>
+  {% if is_reviewer and pending_count %}<div class="card-body pb-0"><div class="bt-callout bt-callout--warning" role="status"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span>{{ pending_count }} record{{ pending_count|pluralize }} awaiting your review.</span></div></div>{% endif %}
+  {% if page.object_list %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 bt-table" data-testid="actuals-table">
+      <thead><tr><th scope="col">Date</th><th scope="col">School</th><th scope="col" class="text-end">Latest forecast</th><th scope="col" class="text-end">Recorded meals served</th><th scope="col" class="text-end">Forecast error</th><th scope="col" class="text-end">Prepared − served</th><th scope="col">Verification status</th><th scope="col"></th></tr></thead>
+      <tbody>
+      {% for r in page %}
+        <tr{% if not r.record.is_verified %} class="bt-row-pending"{% endif %}>
+          <td class="text-nowrap">{{ r.record.date|date:"D j M Y" }}</td>
+          <td>{{ r.record.school.school_id }}</td>
+          <td class="text-end">{% if r.run %}<a href="{% url 'core:forecast_run' r.run.pk %}#forecast-vs-actual">{{ r.predicted|intcomma }}</a>{% else %}—{% endif %}</td>
+          <td class="text-end">{{ r.record.meals_served|intcomma }}{% if not r.record.is_verified %} <span class="bt-cell-sub">(pending)</span>{% endif %}</td>
+          <td class="text-end">{% if r.error %}{% if r.error.error > 0 %}+{% endif %}{{ r.error.error|intcomma }}{% else %}—{% endif %}</td>
+          <td class="text-end">{% if r.record.prepared_minus_served is not None %}{% if r.record.prepared_minus_served > 0 %}+{% endif %}{{ r.record.prepared_minus_served }}{% else %}—{% endif %}</td>
+          <td>{% include "core/_actual_status.html" with record=r.record %}</td>
+          <td class="text-end"><a class="small" href="{% url 'core:actual_detail' r.record.pk %}">{% if is_reviewer %}Review{% else %}Details{% endif %}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "partials/_pagination.html" %}
+  {% else %}
+  <div class="card-body"><p class="mb-0 text-muted">No recorded meals served for this selection. School Managers record them from a saved forecast’s page (Forecast history → open a forecast → Forecast vs actual).</p></div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

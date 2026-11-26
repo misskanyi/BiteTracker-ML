@@ -8,6 +8,7 @@ helpers in web.accounts.access, so a crafted id never reaches a record outside s
 from __future__ import annotations
 
 from datetime import datetime, time
+from decimal import Decimal
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -41,6 +42,7 @@ from web.audit.services import log_action, visible_logs
 from web.notifications import emails
 from web.notifications.models import Notification
 from web.notifications.services import notify
+from web.schools import demand_history
 from web.schools.models import DatasetUpload
 from web.support.forms import IssueStatusForm
 from web.support.models import SupportIssue
@@ -491,6 +493,11 @@ def _log_assignment(request, target, school, added: bool):
     emails.access_changed(target, event.pk, added=[school] if added else (), removed=() if added else [school])
 
 
+def _json_value(value):
+    """Audit-log safe value (e.g. a Decimal latitude becomes "-1.28640")."""
+    return str(value) if isinstance(value, Decimal) else value
+
+
 @access.admin_required
 @require_http_methods(["GET", "POST"])
 def school_edit(request, pk: int):
@@ -498,7 +505,8 @@ def school_edit(request, pk: int):
     form = SchoolForm(request.POST or None, instance=school)
     if request.method == "POST" and form.is_valid():
         if form.has_changed():
-            changes = {f: {"from": form.initial.get(f), "to": form.cleaned_data[f]} for f in form.changed_data}
+            changes = {f: {"from": _json_value(form.initial.get(f)), "to": _json_value(form.cleaned_data[f])}
+                       for f in form.changed_data}
             form.save()
             log_action(request.user, AuditLog.Action.SCHOOL_UPDATED, target=school, school=school,
                        details={"changes": changes})
@@ -563,7 +571,16 @@ def upload_review(request, pk: int):
             record.review_status = form.cleaned_data["decision"]
             record.review_comment = form.cleaned_data["comment"].strip()
             record.reviewed_by, record.reviewed_at = request.user, timezone.now()
-            record.save(update_fields=["review_status", "review_comment", "reviewed_by", "reviewed_at"])
+            try:
+                with transaction.atomic():
+                    record.save(update_fields=["review_status", "review_comment", "reviewed_by", "reviewed_at"])
+                    demand_history.apply_review_decision(record)
+            except demand_history.DemandHistoryError as exc:
+                # Nothing was saved: the decision stays as it was.
+                record.refresh_from_db()
+                messages.error(request, str(exc))
+                return _render(request, "administration/upload_review.html", "uploads",
+                               _upload_review_context(record, form, can_decide))
             log_action(request.user, AuditLog.Action.DATASET_REVIEWED, target=record, target_label=record.original_filename,
                        target_user=record.uploaded_by, details={"decision": record.review_status})
             if record.uploaded_by:
@@ -571,11 +588,51 @@ def upload_review(request, pk: int):
                        f"Upload {record.get_review_status_display().lower()}: {record.original_filename}",
                        record.review_comment or "No comment was added.",
                        url=reverse("schools:upload_detail", args=[record.pk]), actor=request.user)
-            messages.success(request, f"{record.original_filename} {record.get_review_status_display().lower()}. The uploader has been notified.")
+            messages.success(request, f"{record.original_filename} {record.get_review_status_display().lower()}. The uploader has been notified."
+                             + (" Publish it to add the rows to forecasting history." if record.stage == "verified" else ""))
+            if record.stage == "verified":
+                return redirect("administration:upload_review", pk=record.pk)
             return redirect("administration:uploads")
-    return _render(request, "administration/upload_review.html", "uploads", {
-        "upload": record, "summary": record.validation_summary, "form": form, "can_decide": can_decide,
-    })
+    return _render(request, "administration/upload_review.html", "uploads", _upload_review_context(record, form, can_decide))
+
+
+def _upload_review_context(record, form, can_decide) -> dict:
+    context = {"upload": record, "summary": record.validation_summary, "form": form, "can_decide": can_decide}
+    if record.stage in ("verified", "published"):
+        context["row_count"] = record.demand_records.count()
+        context["overlaps"] = demand_history.upload_conflicts(record) if record.stage == "verified" else []
+        context["conflict_count"] = sum(1 for o in context["overlaps"] if o["conflict"])
+    return context
+
+
+@access.admin_required
+@require_POST
+def upload_publish(request, pk: int):
+    """Publish a verified upload's rows into forecasting history. Atomic and safe to repeat."""
+    record = get_object_or_404(access.reviewable_uploads(request.user), pk=pk)
+    if not access.can_decide_upload(request.user, record):
+        raise PermissionDenied
+    try:
+        result = demand_history.publish_upload(record, request.user,
+                                               acknowledge_conflicts=request.POST.get("acknowledge_conflicts") == "on")
+    except demand_history.PublishError as exc:
+        messages.error(request, str(exc))
+        return redirect("administration:upload_review", pk=pk)
+    if not result.published:
+        messages.info(request, f"{record.original_filename} was already published; nothing was changed.")
+        return redirect("administration:upload_review", pk=pk)
+    conflicts = [c for c in result.conflicts if c["conflict"]]
+    log_action(request.user, AuditLog.Action.DATASET_PUBLISHED, target=record, target_label=record.original_filename,
+               target_user=record.uploaded_by,
+               details={"rows": result.rows, "overlaps": len(result.conflicts), "conflicts_acknowledged": len(conflicts),
+                        "conflict_days": [f"{c['school_id']} {c['date']}" for c in conflicts[:50]]})
+    if record.uploaded_by:
+        notify([record.uploaded_by], Notification.Type.DATASET_REVIEW, f"Upload published: {record.original_filename}",
+               f"{result.rows} rows were added to forecasting history.",
+               url=reverse("schools:upload_detail", args=[record.pk]), actor=request.user)
+    messages.success(request, f"Published {result.rows} rows from {record.original_filename} to forecasting history. "
+                              "The saved model is unchanged; retraining is a separate process.")
+    return redirect("administration:upload_review", pk=pk)
 
 
 # --- Support issues and announcements (System Administrators) --------------------------------------------

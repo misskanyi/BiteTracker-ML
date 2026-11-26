@@ -6,3 +6,10 @@ class SchoolsConfig(AppConfig):
     name = "web.schools"
     label = "schools"
     verbose_name = "Schools, datasets and forecasts"
+
+    def ready(self):
+        # Forecasting reads approved demand history from the database (approved uploads included).
+        from services import data_service
+        from web.schools.demand_history import DatabaseHistoryProvider
+
+        data_service.register_history_provider(DatabaseHistoryProvider())

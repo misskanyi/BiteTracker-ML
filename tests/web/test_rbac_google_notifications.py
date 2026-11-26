@@ -637,4 +637,4 @@ def test_upload_submission_notifies_admins_once_and_decision_notifies_uploader(c
     record = DatasetUpload.objects.get()
     client.force_login(sysadmin)
     client.post(reverse("administration:upload_review", args=[record.pk]), {"decision": "approved", "comment": ""})
-    assert Notification.objects.filter(recipient=manager, type=Type.DATASET_REVIEW, title__startswith="Upload approved").exists()
+    assert Notification.objects.filter(recipient=manager, type=Type.DATASET_REVIEW, title__startswith="Upload verified").exists()
