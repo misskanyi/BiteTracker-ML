@@ -172,13 +172,24 @@ class _Calendar:
         return d in self.holidays
 
 
-def test_range_excludes_calendar_holidays_and_single_holiday_is_rejected(latest, monkeypatch):
+def test_likely_closed_days_need_confirmation(latest, monkeypatch):
     start = next_weekday(latest, 2)
     holiday = next_weekday(latest, 3)
     end = next_weekday(latest, 5)
     monkeypatch.setattr(dfs.calendar_service, "get_active_calendar", lambda: _Calendar({holiday}))
-    result = dfs.forecast_selected_dates("SCH001", dfs.DATE_RANGE, start, end, today=TODAY)
-    assert holiday not in [d["date"] for d in result.days] and len(result.days) == 3
-    assert any("school holidays" in w for w in result.warnings)
-    with pytest.raises(InvalidForecastRequestError, match="school holiday"):
+    with pytest.raises(dfs.LikelyClosedError, match="likely to be closed on 1 of the 4 selected weekdays") as caught:
+        dfs.forecast_selected_dates("SCH001", dfs.DATE_RANGE, start, end, today=TODAY)
+    assert caught.value.closed == [holiday]
+    with pytest.raises(dfs.LikelyClosedError, match=f"likely to be closed on {holiday:%A}"):
         dfs.forecast_selected_dates("SCH001", dfs.SINGLE_DAY, holiday, today=TODAY)
+
+
+def test_confirmed_closed_days_are_forecast_and_flagged(latest, monkeypatch):
+    start = next_weekday(latest, 2)
+    holiday = next_weekday(latest, 3)
+    end = next_weekday(latest, 5)
+    monkeypatch.setattr(dfs.calendar_service, "get_active_calendar", lambda: _Calendar({holiday}))
+    result = dfs.forecast_selected_dates("SCH001", dfs.DATE_RANGE, start, end, today=TODAY, include_likely_closed=True)
+    assert [d["date"] for d in result.days] == [start, holiday, next_weekday(latest, 4), end]
+    assert [bool(d["likely_closed"]) for d in result.days] == [False, True, False, False]
+    assert any("likely closed" in w for w in result.warnings)

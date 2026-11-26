@@ -55,7 +55,8 @@ from src.resource_allocation import compute_allocation
 SINGLE_DAY, DATE_RANGE = "single", "range"
 MODES = {SINGLE_DAY: "Single day", DATE_RANGE: "Date range"}
 MAX_RANGE_SCHOOL_DAYS = 30
-MAX_DAYS_AFTER_TODAY = 366
+# Forecasts stop one month ahead: further out, estimates are too uncertain to plan with.
+MAX_DAYS_AFTER_TODAY = 30
 
 LEVEL_WINDOW = 20
 SHRINK_RECORDS = 10
@@ -86,6 +87,17 @@ class SchoolProfile:
 
     def estimate(self, method: str, d: date) -> float:
         return self.planning_estimate(d) if method == PLANNING else self.weekday_baseline(d)
+
+
+def latest_selectable_date(today: date | None = None) -> date:
+    """Last date a forecast can be requested for: one month (MAX_DAYS_AFTER_TODAY days) from today."""
+    return (today or date.today()) + timedelta(days=MAX_DAYS_AFTER_TODAY)
+
+
+def max_date_message(today: date | None = None) -> str:
+    last = latest_selectable_date(today)
+    return (f"Forecasts go up to one month ahead. Choose a date on or before "
+            f"{last:%A} {last.day} {last:%B %Y}.")
 
 
 def school_days_between(last: date, d: date) -> int:
@@ -193,19 +205,50 @@ def method_for(ahead: int, evaluation: dict) -> tuple[str, bool, dict | None]:
     return evaluation["fallback_method"], True, None
 
 
-def _calendar_excluded(calendar, d: date) -> bool:
-    return calendar.is_holiday(d)
+def _closure(calendar, d: date):
+    """The calendar period that likely closes schools on `d` (None on a normal school day)."""
+    closure = getattr(calendar, "closure", None)
+    if closure is not None:
+        return closure(d)
+    return calendar_service.Period("School holiday", d, d) if calendar.is_holiday(d) else None
 
 
 def school_days_in_range(start: date, end: date, calendar=None) -> tuple[list[date], list[date]]:
-    """(school days, excluded holiday weekdays) from `start` to `end` inclusive; weekends are skipped."""
+    """(open school days, weekdays when schools are likely closed) from `start` to `end`; weekends are skipped."""
     calendar = calendar or calendar_service.get_active_calendar()
-    days, holidays, current = [], [], start
+    days, closed, current = [], [], start
     while current <= end:
         if current.weekday() < 5:
-            (holidays if _calendar_excluded(calendar, current) else days).append(current)
+            (closed if _closure(calendar, current) else days).append(current)
         current += timedelta(days=1)
-    return days, holidays
+    return days, closed
+
+
+class LikelyClosedError(InvalidForecastRequestError):
+    """Some selected days fall when schools are likely closed; the user must confirm to forecast them."""
+
+    def __init__(self, closed: list[date], periods: list, selected_count: int, calendar_name: str):
+        self.closed, self.periods = closed, periods
+        self.selected_count, self.calendar_name = selected_count, calendar_name
+        super().__init__(closure_message(closed, periods, selected_count, calendar_name))
+
+
+def _period_text(p) -> str:
+    if p.start == p.end:
+        return p.name
+    return f"{p.name}, {p.start.day} {p.start:%b %Y} – {p.end.day} {p.end:%b %Y}"
+
+
+def closure_message(closed: list[date], periods: list, selected_count: int, calendar_name: str) -> str:
+    names = "; ".join(_period_text(p) for p in periods)
+    if selected_count == 1:
+        d = closed[0]
+        lead = f"Schools are likely to be closed on {d:%A} {d.day} {d:%B %Y}"
+    else:
+        lead = (f"Schools are likely to be closed on {len(closed)} of the {selected_count} selected weekdays"
+                if len(closed) < selected_count else
+                f"Schools are likely to be closed on all {selected_count} selected weekdays")
+    return f"{lead} ({names}, {calendar_name})."
 
 
 def _decision_support(result, first_day: dict) -> dict:
@@ -229,8 +272,14 @@ def forecast_selected_dates(
     expected_attendance: float | None = None,
     available_capacity: float | None = None,
     today: date | None = None,
+    include_likely_closed: bool = False,
 ) -> ForecastResult:
-    """Meal estimates and planning recommendations for the selected school day(s)."""
+    """Meal estimates and planning recommendations for the selected school day(s).
+
+    Weekdays when the school calendar says schools are likely closed raise LikelyClosedError
+    unless `include_likely_closed` is True (the user confirmed), in which case they are forecast
+    like any other day and flagged in the notes.
+    """
     if mode not in MODES:
         raise InvalidForecastRequestError("Choose a single day or a date range.")
     end = start if mode == SINGLE_DAY else end
@@ -238,7 +287,7 @@ def forecast_selected_dates(
         raise InvalidForecastRequestError("The end date must be on or after the start date.")
     today = today or date.today()
     if end > today + timedelta(days=MAX_DAYS_AFTER_TODAY):
-        raise InvalidForecastRequestError(f"Choose dates up to {MAX_DAYS_AFTER_TODAY} days from today.")
+        raise InvalidForecastRequestError(max_date_message(today))
     expected_attendance = _validate_number("Expected attendance", expected_attendance, minimum=0)
     available_capacity = _validate_number("Available capacity", available_capacity, minimum=0)
 
@@ -259,19 +308,19 @@ def forecast_selected_dates(
     if mode == SINGLE_DAY:
         if start.weekday() >= 5:
             raise InvalidForecastRequestError(f"{start:%A} {start.day} {start:%B %Y} is not a school day (Mon–Fri).")
-        if _calendar_excluded(calendar, start):
-            raise InvalidForecastRequestError(
-                f"{start:%A} {start.day} {start:%B %Y} is a school holiday in the {calendar.name.lower()}."
-            )
-        dates, holidays = [start], []
+        open_days, closed = school_days_in_range(start, start, calendar)
     else:
-        dates, holidays = school_days_in_range(start, end, calendar)
-        if not dates:
-            raise InvalidForecastRequestError("The selected range has no school days (Mon–Fri, outside holidays).")
-        if len(dates) > MAX_RANGE_SCHOOL_DAYS:
-            raise InvalidForecastRequestError(
-                f"The selected range has {len(dates)} school days; choose at most {MAX_RANGE_SCHOOL_DAYS}."
-            )
+        open_days, closed = school_days_in_range(start, end, calendar)
+        if not open_days and not closed:
+            raise InvalidForecastRequestError("The selected range has no weekdays (Mon–Fri).")
+    dates = sorted(open_days + closed)
+    periods = list(dict.fromkeys(_closure(calendar, d) for d in closed))
+    if closed and not include_likely_closed:
+        raise LikelyClosedError(closed, periods, len(dates), calendar.name)
+    if len(dates) > MAX_RANGE_SCHOOL_DAYS:
+        raise InvalidForecastRequestError(
+            f"The selected range has {len(dates)} school days; choose at most {MAX_RANGE_SCHOOL_DAYS}."
+        )
 
     loaded_metadata = model_service.load_model_metadata()
     evaluation = evaluate_methods(df, loaded_metadata)
@@ -309,9 +358,11 @@ def forecast_selected_dates(
             predicted_meals=predicted, recent_std=recent_std, horizon_days=ahead,
             horizon_label=f"{ahead} school day(s) ahead", model_label=label,
         )
+        closure = _closure(calendar, d) if d in closed else None
         days.append({
             "day_number": i + 1,
             "date": d,
+            "likely_closed": closure.name if closure else "",
             "school_days_ahead": ahead,
             "predicted_meals_served": predicted,
             "predicted_meals": ds.predicted_meals,
@@ -346,23 +397,20 @@ def forecast_selected_dates(
             + (f" (evidence covers up to {limit} school days after the latest record)" if limit else "")
             + ", so their estimates are experimental."
         )
-    if any(d["method"] == BASELINE for d in days):
-        warnings.append("For some distances ahead the school weekday average beat the planning estimate on "
-                        "held-out data, so it is used and labelled as the baseline.")
-    if holidays:
-        warnings.append(f"{len(holidays)} weekday(s) in the range are school holidays in the "
-                        f"{calendar.name.lower()} and were left out.")
-    unknown = [d for d in dates if hasattr(calendar, "classify") and calendar.classify(d).kind == calendar_service.UNKNOWN]
-    if unknown:
-        warnings.append("The school calendar for some selected dates is not configured, so holidays could not be "
-                        "excluded. Check they are school days.")
+    # A baseline day is already labelled in the Method column, so it needs no separate note.
+    if closed:
+        warnings.append(
+            f"Forecast confirmed for {len(closed)} day(s) when schools are likely closed "
+            f"({'; '.join(_period_text(p) for p in periods)}, {calendar.name}). "
+            "Meals may not be served on those days; check with the school before preparing food."
+        )
     if expected_attendance is not None and any(d["method"] != MODEL for d in days):
         warnings.append("Expected attendance is used only by the saved model's day; direct estimates do not use it.")
 
     methods_used = sorted({d["method_label"].split(" · ")[0] for d in days})
     selection = {"mode": mode, "mode_label": MODES[mode], "start": dates[0], "end": dates[-1],
                  "requested_start": start, "requested_end": end, "latest_record": latest,
-                 "excluded_holidays": holidays}
+                 "excluded_holidays": [], "likely_closed": closed}
     return ForecastResult(
         school_id=school_id,
         school_name=str(history["school_name"].iloc[-1]),
@@ -396,6 +444,7 @@ def forecast_selected_dates(
 
 
 __all__ = [
-    "SINGLE_DAY", "DATE_RANGE", "MODES", "MAX_RANGE_SCHOOL_DAYS", "evaluate_methods", "fit_profile",
+    "SINGLE_DAY", "DATE_RANGE", "MODES", "LikelyClosedError", "MAX_RANGE_SCHOOL_DAYS", "MAX_DAYS_AFTER_TODAY",
+    "latest_selectable_date", "max_date_message", "evaluate_methods", "fit_profile",
     "forecast_selected_dates", "method_for", "school_days_between", "school_days_in_range", "ServiceError",
 ]

@@ -238,6 +238,7 @@ def forecast(request):
     if not schools:
         return render(request, "core/forecast.html", {"data_error": _no_school_data_message(request.user)})
 
+    closure_prompt = None
     if request.method == "POST":
         form = ForecastForm(request.POST, schools=schools)
         if form.is_valid():
@@ -260,7 +261,12 @@ def forecast(request):
                         expected_attendance=data["expected_attendance"],
                         available_capacity=data["available_capacity"],
                         today=timezone.localdate(),
+                        include_likely_closed=data["confirm_closed"] == form.closure_signature(),
                     )
+            except date_forecast_service.LikelyClosedError as exc:
+                # Not a failure: ask the user to confirm (popup) before forecasting days schools are likely closed.
+                closure_prompt = {"message": str(exc), "signature": form.closure_signature(),
+                                  "periods": exc.periods, "calendar_name": exc.calendar_name}
             except ServiceError as exc:
                 message = user_message(exc)
                 form.add_error(None, message)
@@ -300,7 +306,7 @@ def forecast(request):
     return render(request, "core/forecast.html", {
         "form": form, "defaults": defaults_json, "weather_unrecorded": weather_unrecorded,
         "max_range_days": date_forecast_service.MAX_RANGE_SCHOOL_DAYS,
-        "attendance_unused": attendance_unused,
+        "attendance_unused": attendance_unused, "closure_prompt": closure_prompt,
     })
 
 
@@ -356,18 +362,26 @@ def render_forecast_run(request, run: ForecastRun, actual_form=None, status: int
     # Weather is "not recorded" for real-data runs when the active source has no weather.
     weather_unrecorded = "SYNTHETIC" not in run.results_label.upper() and bool(_safe_unrecorded())
     ds = summary.get("decision_support", {})
+    # Inputs the model does not use are left out rather than listed as "not used by this model".
     assumptions = [a for a in ds.get("assumptions", [])
-                   if not (weather_unrecorded and a.startswith(("Rainfall basis", "Temperature basis")))]
+                   if not (weather_unrecorded and a.startswith(("Rainfall basis", "Temperature basis")))
+                   and not a.endswith("not used by this model")]
     # Display-only advisory, fetched live (cached) for the run's dates; never stored or fed to a model.
     advisory = weather.advisory_for(run.school, run.school_code, [d["date"] for d in days])
     for day in days:
         day["weather"] = advisory.for_day(day["date"])
+        day["weather_cell"] = advisory.cell(day["date"])
     methods_used = list(dict.fromkeys(d["method_label"] for d in days if d.get("method_label")))
     from web.core.actual_views import forecast_vs_actual_context
 
     return render(request, "core/forecast_result.html", {
         **forecast_vs_actual_context(request, run, actual_form),
         "advisory": advisory,
+        # The attendance column only means something when the model uses attendance features.
+        "show_attendance": any(d.get("attendance_assumption") not in (None, "", "not used", "not used by this model")
+                               for d in days),
+        # Service notes plus the weather status (unless it is a real advisory, which gets its own box).
+        "notes_count": len(summary.get("warnings", [])) + (advisory.status != "advisory"),
         "methods_used": methods_used,
         "run": run,
         "days": days,

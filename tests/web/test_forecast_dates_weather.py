@@ -206,7 +206,7 @@ def test_range_flags_only_advisory_days(logged_in, stub_artifacts, located, prov
 
 def test_date_beyond_weather_window_still_shows_estimate(logged_in, stub_artifacts, located, provider):
     p = provider()
-    far = timezone.localdate() + timedelta(days=60)
+    far = timezone.localdate() + timedelta(days=25)  # past the 16-day weather window, inside the one-month limit
     while far.weekday() >= 5:
         far += timedelta(days=1)
     response = post(logged_in, mode="single", target_date=far.isoformat())
@@ -264,6 +264,34 @@ def test_form_validation(logged_in, stub_artifacts, data, error):
     assert ForecastRun.objects.count() == 0
 
 
+@pytest.mark.parametrize("field_data", [
+    lambda far: {"mode": "single", "target_date": far.isoformat()},
+    lambda far: {"mode": "range", "range_start": far.isoformat(), "range_end": (far + timedelta(days=3)).isoformat()},
+    lambda far: {"mode": "range", "range_start": timezone.localdate().isoformat(), "range_end": far.isoformat()},
+])
+def test_dates_more_than_a_month_ahead_rejected(logged_in, stub_artifacts, field_data):
+    far = timezone.localdate() + timedelta(days=31)
+    response = post(logged_in, **field_data(far))
+    assert response.status_code == 200 and "Forecasts go up to one month ahead" in response.content.decode()
+    assert ForecastRun.objects.count() == 0
+
+
+def test_date_picker_stops_one_month_ahead(logged_in, stub_artifacts):
+    last = (timezone.localdate() + timedelta(days=30)).isoformat()
+    html = logged_in.get(reverse("core:forecast")).content.decode()
+    assert html.count(f'max="{last}"') == 3
+    assert 'data-testid="max-date-hint"' in html
+
+
+def test_last_allowed_day_accepted(logged_in, stub_artifacts, provider):
+    provider()
+    last = timezone.localdate() + timedelta(days=30)
+    while last.weekday() >= 5:
+        last -= timedelta(days=1)
+    response = post(logged_in, mode="single", target_date=last.isoformat())
+    assert response.status_code == 302
+
+
 def test_date_on_or_before_latest_record_rejected(logged_in, stub_artifacts):
     latest = latest_record(stub_artifacts)
     response = post(logged_in, mode="single", target_date=latest.isoformat())
@@ -273,7 +301,7 @@ def test_date_on_or_before_latest_record_rejected(logged_in, stub_artifacts):
 
 def test_history_lists_selected_dates(logged_in, stub_artifacts, provider):
     provider()
-    day = upcoming_weekdays(1, skip=30)[0]
+    day = upcoming_weekdays(1, skip=20)[0]
     post(logged_in, mode="single", target_date=day.isoformat())
     html = logged_in.get(reverse("core:forecast_history")).content.decode()
     assert f"{day:%a} {day.day} {day:%b %Y}" in html
@@ -307,3 +335,130 @@ def test_admin_location_validation(sysadmin_client, lat, lon):
     assert response.status_code == 200
     school.refresh_from_db()
     assert not school.has_location
+
+
+def test_notes_are_collapsed_and_no_warning_boxes_without_an_advisory(logged_in, stub_artifacts, provider):
+    """Experimental/weather/other notes go into one closed list; no yellow warning boxes stack up."""
+    provider()
+    far = timezone.localdate() + timedelta(days=25)  # past the 16-day weather window, inside the one-month limit
+    while far.weekday() >= 5:
+        far += timedelta(days=1)
+    response = post(logged_in, mode="single", target_date=far.isoformat())
+    html = logged_in.get(response.url).content.decode()
+    assert "bt-callout--warning" not in html
+    notes = html.split('data-testid="forecast-notes"')[1].split("</details>")[0]
+    assert "experimental" in notes and 'data-weather-status="no_location"' in notes
+    assert "not configured, so holidays" not in html
+
+
+def test_attendance_column_only_when_model_uses_attendance(logged_in, stub_artifacts, make_model, make_metadata):
+    # The default stub model uses every feature, attendance included: the column is shown.
+    response = post(logged_in, horizon=7)
+    assert "Attendance basis" in logged_in.get(response.url).content.decode()
+
+    # A Food4Education-style model (no attendance features): the column is hidden.
+    from src.feature_engineering import FOOD4EDUCATION_FEATURE_COLUMNS as features, FOOD4EDUCATION_SOURCE
+    stub_artifacts.write_model(make_model(features))
+    stub_artifacts.write_metadata(make_metadata(features_used=features, data_source=FOOD4EDUCATION_SOURCE))
+    stub_artifacts.feature_columns_path.write_text(__import__("json").dumps(features))
+    from services import model_service
+    model_service.clear_model_cache()
+    response = post(logged_in, horizon=7)
+    assert response.status_code == 302, response.context["form"].non_field_errors()
+    html = logged_in.get(response.url).content.decode()
+    assert "Attendance basis" not in html and "not used by this model" not in html
+
+
+def test_weather_column_has_wording_on_every_row(logged_in, stub_artifacts, located, provider):
+    days = upcoming_weekdays(3)
+    provider(rain={days[0]: 0.0, days[1]: 2.0, days[2]: 9.0})
+    response = post(logged_in, mode="range", range_start=days[0].isoformat(), range_end=days[2].isoformat())
+    html = logged_in.get(response.url).content.decode()
+    assert html.count('data-testid="weather-cell"') == 3
+    assert "Calm morning: little effect on attendance expected." in html
+    assert "Some pupils may arrive late." in html and "Fewer pupils may attend" in html
+
+
+def test_nairobi_areas_command_sets_unconfirmed_locations_shown_as_approximate(logged_in, stub_artifacts, provider):
+    from django.core.management import call_command
+
+    for code in ("SCHOOL_1", "SCHOOL_2", "SCHOOL_3", "SCHOOL_4", "SCHOOL_5"):
+        School.objects.get_or_create(school_id=code)
+    call_command("set_nairobi_school_areas")
+    schools = {s.school_id: s for s in School.objects.filter(school_id__startswith="SCHOOL_")}
+    assert len({(s.latitude, s.longitude) for s in schools.values()}) == 5  # five different places
+    assert all(s.has_location and not s.location_verified for s in schools.values())
+    assert schools["SCHOOL_2"].location_label == "Kibera, Nairobi"
+    call_command("set_nairobi_school_areas", "--clear")
+    assert not any(s.has_location for s in School.objects.filter(school_id__startswith="SCHOOL_"))
+
+
+def test_weather_shows_place_and_approximate_flag(logged_in, stub_artifacts, provider):
+    School.objects.filter(school_id="SCH001").update(latitude=Decimal("-1.31330"), longitude=Decimal("36.78800"),
+                                                     location_label="Kibera, Nairobi", location_verified=False)
+    day = upcoming_weekdays(1)[0]
+    provider(rain={day: 0.0})
+    response = post(logged_in, mode="single", target_date=day.isoformat())
+    html = logged_in.get(response.url).content.decode()
+    assert "Location: Kibera, Nairobi (approximate area, not the school's confirmed location)" in html
+    assert "Kibera, Nairobi (approx.)" in html
+
+
+# --- Likely-closed confirmation popup ---------------------------------------------------
+
+
+class _ClosedOn:
+    name = "Kenyan national school calendar"
+
+    def __init__(self, closed):
+        self.closed = set(closed)
+
+    def is_holiday(self, d):
+        return d in self.closed
+
+    def closure(self, d):
+        if d in self.closed:
+            return calendar_service.Period("December holiday", d, d, verified=True, source_url="https://example.org/c")
+        return None
+
+
+@pytest.fixture
+def closed_day(monkeypatch, stub_artifacts):
+    day = latest_record(stub_artifacts) + timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    monkeypatch.setattr(calendar_service, "get_active_calendar", lambda: _ClosedOn({day}))
+    return day
+
+
+def test_likely_closed_day_shows_popup_and_does_not_forecast(logged_in, closed_day, provider):
+    response = post(logged_in, mode="single", target_date=closed_day.isoformat())
+    html = response.content.decode()
+    assert response.status_code == 200 and 'data-testid="likely-closed-modal"' in html
+    assert "Schools are likely to be closed on" in html and "December holiday" in html
+    assert 'data-testid="likely-closed-cancel"' in html and "Forecast anyway" in html
+    assert ForecastRun.objects.count() == 0
+    assert 'data-testid="forecast-error"' not in html  # a question, not an error
+
+
+def test_forecast_anyway_runs_and_flags_the_day(logged_in, closed_day, provider):
+    provider()
+    signature = f"SCH001|single|{closed_day}|{closed_day}"
+    response = post(logged_in, mode="single", target_date=closed_day.isoformat(), confirm_closed=signature)
+    assert response.status_code == 302 and ForecastRun.objects.count() == 1
+    html = logged_in.get(response.url).content.decode()
+    assert 'data-testid="likely-closed-badge"' in html and "Schools likely closed" in html
+
+
+def test_confirmation_for_other_dates_does_not_carry_over(logged_in, closed_day, provider):
+    other = f"SCH001|single|{closed_day - timedelta(days=7)}|{closed_day - timedelta(days=7)}"
+    response = post(logged_in, mode="single", target_date=closed_day.isoformat(), confirm_closed=other)
+    assert 'data-testid="likely-closed-modal"' in response.content.decode()
+    assert ForecastRun.objects.count() == 0
+
+
+def test_range_with_closed_day_asks_first(logged_in, closed_day, provider):
+    response = post(logged_in, mode="range", range_start=closed_day.isoformat(),
+                    range_end=(closed_day + timedelta(days=6)).isoformat())
+    assert "likely to be closed on 1 of the 5 selected weekdays" in response.content.decode()
+    assert ForecastRun.objects.count() == 0

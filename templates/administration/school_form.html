@@ -23,6 +23,8 @@
         <div class="col-md-6">{% include "partials/_field.html" with field=form.latitude %}</div>
         <div class="col-md-6">{% include "partials/_field.html" with field=form.longitude %}</div>
       </div>
+      {% include "partials/_field.html" with field=form.location_label %}
+      {% include "partials/_field.html" with field=form.location_verified %}
     </fieldset>
     {% include "partials/_field.html" with field=form.is_active switch=True %}
     <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save changes</button>

@@ -149,7 +149,8 @@ class UserEditForm(_UserFieldsMixin, forms.Form):
 class SchoolForm(forms.ModelForm):
     class Meta:
         model = School
-        fields = ["name", "county", "sub_county", "verified_enrolment", "latitude", "longitude", "is_active"]
+        fields = ["name", "county", "sub_county", "verified_enrolment", "latitude", "longitude", "location_label", "location_verified",
+                  "is_active"]
         labels = {"is_active": "Active school record"}
         help_texts = {"is_active": "Inactive schools keep their history and forecasts but cannot be picked for new calendar events."}
         widgets = {
@@ -159,6 +160,8 @@ class SchoolForm(forms.ModelForm):
             "verified_enrolment": forms.NumberInput(attrs={**_text, "min": 0}),
             "latitude": forms.NumberInput(attrs={**_text, "step": "0.00001", "min": -90, "max": 90}),
             "longitude": forms.NumberInput(attrs={**_text, "step": "0.00001", "min": -180, "max": 180}),
+            "location_label": forms.TextInput(attrs={**_text, "maxlength": 120}),
+            "location_verified": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input", "role": "switch"}),
         }
 

@@ -1,4 +1,5 @@
 <p class="bt-footnote mb-0" data-testid="weather-source">
+  {% if advisory.location_label %}<span data-testid="weather-location">Location: {{ advisory.location_label }}{% if not advisory.location_verified %} (approximate area, not the school's confirmed location){% endif %}</span> ·{% endif %}
   Source: <a href="{{ advisory.source_url }}" target="_blank" rel="noopener">{{ advisory.source }}</a> hourly forecast ({{ advisory.source_licence }}) ·
   Forecast date{{ advisory.days|length|pluralize }}: {% for d in advisory.days.values %}{{ d.date|date:"j M Y" }}{% if not forloop.last %}, {% endif %}{% endfor %} ·
   Last updated {{ advisory.retrieved_at|date:"j M Y, H:i" }} EAT ·

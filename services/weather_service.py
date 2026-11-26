@@ -50,6 +50,15 @@ DEFAULT_BASE_URL = "https://api.open-meteo.com/v1/forecast"
 WINDOW_HOURS = (7, 8, 9)
 WINDOW_LABEL = "6–9 a.m. (Nairobi time)"
 
+# Morning rain categories and the wording shown per day (advisory only; not a model input).
+DRY, LIGHT, MODERATE, HEAVY = "dry", "light", "moderate", "heavy"
+CATEGORY_TEXT = {
+    DRY: ("Dry", "Calm morning: little effect on attendance expected."),
+    LIGHT: ("Light rain", "Light rain: little effect on attendance expected."),
+    MODERATE: ("Moderate rain", "Some pupils may arrive late."),
+    HEAVY: ("Heavy rain", "Fewer pupils may attend or some may arrive late; check with the school."),
+}
+
 # Status of the advisory for a whole result page.
 ADVISORY = "advisory"           # at least one day meets the threshold
 CLEAR = "clear"                 # forecast available, no day meets the threshold
@@ -79,6 +88,25 @@ class DayWeather:
     total_mm: float
     max_probability_pct: float | None
     heavy_rain: bool
+    threshold_mm_per_hour: float = 4.0
+
+    @property
+    def category(self) -> str:
+        """dry, light, moderate or heavy: UK Met Office rainfall-rate bands (heavy from the configured threshold)."""
+        if self.heavy_rain:
+            return HEAVY
+        if self.max_hour_mm < 0.1:
+            return DRY
+        return LIGHT if self.max_hour_mm < 0.5 else MODERATE
+
+    @property
+    def label(self) -> str:
+        return CATEGORY_TEXT[self.category][0]
+
+    @property
+    def outlook(self) -> str:
+        """What staff might expect in the morning. Advisory wording only: no attendance effect is modelled."""
+        return CATEGORY_TEXT[self.category][1]
 
 
 @dataclass
@@ -94,6 +122,11 @@ class WeatherAdvisory:
     source_url: str = SOURCE_URL
     source_licence: str = SOURCE_LICENCE
     window_label: str = WINDOW_LABEL
+    # (first, last) dates the provider can forecast, when known.
+    window: tuple[date, date] | None = None
+    # Where the forecast is for (set by the caller): a place name and whether it is the school's confirmed location.
+    location_label: str = ""
+    location_verified: bool = False
 
     @property
     def advisory_days(self) -> list[DayWeather]:
@@ -101,6 +134,23 @@ class WeatherAdvisory:
 
     def for_day(self, d: date) -> DayWeather | None:
         return self.days.get(d)
+
+    def cell(self, d: date) -> dict:
+        """What the day-by-day table shows for one date: a short label, a sentence and a tone."""
+        weather = self.days.get(d)
+        if weather is not None:
+            return {"label": weather.label, "text": weather.outlook, "tone": weather.category,
+                    "detail": f"{weather.max_hour_mm:.1f} mm in the wettest hour, {weather.total_mm:.1f} mm over 6–9 a.m."}
+        if self.status == NO_LOCATION:
+            return {"label": "No location", "text": "Set the school's location to see a weather forecast.", "tone": "none"}
+        if self.status == DISABLED:
+            return {"label": "Off", "text": "Weather advisory is turned off.", "tone": "none"}
+        if self.status == UNAVAILABLE and d not in self.out_of_window:
+            return {"label": "Unavailable", "text": "Weather service unavailable right now.", "tone": "none"}
+        if self.window and d < self.window[0]:
+            return {"label": "Past date", "text": "No weather forecast for past dates.", "tone": "none"}
+        return {"label": "Not yet available", "text": "More than 16 days ahead; the forecast appears closer to the date.",
+                "tone": "none"}
 
 
 class WeatherProviderError(Exception):
@@ -187,6 +237,7 @@ def parse_hourly(payload: dict, dates: Iterable[date], threshold: float) -> dict
             total_mm=round(sum(hourly_mm), 1),
             max_probability_pct=max(pcts) if pcts else None,
             heavy_rain=max(hourly_mm) >= threshold,
+            threshold_mm_per_hour=threshold,
         )
     return result
 
@@ -237,15 +288,17 @@ def morning_advisory(
     dates = sorted(set(dates))
     threshold = config.heavy_rain_mm_per_hour
 
+    first, last = forecast_window(config, today_in_nairobi(now))
+
     def status(kind: str, message: str, **extra) -> WeatherAdvisory:
-        return WeatherAdvisory(status=kind, message=message, threshold_mm_per_hour=threshold, **extra)
+        return WeatherAdvisory(status=kind, message=message, threshold_mm_per_hour=threshold, window=(first, last),
+                               **extra)
 
     if not config.enabled:
         return status(DISABLED, "Weather advisory is turned off.")
     if latitude is None or longitude is None:
         return status(NO_LOCATION, "No weather advisory: this school has no location configured.")
 
-    first, last = forecast_window(config, today_in_nairobi(now))
     in_window = [d for d in dates if first <= d <= last]
     outside = [d for d in dates if d not in in_window]
     if not in_window:

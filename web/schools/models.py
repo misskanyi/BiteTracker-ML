@@ -43,6 +43,14 @@ class School(models.Model):
         max_digits=8, decimal_places=5, null=True, blank=True,
         help_text="Decimal degrees, e.g. 36.81720. Used only to look up the morning weather advisory.",
     )
+    location_label = models.CharField(
+        "location name", max_length=120, blank=True,
+        help_text="Place the weather is looked up for, e.g. “Westlands, Nairobi”. Shown with the weather advisory.",
+    )
+    location_verified = models.BooleanField(
+        "location confirmed by the school or programme", default=False,
+        help_text="Leave unticked when the coordinates are an approximate area, not the school's confirmed location.",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

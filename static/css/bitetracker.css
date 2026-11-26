@@ -853,6 +853,16 @@ a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
 .bt-cal__week:last-child .bt-cal__day { border-bottom: 0; }
 .bt-cal__day.is-weekend { background: color-mix(in srgb, var(--bt-surface-muted) 55%, transparent); }
 .bt-cal__day.is-outside { opacity: 0.5; }
+/* National-calendar closures: slightly greyed with a faint hatch so they read differently from weekends. */
+.bt-cal__day.is-closed, .bt-cal-swatch--closed {
+  background:
+    repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--bt-text-muted) 14%, transparent) 7px 8px),
+    color-mix(in srgb, var(--bt-text-muted) 8%, transparent);
+}
+.bt-cal__day.is-closed .bt-cal__date { color: var(--bt-text-subtle); }
+.bt-cal__closure, .bt-cal__term { display: flex; align-items: center; gap: 0.25rem; font-size: 0.6875rem; line-height: 1.3; color: var(--bt-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-cal__term { color: var(--bt-success-text, var(--bt-success)); font-weight: var(--bt-weight-label); }
+.bt-cal-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--bt-border); vertical-align: -2px; margin-right: 0.35rem; }
 .bt-cal__date { display: flex; align-items: center; justify-content: space-between; font-weight: var(--bt-weight-label); color: var(--bt-text-muted); }
 .bt-cal__day.is-today .bt-cal__date > span:first-child { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%; background: var(--bt-btn-primary-bg); color: var(--bt-on-primary); }
 .bt-cal__add { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--bt-text-subtle); text-decoration: none; opacity: 0; }
@@ -870,6 +880,7 @@ a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
   .bt-cal__day { min-height: 64px; padding: 0.2rem; }
   .bt-cal__event { font-size: 0; padding: 0; height: 6px; border-left: 0; border-radius: 3px; }
   .bt-cal__more { display: none; }
+  .bt-cal__closure, .bt-cal__term { display: none; }
   .bt-cal__add { display: none; }
 }
 
@@ -1055,6 +1066,9 @@ html.bt-reduce-motion .bt-toast, html.bt-reduce-motion .bt-toast.is-leaving { an
 .bt-mode-switch .bt-chip { cursor: pointer; margin: 0; }
 .bt-chip-input:checked + .bt-chip { color: var(--bt-on-primary); background: var(--bt-btn-primary-bg); border-color: var(--bt-btn-primary-bg); }
 .bt-chip-input:focus-visible + .bt-chip { outline: 2px solid var(--bt-primary); outline-offset: 2px; }
+/* Checkbox chips show a tick only when selected. */
+.bt-chip-tick { display: none; margin-right: 0.3rem; }
+.bt-chip-input:checked + .bt-chip .bt-chip-tick { display: inline-block; }
 
 /* Forecast vs actual: verification status of recorded meals served */
 .bt-actual-status { font-weight: 600; }
@@ -1063,3 +1077,7 @@ html.bt-reduce-motion .bt-toast, html.bt-reduce-motion .bt-toast.is-leaving { an
 .bt-actual-status--published { background: var(--bs-success-bg-subtle, #d1e7dd); color: var(--bs-success-text-emphasis, #0a3622); }
 .bt-actual-status--rejected { background: var(--bs-danger-bg-subtle, #f8d7da); color: var(--bs-danger-text-emphasis, #58151c); }
 .bt-row-pending td { font-style: italic; }
+.bt-weather-cell { min-width: 11rem; }
+.bt-weather-badge { font-weight: 600; }
+.bt-weather-badge--dry { background: var(--bt-success-soft); color: var(--bt-success-text); }
+.bt-weather-badge--light, .bt-weather-badge--moderate { background: var(--bt-info-soft); color: var(--bt-info-text); }

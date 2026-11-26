@@ -32,4 +32,8 @@ def advisory_for(school: School | None, school_code: str, dates: list[date]) -> 
     school = school or School.objects.filter(school_id=school_code).first()
     latitude = school.latitude if school else None
     longitude = school.longitude if school else None
-    return weather_service.morning_advisory(latitude, longitude, dates, config())
+    advisory = weather_service.morning_advisory(latitude, longitude, dates, config())
+    if school is not None and school.has_location:
+        advisory.location_label = school.location_label or f"{float(latitude):.4f}, {float(longitude):.4f}"
+        advisory.location_verified = school.location_verified
+    return advisory

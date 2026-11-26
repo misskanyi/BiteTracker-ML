@@ -10,11 +10,20 @@
 
 <form method="get" class="card mb-3" data-testid="fva-filter"><div class="card-body row g-2 align-items-end">
   {% if form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2 mb-0" role="alert">{% for e in form.non_field_errors %}{{ e }} {% endfor %}</div></div>{% endif %}
-  <div class="col-md-4">{% include "partials/_field.html" with field=form.school %}</div>
-  <div class="col-sm-4 col-md-2">{% include "partials/_field.html" with field=form.start %}</div>
-  <div class="col-sm-4 col-md-2">{% include "partials/_field.html" with field=form.end %}</div>
-  <div class="col-sm-4 col-md-2">{% include "partials/_field.html" with field=form.status %}</div>
-  <div class="col-md-2 mb-3 d-flex gap-2"><button class="btn btn-outline-success btn-sm" type="submit">Apply</button></div>
+  <fieldset class="col-12 mb-2" data-testid="fva-school-chips">
+    <legend class="form-label fs-6 mb-2">{{ form.school.label }} <span class="bt-footnote fw-normal">{{ form.school.help_text }}</span></legend>
+    <div class="bt-chips bt-mode-switch">
+      {% for choice in form.school %}
+        <input type="checkbox" class="bt-chip-input visually-hidden" name="{{ form.school.html_name }}" id="{{ choice.id_for_label }}" value="{{ choice.data.value }}"{% if choice.data.selected %} checked{% endif %}>
+        <label class="bt-chip" for="{{ choice.id_for_label }}"><i class="bi bi-check2 bt-chip-tick" aria-hidden="true"></i>{{ choice.choice_label }}</label>
+      {% endfor %}
+    </div>
+    {% for e in form.school.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+  </fieldset>
+  <div class="col-sm-4 col-md-3">{% include "partials/_field.html" with field=form.start %}</div>
+  <div class="col-sm-4 col-md-3">{% include "partials/_field.html" with field=form.end %}</div>
+  <div class="col-sm-4 col-md-3">{% include "partials/_field.html" with field=form.status %}</div>
+  <div class="col-md-3 mb-3 d-flex gap-2"><button class="btn btn-outline-success btn-sm" type="submit">Apply</button></div>
   <div class="col-12 d-flex flex-wrap align-items-center gap-2">
     <a class="btn btn-primary btn-sm" href="{{ export_url }}" data-testid="followup-export"><i class="bi bi-filetype-csv me-1" aria-hidden="true"></i>Export follow-up report</a>
     <span class="bt-footnote">CSV for {{ start|date:"j M Y" }} – {{ end|date:"j M Y" }} and the selected schools. Recorded counts and forecast estimates are separate columns; surplus is positive, potential shortfall negative. No learner identifiers, letters or review notes.</span>

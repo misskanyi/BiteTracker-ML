@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as _dt
 
 from django import forms
+from django.utils import timezone
 
 from services import date_forecast_service, planning_service
 from services.forecast_service import HORIZONS, TEMPERATURE_RANGE_C
@@ -60,6 +61,8 @@ class ForecastForm(SchoolChoiceMixin, forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     target_date = _date("School day")
+    # Set by the "Forecast anyway" button of the likely-closed popup; must match the selection it confirmed.
+    confirm_closed = forms.CharField(required=False, widget=forms.HiddenInput)
     range_start = _date("From")
     range_end = _date("To")
     expected_attendance = _number(
@@ -88,10 +91,23 @@ class ForecastForm(SchoolChoiceMixin, forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["cost_per_meal_kes"].initial = planning_service.default_cost_per_meal()
+        # One month ahead at most: the date picker greys out later dates and clean() rejects them.
+        self.today = timezone.localdate()
+        self.max_date = date_forecast_service.latest_selectable_date(self.today)
+        for name in ("target_date", "range_start", "range_end"):
+            self.fields[name].widget.attrs["max"] = self.max_date.isoformat()
 
     def clean_cost_per_meal_kes(self):
         cost = self.cleaned_data.get("cost_per_meal_kes")
         return planning_service.default_cost_per_meal() if cost is None else cost
+
+    def closure_signature(self) -> str:
+        """Identifies the exact selection a likely-closed confirmation applies to."""
+        c = self.cleaned_data
+        single = c.get("mode") == self.MODE_SINGLE
+        start = c.get("target_date") if single else c.get("range_start")
+        end = start if single else c.get("range_end")
+        return f"{c.get('school')}|{c.get('mode')}|{start}|{end}"
 
     def clean_mode(self):
         return self.cleaned_data.get("mode") or self.MODE_HORIZON
@@ -105,6 +121,8 @@ class ForecastForm(SchoolChoiceMixin, forms.Form):
         elif mode == self.MODE_SINGLE:
             if not cleaned.get("target_date"):
                 self.add_error("target_date", "Choose a school day.")
+            elif cleaned["target_date"] > self.max_date:
+                self.add_error("target_date", date_forecast_service.max_date_message(self.today))
         else:
             start, end = cleaned.get("range_start"), cleaned.get("range_end")
             if not start:
@@ -113,6 +131,9 @@ class ForecastForm(SchoolChoiceMixin, forms.Form):
                 self.add_error("range_end", "Choose the last date.")
             if start and end and start > end:
                 self.add_error("range_end", "The last date must be on or after the first date.")
+            for name in ("range_start", "range_end"):
+                if cleaned.get(name) and cleaned[name] > self.max_date and name not in self.errors:
+                    self.add_error(name, date_forecast_service.max_date_message(self.today))
         return cleaned
 
 
@@ -207,8 +228,8 @@ class FollowUpFilterForm(forms.Form):
 
     MAX_DAYS = 366
 
-    school = forms.MultipleChoiceField(label="Schools", required=False,
-                                       widget=forms.SelectMultiple(attrs={"class": "form-select", "size": 4}))
+    school = forms.MultipleChoiceField(label="Schools", required=False, widget=forms.CheckboxSelectMultiple,
+                                       help_text="None ticked = all your schools.")
     start = _date("From")
     end = _date("To")
     status = forms.ChoiceField(label="Status", required=False, widget=forms.Select(attrs={"class": "form-select"}))

@@ -196,3 +196,24 @@ def test_request_uses_nairobi_time_and_key_only_in_url():
     assert "timezone=Africa%2FNairobi" in url and "hourly=precipitation%2Cprecipitation_probability" in url
     assert "apikey=SECRET-KEY-123" in url
     assert "apikey" not in ws.build_url(ws.WeatherConfig(), LAT, LON, TODAY, TODAY)
+
+
+@pytest.mark.parametrize("mm, category, words", [
+    (0.0, ws.DRY, "little effect"), (0.3, ws.LIGHT, "little effect"),
+    (2.0, ws.MODERATE, "arrive late"), (6.0, ws.HEAVY, "Fewer pupils may attend"),
+])
+def test_every_forecast_day_gets_wording(mm, category, words):
+    day = TODAY + timedelta(days=1)
+    advisory = advise([day], FakeProvider(hourly_payload({day: {8: mm}})))
+    cell = advisory.cell(day)
+    assert advisory.for_day(day).category == category and words in cell["text"] and cell["tone"] == category
+
+
+def test_wording_for_days_without_a_forecast():
+    past, far = TODAY - timedelta(days=3), TODAY + timedelta(days=40)
+    advisory = advise([past, far], FakeProvider(hourly_payload({})))
+    assert advisory.cell(past)["label"] == "Past date"
+    assert advisory.cell(far)["label"] == "Not yet available"
+    assert advise([far], FakeProvider(), lat=None, lon=None).cell(far)["label"] == "No location"
+    failed = advise([TODAY + timedelta(days=1)], FakeProvider(error=TimeoutError()))
+    assert failed.cell(TODAY + timedelta(days=1))["label"] == "Unavailable"

@@ -8,8 +8,9 @@
 {% else %}
 <div class="row g-4">
   <div class="col-xl-8">
-    <form method="post" novalidate data-loading="Generating forecast…" data-testid="forecast-form" class="bt-loader-host d-flex flex-column gap-3">
+    <form method="post" id="forecast-form" novalidate data-loading="Generating forecast…" data-testid="forecast-form" class="bt-loader-host d-flex flex-column gap-3">
       {% csrf_token %}
+      {{ form.confirm_closed }}
       {% if form.non_field_errors %}
         <div class="alert alert-danger mb-0" role="alert" data-testid="forecast-error">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
       {% endif %}
@@ -43,6 +44,7 @@
               <label class="form-label" for="{{ form.target_date.id_for_label }}">{{ form.target_date.label }}</label>
               {{ form.target_date }}
               {% for e in form.target_date.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              <div class="form-text" data-testid="max-date-hint">Up to one month ahead: last date {{ form.max_date|date:"j M Y" }}.</div>
             </div>
             <div class="col-md-7" data-mode-panel="range">
               <div class="row g-2">
@@ -57,6 +59,7 @@
                   {% for e in form.range_end.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
                 </div>
               </div>
+              <div class="form-text" data-testid="max-date-hint">Up to one month ahead: last date {{ form.max_date|date:"j M Y" }}.</div>
             </div>
           </div>
           <div class="bt-callout bt-callout--info mt-3" id="origin-note" role="status">
@@ -136,6 +139,25 @@
         {% include "partials/_loader.html" with variant="ring" message="Generating forecast…" decorative=True %}
       </div>
     </form>
+      {% if closure_prompt %}
+      <div class="modal fade" id="likely-closed-modal" tabindex="-1" aria-labelledby="likely-closed-title" aria-describedby="likely-closed-body" data-testid="likely-closed-modal">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+          <div class="modal-header">
+            <h2 class="modal-title h5" id="likely-closed-title"><i class="bi bi-calendar-x me-2 text-warning" aria-hidden="true"></i>Schools are likely to be closed</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel"></button>
+          </div>
+          <div class="modal-body" id="likely-closed-body">
+            <p data-testid="likely-closed-message">{{ closure_prompt.message }}</p>
+            <p class="mb-2">Are you sure you want to forecast {% if form.mode.value == "single" %}this day{% else %}these days{% endif %}? Meals may not be served when schools are closed.</p>
+            <p class="bt-footnote mb-0">Dates from the {{ closure_prompt.calendar_name }}, compiled from news reports of Ministry of Education circulars{% for p in closure_prompt.periods %}{% if p.source_url %} · <a href="{{ p.source_url }}" target="_blank" rel="noopener">source{% if closure_prompt.periods|length > 1 %}: {{ p.name }}{% endif %}</a>{% endif %}{% if not p.verified %} (not confirmed by a second source){% endif %}{% endfor %}. Individual schools may differ.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-testid="likely-closed-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary" form="forecast-form" name="confirm_closed" value="{{ closure_prompt.signature }}" data-confirm-closed data-testid="likely-closed-proceed">Forecast anyway</button>
+          </div>
+        </div></div>
+      </div>
+      {% endif %}
   </div>
 
   <div class="col-xl-4 d-flex flex-column gap-3">
@@ -178,6 +200,24 @@
 {% endif %}
 {% endblock %}
 {% block extra_js %}
+{% if closure_prompt %}
+<script>
+  // Likely-closed confirmation: open the popup; "Forecast anyway" resubmits with the confirmation.
+  (function () {
+    var modal = document.getElementById("likely-closed-modal");
+    if (!modal || !window.bootstrap) return;
+    // Attach to <body> so no parent layout can trap the popup under its backdrop.
+    document.body.appendChild(modal);
+    var proceed = modal.querySelector("[data-confirm-closed]");
+    proceed.addEventListener("click", function () {
+      // The loading script disables submit buttons, which drops their value, so carry it in a hidden field.
+      var field = proceed.form.querySelector('input[name="confirm_closed"]');
+      if (field) field.value = proceed.value;
+    });
+    window.bootstrap.Modal.getOrCreateInstance(modal).show();
+  })();
+</script>
+{% endif %}
 <script>
   (function () {
     var el = document.getElementById("school-defaults");
