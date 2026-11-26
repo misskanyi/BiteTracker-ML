@@ -11,7 +11,7 @@
 </div>
 
 <div class="bt-callout bt-callout--info mb-3"><i class="bi bi-info-circle" aria-hidden="true"></i>
-  <span>Calendar events are for operational planning and reference. They are <strong>not</strong> used by the forecasting model.</span></div>
+  <span>Greyed-out weekdays are when schools are likely closed, from the Kenyan national school calendar (2023–2026, compiled from news reports of Ministry of Education circulars). Forecasting asks you to confirm before forecasting those days. Events you add are for planning and reference and are <strong>not</strong> used by the forecasting model.</span></div>
 
 <form method="get" class="card mb-3" aria-label="Calendar filters">
   <div class="card-body row g-2 align-items-end">
@@ -63,11 +63,13 @@
     {% for week in grid %}
     <div class="bt-cal__week">
       {% for day in week %}
-      <div class="bt-cal__day{% if not day.in_month %} is-outside{% endif %}{% if day.is_today %} is-today{% endif %}{% if day.date.weekday >= 5 %} is-weekend{% endif %}">
+      <div class="bt-cal__day{% if not day.in_month %} is-outside{% endif %}{% if day.is_today %} is-today{% endif %}{% if day.date.weekday >= 5 %} is-weekend{% endif %}{% if day.closure %} is-closed{% endif %}"{% if day.closure %} title="Schools likely closed: {{ day.closure.name }}{% if not day.closure.verified %} (not confirmed by a second source){% endif %}" data-closed="{{ day.closure.name }}"{% endif %}>
         <div class="bt-cal__date">
           <span>{% if day.is_today %}<span class="visually-hidden">Today, </span>{% endif %}{{ day.date|date:"j" }}<span class="visually-hidden"> {{ day.date|date:"F" }}</span></span>
           {% if can_add and day.in_month %}<a class="bt-cal__add" href="{% url 'schoolcalendar:event_create' %}?date={{ day.date|date:'Y-m-d' }}{% if filters.school %}&amp;school={{ filters.school }}{% endif %}" aria-label="Add event on {{ day.date|date:'j F Y' }}"><i class="bi bi-plus" aria-hidden="true"></i></a>{% endif %}
         </div>
+        {% if day.closure_label %}<span class="bt-cal__closure" data-testid="closure-label"><i class="bi bi-door-closed" aria-hidden="true"></i>{{ day.closure_label }}</span>{% elif day.closure %}<span class="visually-hidden">Schools likely closed: {{ day.closure.name }}</span>{% endif %}
+        {% for m in day.term_marks %}<span class="bt-cal__term" data-testid="term-mark"><i class="bi bi-flag" aria-hidden="true"></i>{{ m }}</span>{% endfor %}
         {% for e in day.events|slice:":3" %}
         <a class="bt-cal__event bt-feed--{{ e.feeding_status }}" href="{% url 'schoolcalendar:event_detail' e.pk %}" title="{{ e.title }} · {{ e.scope_label }} · {{ e.get_feeding_status_display }}">{{ e.title }}</a>
         {% endfor %}
@@ -78,8 +80,31 @@
     {% endfor %}
   </div>
   <div class="card-footer bt-footnote d-flex flex-wrap gap-3">
+    <span><span class="bt-cal-swatch bt-cal-swatch--closed" aria-hidden="true"></span>Schools likely closed (national calendar)</span>
     {% for value, label in feeding_statuses %}<span><span class="bt-feed-dot bt-feed--{{ value }}" aria-hidden="true"></span>{{ label }}</span>{% endfor %}
   </div>
+</section>
+
+<section class="card mt-4" aria-labelledby="national-heading" data-testid="national-calendar">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="national-heading"><i class="bi bi-bank" aria-hidden="true"></i>{{ national_name }} · {{ month|date:"F Y" }}</h2></div>
+  {% if national_periods %}
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th scope="col">Period</th><th scope="col">Dates</th><th scope="col">Schools</th><th scope="col">Source</th></tr></thead>
+    <tbody>
+    {% for row in national_periods %}{% with p=row.period %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td class="text-nowrap">{{ p.start|date:"j M Y" }}{% if p.end != p.start %} – {{ p.end|date:"j M Y" }}{% endif %}</td>
+        <td>{% if row.kind == "Term" %}<span class="badge text-bg-success">Open</span>{% else %}<span class="badge text-bg-secondary">Likely closed</span>{% endif %}</td>
+        <td class="bt-cell-sub">{% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener">News report</a>{% endif %}{% if p.verified %} · confirmed by 2+ sources{% else %} · <span class="text-warning-emphasis">single source or inferred</span>{% endif %}</td>
+      </tr>
+    {% endwith %}{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="card-body bt-footnote">{% if national_covers_month %}No term changes or closures this month.{% else %}The national calendar covers January 2023 to January 2027 only; this month is not shaded.{% endif %}</div>
+  {% endif %}
+  <div class="card-footer bt-footnote">Dates come from news reports of Ministry of Education circulars (Kenyans.co.ke, The Star, Standard, Citizen and others). Individual schools, and Food4Education feeding days, may differ.</div>
 </section>
 
 <section class="card mt-4" aria-labelledby="month-list-heading">

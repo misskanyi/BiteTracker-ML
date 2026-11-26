@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Actual meals served — {{ record.school.school_id }} {{ record.date|date:"j M Y" }}{% endblock %}
+{% block content %}
+<nav aria-label="Back" class="mb-2"><a class="bt-card-link" href="{% url 'core:actuals' %}"><i class="bi bi-arrow-left" aria-hidden="true"></i>Forecast vs actual</a></nav>
+{% include "partials/_page_header.html" with title="Actual meals served" icon="bi-clipboard-data" subtitle=record.school %}
+
+<section class="card mb-4" data-testid="actual-summary"><div class="card-body">
+  <dl class="bt-metric-list mb-0">
+    <div><dt>Date</dt><dd>{{ record.date|date:"l j M Y" }}</dd></div>
+    <div><dt>Recorded meals served</dt><dd data-testid="actual-served">{{ record.meals_served|intcomma }}{% if not record.is_verified %} <span class="bt-cell-sub">(pending)</span>{% endif %}</dd></div>
+    <div><dt>Meals prepared</dt><dd>{{ record.meals_prepared|default_if_none:"Not recorded" }}</dd></div>
+    {% if record.prepared_minus_served is not None %}<div><dt>Prepared − served (planning)</dt><dd>{% if record.prepared_minus_served > 0 %}+{% endif %}{{ record.prepared_minus_served }}</dd></div>{% endif %}
+    <div><dt>Verification status</dt><dd>{% include "core/_actual_status.html" %}</dd></div>
+    <div><dt>Source</dt><dd>Recorded by {{ record.submitted_by.get_username|default:"a deleted account" }}, {{ record.submitted_at|date:"j M Y H:i" }}</dd></div>
+    {% if record.reviewed_at %}<div><dt>Reviewer</dt><dd>{{ record.reviewed_by.get_username|default:"a deleted account" }}, {{ record.reviewed_at|date:"j M Y H:i" }}</dd></div>{% endif %}
+    {% if record.published_at %}<div><dt>Published</dt><dd data-testid="published-at">{{ record.published_at|date:"j M Y H:i" }} by {{ record.published_by.get_username|default:"a deleted account" }}</dd></div>{% endif %}
+    <div><dt>Latest usable record (school)</dt><dd>{{ latest_usable|date:"j M Y"|default:"—" }}</dd></div>
+  </dl>
+  {% if published_row and published_row.status == "approved" and published_row.meals_served != record.meals_served %}
+    <div class="bt-callout bt-callout--info mt-3" role="status"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Forecasting history still uses the earlier published value ({{ published_row.meals_served|floatformat:"-1" }}) until the corrected value is published.</span></div>
+  {% endif %}
+  {% if record.review_comment %}<h2 class="bt-subheading mt-3">Reviewer comment</h2><p class="mb-0">{{ record.review_comment|linebreaksbr }}</p>{% endif %}
+  {% if record.has_pending_correction %}
+    <div class="bt-callout bt-callout--warning mt-3" role="status" data-testid="pending-correction"><i class="bi bi-pencil-square" aria-hidden="true"></i>
+      <span>Correction awaiting review: {{ record.proposed_meals_served }} served{% if record.proposed_meals_prepared is not None %}, {{ record.proposed_meals_prepared }} prepared{% endif %} (by {{ record.proposed_by.get_username|default:"a deleted account" }}). Reason: {{ record.proposed_reason }}. The current value stays in use until it is approved.</span></div>
+  {% endif %}
+</div></section>
+
+<section class="card mb-4" aria-labelledby="forecasts-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="forecasts-heading"><i class="bi bi-calendar2-check" aria-hidden="true"></i>Saved forecasts for this day</h2></div>
+  {% if forecasts %}
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0 bt-table" data-testid="detail-forecasts">
+    <thead><tr><th scope="col">Forecast</th><th scope="col">Model / method</th><th scope="col" class="text-end">Original forecast</th><th scope="col" class="text-end">Recommended</th><th scope="col" class="text-end">Forecast error</th></tr></thead>
+    <tbody>{% for f in forecasts %}<tr>
+      <td><a href="{% url 'core:forecast_run' f.run.pk %}">{{ f.run.created_at|date:"j M Y H:i" }}</a></td>
+      <td class="small">{{ f.method }}</td>
+      <td class="text-end">{{ f.predicted|intcomma }}</td><td class="text-end">{{ f.recommended|intcomma }}</td>
+      <td class="text-end">{% if f.error.error > 0 %}+{% endif %}{{ f.error.error|intcomma }}{% if not record.is_verified %} <span class="bt-cell-sub">unverified</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="card-body"><p class="mb-0 text-muted">No saved forecast you can see covers this day.</p></div>{% endif %}
+</section>
+
+{% if can_edit %}
+<section class="card bt-form-card mb-4"><div class="card-body">
+  <h2 class="bt-subheading">Edit before review</h2>
+  <form method="post" novalidate class="row g-2" data-testid="edit-actual-form">{% csrf_token %}<input type="hidden" name="action" value="edit">
+    {% if edit_form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2" role="alert">{% for e in edit_form.non_field_errors %}{{ e }} {% endfor %}</div></div>{% endif %}
+    <div class="col-sm-6">{% include "partials/_field.html" with field=edit_form.meals_served %}</div>
+    <div class="col-sm-6">{% include "partials/_field.html" with field=edit_form.meals_prepared %}</div>
+    <div class="col-12"><button class="btn btn-primary btn-sm" type="submit">{% if record.status == "pending" %}Save{% else %}Resubmit for review{% endif %}</button></div>
+  </form>
+</div></section>
+{% endif %}
+
+{% if can_correct %}
+<section class="card bt-form-card mb-4"><div class="card-body">
+  <h2 class="bt-subheading">Submit a correction for review</h2>
+  <p class="small text-muted">This value is {{ record.get_status_display|lower }}, so it can't be changed directly. An administrator reviews the correction.</p>
+  <form method="post" novalidate class="row g-2" data-testid="correction-form">{% csrf_token %}<input type="hidden" name="action" value="correction">
+    {% if correction_form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2" role="alert">{% for e in correction_form.non_field_errors %}{{ e }} {% endfor %}</div></div>{% endif %}
+    <div class="col-sm-6">{% include "partials/_field.html" with field=correction_form.meals_served %}</div>
+    <div class="col-sm-6">{% include "partials/_field.html" with field=correction_form.meals_prepared %}</div>
+    <div class="col-12">{% include "partials/_field.html" with field=correction_form.reason %}</div>
+    <div class="col-12"><button class="btn btn-outline-primary btn-sm" type="submit">Submit correction</button></div>
+  </form>
+</div></section>
+{% endif %}
+
+{% if is_reviewer %}
+<section class="card bt-form-card mb-4" data-testid="review-panel"><div class="card-body">
+  <h2 class="bt-subheading">Review</h2>
+  <p class="small text-muted">Pending review → Verified → Published. Only published values enter forecasting history; the saved model is not retrained.</p>
+  {% if conflicts %}
+    <div class="bt-callout bt-callout--warning mb-3" role="alert" data-testid="actual-conflicts"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+      <span>{% for c in conflicts %}Forecasting history already has {{ c.history_value|floatformat:"-1" }} meals served for {{ c.date|date:"j M Y" }}{% if c.conflict %} (differs from {{ c.new_value }}){% endif %}. {% endfor %}Publishing replaces it.</span></div>
+  {% endif %}
+  {% if review_actions %}
+  <form method="post" action="{% url 'core:actual_review' record.pk %}" novalidate data-testid="actual-review-form">{% csrf_token %}
+    <input type="hidden" name="expected_status" value="{{ record.status }}">
+    <div class="mb-2"><label class="form-label" for="review-comment">Comment (required to reject, request or decline a correction)</label>
+      <textarea class="form-control" id="review-comment" name="comment" rows="2" maxlength="2000"></textarea></div>
+    {% if conflicts %}<div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="acknowledge_conflicts" id="ack-conflicts"><label class="form-check-label" for="ack-conflicts">I have reviewed the overlapping record and want this value to replace it</label></div>{% endif %}
+    <div class="d-flex flex-wrap gap-2">
+      {% for a in review_actions %}
+        {% if a == "verify" %}<button class="btn btn-success btn-sm" name="action" value="verify">Verify</button>
+        {% elif a == "publish" %}<button class="btn btn-primary btn-sm" name="action" value="publish" data-testid="publish-actual">Publish to forecasting history</button>
+        {% elif a == "reject" %}<button class="btn btn-outline-danger btn-sm" name="action" value="reject">Reject</button>
+        {% elif a == "request_correction" %}<button class="btn btn-outline-secondary btn-sm" name="action" value="request_correction">Request correction</button>
+        {% elif a == "approve_correction" %}<button class="btn btn-success btn-sm" name="action" value="approve_correction">Approve correction</button>
+        {% elif a == "decline_correction" %}<button class="btn btn-outline-danger btn-sm" name="action" value="decline_correction">Decline correction</button>{% endif %}
+      {% endfor %}
+    </div>
+  </form>
+  {% else %}<p class="mb-0 text-muted">No review action is needed now{% if record.status == "correction_requested" or record.status == "rejected" %}: waiting for the School Manager{% endif %}.</p>{% endif %}
+</div></section>
+{% endif %}
+
+<section class="card" aria-labelledby="revisions-heading">
+  <div class="card-header bt-card-header"><h2 class="bt-card-title" id="revisions-heading"><i class="bi bi-journal-text" aria-hidden="true"></i>History and corrections</h2></div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0 bt-table" data-testid="revisions">
+    <thead><tr><th scope="col">When</th><th scope="col">Change</th><th scope="col">By</th><th scope="col" class="text-end">Served (before → after)</th><th scope="col" class="text-end">Prepared (before → after)</th><th scope="col">Comment</th></tr></thead>
+    <tbody>{% for r in revisions %}<tr>
+      <td class="text-nowrap small">{{ r.created_at|date:"j M Y H:i" }}</td><td>{{ r.get_kind_display }}</td><td class="small">{{ r.actor_name|default:"—" }}</td>
+      <td class="text-end">{% if r.meals_served_before is not None %}{{ r.meals_served_before }} → {% endif %}{{ r.meals_served_after|default_if_none:"—" }}</td>
+      <td class="text-end">{% if r.meals_prepared_before is not None %}{{ r.meals_prepared_before }} → {% endif %}{{ r.meals_prepared_after|default_if_none:"—" }}</td>
+      <td class="small">{{ r.comment }}</td>
+    </tr>{% empty %}<tr><td colspan="6" class="text-muted">No history.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endblock %}

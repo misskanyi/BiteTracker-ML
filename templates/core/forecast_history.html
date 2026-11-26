@@ -26,7 +26,7 @@
         <tr{% if run.is_synthetic %} class="bt-row-muted"{% endif %}>
           <td class="text-nowrap"><a href="{% url 'core:forecast_run' run.pk %}">{{ run.created_at|date:"j M Y H:i" }}</a></td>
           <td>{{ run.school_name|default:run.school_code }}</td>
-          <td>{{ run.get_horizon_days_display }}</td>
+          <td>{{ run.period_label }}</td>
           <td class="small text-nowrap">{{ run.first_forecast_date|date:"j M" }} – {{ run.last_forecast_date|date:"j M Y" }}</td>
           <td class="text-end">{{ run.day1_predicted_meals }}</td>
           <td class="text-end">{{ run.day1_recommended_meals }}</td>

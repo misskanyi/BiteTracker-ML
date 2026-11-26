@@ -22,6 +22,7 @@ from services.calendar_service import (
     SCHOOL_DAY,
     UNKNOWN,
     WEEKEND,
+    KENYA_PRIMARY_2025,
     KenyaPrimaryCalendar,
     SyntheticDevelopmentCalendar,
 )
@@ -29,7 +30,8 @@ from src.synthetic_data import _is_holiday, _school_term
 
 # --- 2025 Kenyan primary-school calendar ---------------------------------------------
 
-KENYA = KenyaPrimaryCalendar()
+KENYA = KenyaPrimaryCalendar(KENYA_PRIMARY_2025)
+NATIONAL = KenyaPrimaryCalendar()  # national 2023–2026 calendar from data/external/calendar
 
 
 @pytest.mark.parametrize(
@@ -78,6 +80,42 @@ def test_kenya_next_school_days_skips_holiday_between_terms():
 
 def test_kenya_next_school_days_stops_at_end_of_known_calendar():
     assert KENYA.next_school_days(date(2025, 10, 22), 10) == [date(2025, 10, 23), date(2025, 10, 24)]
+
+
+# --- National 2023–2026 calendar (CSV) ------------------------------------------------
+
+
+def test_national_calendar_is_the_default_and_spans_2023_to_2026():
+    assert NATIONAL.first_day == date(2023, 1, 23)
+    assert NATIONAL.last_day == date(2027, 1, 1)  # end of the 2026 December holiday
+
+
+@pytest.mark.parametrize("day, closure", [
+    (date(2026, 12, 14), "December holiday"),
+    (date(2026, 2, 26), "Term 1 half-term break"),
+    (date(2024, 5, 2), "Term 2 opening postponed (floods)"),
+    (date(2023, 8, 15), "August holiday"),
+    (date(2025, 10, 20), "Mashujaa Day"),
+    (date(2026, 10, 23), None),   # last day of 2026 Term 3
+    (date(2026, 12, 12), None),   # Saturday: weekends are not "closures"
+    (date(2027, 1, 4), None),     # beyond the known calendar: not guessed
+])
+def test_national_calendar_closures(day, closure):
+    found = NATIONAL.closure(day)
+    assert (found.name if found else None) == closure
+    if closure:
+        assert NATIONAL.is_holiday(day)
+
+
+def test_national_calendar_keeps_sources_and_verification():
+    december = NATIONAL.closure(date(2026, 12, 14))
+    assert december.verified and december.source_url.startswith("https://")
+    assert not NATIONAL.closure(date(2025, 10, 20)).verified  # Mashujaa Day: single source
+
+
+def test_missing_calendar_file_falls_back_to_2025(monkeypatch, tmp_path):
+    monkeypatch.setattr(calendar_service, "NATIONAL_CALENDAR_CSV", tmp_path / "missing.csv")
+    assert KenyaPrimaryCalendar().last_day == date(2025, 10, 24)
 
 
 # --- Synthetic calendar must match what the synthetic model was trained with ---------------

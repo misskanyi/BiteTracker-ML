@@ -284,6 +284,21 @@ def _default_site_url() -> str:
 # Absolute address used for links in emails (no trailing slash), e.g. https://bitetracker.example.org
 SITE_URL = (os.getenv("BITETRACKER_SITE_URL", "").strip() or _default_site_url()).rstrip("/")
 
+# --- Weather advisory (display only; never a model input) ---------------------------------
+# Hourly forecast for 6–9 a.m. Nairobi time at each school's configured location, from
+# Open-Meteo (no key needed). WEATHER_API_KEY is only for a paid Open-Meteo plan: it is
+# added to server-side requests and never rendered or logged. See services/weather_service.py.
+WEATHER_ADVISORY_ENABLED = _env_bool("WEATHER_ADVISORY_ENABLED", True)
+WEATHER_API_BASE_URL = os.getenv("WEATHER_API_BASE_URL", "").strip() or "https://api.open-meteo.com/v1/forecast"
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "").strip()
+WEATHER_TIMEOUT_SECONDS = float(os.getenv("WEATHER_TIMEOUT_SECONDS", "3"))
+WEATHER_CACHE_SECONDS = int(os.getenv("WEATHER_CACHE_SECONDS", "1800"))
+WEATHER_FAILURE_CACHE_SECONDS = int(os.getenv("WEATHER_FAILURE_CACHE_SECONDS", "300"))
+WEATHER_FORECAST_DAYS = int(os.getenv("WEATHER_FORECAST_DAYS", "16"))
+# Heavy rain = any single hour between 6 and 9 a.m. with at least this much rain (mm).
+# Default 4 mm/h: lower bound of "heavy" in the UK Met Office rainfall-rate scale.
+WEATHER_HEAVY_RAIN_MM_PER_HOUR = float(os.getenv("WEATHER_HEAVY_RAIN_MM_PER_HOUR", "4.0"))
+
 # --- Internationalisation -------------------------------------------------------------
 LANGUAGE_CODE = "en-gb"
 TIME_ZONE = "Africa/Nairobi"

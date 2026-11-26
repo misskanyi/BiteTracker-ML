@@ -16,7 +16,7 @@
         <td class="small text-end">{{ u.n_records|default:"—" }}</td>
         <td class="small text-end">{{ u.quality_score|default:"—" }}/100</td>
         <td class="small">{% if u.supporting_letter %}<i class="bi bi-paperclip" aria-hidden="true"></i> Attached{% else %}<span class="text-muted">None</span>{% endif %}</td>
-        <td>{% include "schools/_review_status.html" with status=u.review_status label=u.get_review_status_display %}</td></tr>
+        <td>{% include "schools/_review_status.html" with status=u.stage label=u.stage_label %}</td></tr>
     {% endfor %}</tbody>
   </table></div>
   <div class="card-footer">{% include "partials/_pagination.html" %}</div>

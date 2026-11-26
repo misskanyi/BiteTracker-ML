@@ -16,6 +16,16 @@
       <div class="col-md-6">{% include "partials/_field.html" with field=form.sub_county %}</div>
     </div>
     {% include "partials/_field.html" with field=form.verified_enrolment %}
+    <fieldset class="mb-3">
+      <legend class="form-label fs-6 mb-1">Weather location</legend>
+      <p class="form-text mt-0">Optional. Used only for the 6–9 a.m. heavy-rain advisory on forecast results, never by the meal forecast. Leave both blank for no advisory.</p>
+      <div class="row g-3">
+        <div class="col-md-6">{% include "partials/_field.html" with field=form.latitude %}</div>
+        <div class="col-md-6">{% include "partials/_field.html" with field=form.longitude %}</div>
+      </div>
+      {% include "partials/_field.html" with field=form.location_label %}
+      {% include "partials/_field.html" with field=form.location_verified %}
+    </fieldset>
     {% include "partials/_field.html" with field=form.is_active switch=True %}
     <div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save changes</button>
       <a class="btn btn-outline-secondary" href="{% url 'administration:school_detail' school.pk %}">Cancel</a></div>

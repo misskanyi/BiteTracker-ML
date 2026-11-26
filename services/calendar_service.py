@@ -6,18 +6,24 @@ Two calendars are provided:
   `src.synthetic_data`. It is the calendar the current synthetic model was
   trained with, so it is the one used while synthetic artifacts are active;
   using any other calendar would feed the model features it never saw.
-- `KenyaPrimaryCalendar` holds the supplied 2025 Kenyan primary-school
-  calendar. It is ready for the real-data pipeline but is not used by the
-  current synthetic model. Dates outside the configured year are reported as
-  "unknown" rather than guessed.
+- `KenyaPrimaryCalendar` holds the Kenyan national school calendar, used with
+  the real data. By default it is loaded from
+  data/external/calendar/kenya_basic_education_calendar_2023_2026.csv (terms,
+  half-terms, holidays, closures; compiled from news reports of Ministry of
+  Education circulars, each row with its source and verification status).
+  If that file is missing it falls back to the supplied 2025 calendar. Dates
+  outside the calendar are reported as "unknown" rather than guessed.
 
 `get_active_calendar()` picks the calendar that matches the active data.
 """
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
 from datetime import date, timedelta
+from functools import lru_cache
+from pathlib import Path
 
 from services import status_service
 from src.synthetic_data import _is_exam_period, _is_holiday, _school_term
@@ -30,6 +36,8 @@ class Period:
     name: str
     start: date
     end: date
+    verified: bool = True
+    source_url: str = ""
 
     def contains(self, d: date) -> bool:
         return self.start <= d <= self.end
@@ -64,18 +72,65 @@ KENYA_PRIMARY_2025 = {
 }
 
 
+NATIONAL_CALENDAR_CSV = (
+    Path(__file__).resolve().parents[1] / "data" / "external" / "calendar" / "kenya_basic_education_calendar_2023_2026.csv"
+)
+# CSV event types that close schools, and how each is classified.
+_CLOSED_EVENT_TYPES = {"half_term_break": "half_terms", "term_break": "holidays",
+                       "school_closure": "holidays", "public_holiday": "holidays"}
+
+
+@lru_cache(maxsize=4)
+def load_national_calendar(path: Path = NATIONAL_CALENDAR_CSV) -> dict:
+    """Calendar definition (terms, half_terms, holidays) read from the national calendar CSV."""
+    definition: dict[str, list[Period]] = {"terms": [], "half_terms": [], "holidays": []}
+    with open(path, newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            kind = row["event_type"].strip()
+            key = "terms" if kind == "term" else _CLOSED_EVENT_TYPES.get(kind)
+            if key is None:
+                continue
+            definition[key].append(Period(
+                name=row["title"].strip(),
+                start=date.fromisoformat(row["start_date"]),
+                end=date.fromisoformat(row["end_date"]),
+                verified=row.get("verification_status", "").strip() == "verified",
+                source_url=row.get("source_url", "").strip(),
+            ))
+    if not definition["terms"]:
+        raise ValueError(f"{path} lists no school terms.")
+    return definition
+
+
+def default_kenya_definition() -> dict:
+    """The national 2023–2026 calendar when its file is present, else the supplied 2025 calendar."""
+    if NATIONAL_CALENDAR_CSV.exists():
+        return load_national_calendar()
+    return KENYA_PRIMARY_2025
+
+
 class KenyaPrimaryCalendar:
     """Calendar built from explicit term, half-term and holiday periods."""
 
-    name = "Kenya primary-school calendar"
+    name = "Kenyan national school calendar"
 
     def __init__(self, definition: dict | None = None):
-        definition = definition or KENYA_PRIMARY_2025
+        definition = definition or default_kenya_definition()
         self.terms: list[Period] = list(definition["terms"])
         self.half_terms: list[Period] = list(definition.get("half_terms", []))
         self.holidays: list[Period] = list(definition.get("holidays", []))
         self.first_day = min(p.start for p in self.terms)
-        self.last_day = max(p.end for p in self.terms)
+        # A closing holiday (e.g. December) can run past the last term, so it counts as known.
+        self.last_day = max(p.end for p in [*self.terms, *self.half_terms, *self.holidays])
+
+    def closure(self, d: date) -> Period | None:
+        """The half-term, holiday or closure that likely shuts schools on weekday `d`, if any."""
+        if d.weekday() >= 5 or not (self.first_day <= d <= self.last_day):
+            return None
+        match = next((p for p in [*self.half_terms, *self.holidays] if p.contains(d)), None)
+        if match is None and not any(p.contains(d) for p in self.terms):
+            match = Period("Between terms", d, d, verified=False)
+        return match
 
     def classify(self, d: date) -> DayInfo:
         term = next((p.name for p in self.terms if p.contains(d)), None)
@@ -116,6 +171,11 @@ class SyntheticDevelopmentCalendar:
 
     def is_holiday(self, d: date) -> bool:
         return _is_holiday(d)
+
+    def closure(self, d: date) -> Period | None:
+        if d.weekday() < 5 and _is_holiday(d):
+            return Period("School holiday", d, d, verified=False)
+        return None
 
     def is_exam_period(self, d: date) -> bool:
         return (not _is_holiday(d)) and _is_exam_period(d, _school_term(d))

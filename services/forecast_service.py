@@ -88,6 +88,10 @@ class ForecastResult:
     forecast_frame: pd.DataFrame | None = None
     # The school's last 21 records, for a "recent vs forecast" chart.
     recent_history: pd.DataFrame | None = None
+    # Date-selection runs only (services.date_forecast_service): the chosen mode and dates, and the
+    # held-out comparison that picked each day's method. None for horizon runs.
+    selection: dict | None = None
+    method_evaluation: dict | None = None
 
     def to_dict(self) -> dict:
         """JSON-friendly view (dates as ISO strings, DataFrames as record lists)."""

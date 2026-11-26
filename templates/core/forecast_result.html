@@ -5,12 +5,12 @@
 <div class="bt-page-header bt-page-header--actions">
   <span class="bt-icon-chip" aria-hidden="true"><i class="bi bi-calendar2-check"></i></span>
   <div class="flex-grow-1">
-    <h1 class="bt-page-title">{{ run.school_name|default:run.school_code }}: {{ run.get_horizon_days_display|lower }}</h1>
+    <h1 class="bt-page-title">{{ run.school_name|default:run.school_code }}: {% if run.is_date_selection %}{{ run.period_label }}{% else %}{{ run.get_horizon_days_display|lower }}{% endif %}</h1>
     <p class="bt-page-subtitle">Generated {{ run.created_at|date:"j M Y, H:i" }}{% if run.user %} by {{ run.user.get_username }}{% endif %} · Model: <span data-testid="run-model">{{ run.model_label }}</span> · {{ run.results_label }}</p>
   </div>
   <div class="d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'core:forecast_history' %}"><i class="bi bi-clock-history me-1" aria-hidden="true"></i>Forecast history</a>
-    <a class="btn btn-primary btn-sm" href="{% url 'core:forecast' %}?school={{ run.school_code }}&amp;horizon={{ run.horizon_days }}"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>New forecast</a>
+    <a class="btn btn-primary btn-sm" href="{% url 'core:forecast' %}?school={{ run.school_code }}{% if run.is_date_selection %}&amp;mode={{ run.selection_mode }}{% else %}&amp;horizon={{ run.horizon_days }}{% endif %}"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>New forecast</a>
   </div>
 </div>
 {% if run.is_synthetic %}
@@ -19,14 +19,23 @@
 
 <div class="bt-callout bt-callout--info mb-3" role="status" data-testid="origin-note">
   <i class="bi bi-calendar-event" aria-hidden="true"></i>
-  <span><strong>{{ summary.origin_note }}</strong> · {{ run.first_forecast_date|date:"j M" }} – {{ run.last_forecast_date|date:"j M Y" }} ({{ days|length }} school day{{ days|length|pluralize }})</span>
+  <span><strong>{{ summary.origin_note }}</strong> · {{ run.first_forecast_date|date:"j M" }} – {{ run.last_forecast_date|date:"j M Y" }} ({{ days|length }} school day{{ days|length|pluralize }})
+  {% if run.is_date_selection %}<br><span data-testid="latest-record">Latest record: {{ run.origin_date|date:"j M Y" }}</span> · <span data-testid="selection-method">Method: {% for m in methods_used %}{{ m }}{% if not forloop.last %}; {% endif %}{% endfor %}</span>{% endif %}</span>
 </div>
-{% for w in summary.warnings %}
-  <div class="bt-callout bt-callout--warning mb-3" role="note"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ w }}</span></div>
-{% endfor %}
+{# Only an actual heavy-rain advisory gets its own box; everything else is one collapsed list of notes. #}
+{% if advisory.status == "advisory" %}{% include "core/_weather_advisory.html" %}{% endif %}
+{% if notes_count %}
+<details class="bt-disclosure bt-notes mb-3" data-testid="forecast-notes">
+  <summary><i class="bi bi-info-circle" aria-hidden="true"></i>Notes about this forecast ({{ notes_count }})</summary>
+  <ul class="small mt-2 mb-2 ps-3">
+    {% for w in summary.warnings %}<li>{{ w }}</li>{% endfor %}
+  </ul>
+  {% if advisory.status != "advisory" %}{% include "core/_weather_advisory.html" %}{% endif %}
+</details>
+{% endif %}
 
 {# --- Day 1 headline --------------------------------------------------------------------------- #}
-<h2 class="bt-section-title">Day 1 · {{ run.first_forecast_date|date:"l j M Y" }}</h2>
+<h2 class="bt-section-title">{% if run.is_date_selection %}First selected day{% else %}Day 1{% endif %} · {{ run.first_forecast_date|date:"l j M Y" }}{% if days.0.weather.heavy_rain %} <span class="badge bt-badge-rain align-middle" data-testid="day1-rain-badge"><i class="bi bi-cloud-rain-heavy" aria-hidden="true"></i> Heavy rain 6–9 a.m.</span>{% endif %}</h2>
 <section class="row g-3 mb-2" aria-label="Day 1 forecast">
   <div class="col-sm-6 col-xl-3">
     <div class="card h-100 result-card result-card--predicted"><div class="card-body">
@@ -75,8 +84,8 @@
           <table class="table bt-table bt-budget-table mb-3">
             <thead><tr><th scope="col"></th><th scope="col" class="text-end">Meals</th><th scope="col" class="text-end">Estimated budget</th></tr></thead>
             <tbody>
-              <tr><th scope="row" class="fw-normal">Day 1 · predicted demand</th><td class="text-end">{{ ds.predicted_meals|intcomma }}</td><td class="text-end">{{ budget.day1_predicted_cost|kes }}</td></tr>
-              <tr><th scope="row" class="fw-normal">Day 1 · recommended preparation</th><td class="text-end">{{ ds.recommended_meals|intcomma }}</td><td class="text-end fw-semibold" data-testid="day1-budget">{{ budget.day1_recommended_cost|kes }}</td></tr>
+              <tr><th scope="row" class="fw-normal">{% if run.is_date_selection %}First selected day{% else %}Day 1{% endif %} · predicted demand</th><td class="text-end">{{ ds.predicted_meals|intcomma }}</td><td class="text-end">{{ budget.day1_predicted_cost|kes }}</td></tr>
+              <tr><th scope="row" class="fw-normal">{% if run.is_date_selection %}First selected day{% else %}Day 1{% endif %} · recommended preparation</th><td class="text-end">{{ ds.recommended_meals|intcomma }}</td><td class="text-end fw-semibold" data-testid="day1-budget">{{ budget.day1_recommended_cost|kes }}</td></tr>
               {% if budget.horizon_days > 1 %}
               <tr class="bt-row-group"><th scope="row" class="fw-normal">All {{ budget.horizon_days }} school days · predicted demand</th><td class="text-end">{{ budget.horizon_predicted_meals|intcomma }}</td><td class="text-end">{{ budget.horizon_predicted_cost|kes }}</td></tr>
               <tr><th scope="row" class="fw-normal">All {{ budget.horizon_days }} school days · recommended preparation</th><td class="text-end">{{ budget.horizon_recommended_meals|intcomma }}</td><td class="text-end fw-semibold" data-testid="horizon-budget">{{ budget.horizon_recommended_cost|kes }}</td></tr>
@@ -134,25 +143,66 @@
       <thead><tr>
         <th scope="col">#</th><th scope="col">Date</th>
         <th scope="col" class="text-end">Predicted</th><th scope="col" class="text-end">Recommended</th><th scope="col" class="text-end">Buffer</th>
-        <th scope="col">Risk</th><th scope="col" class="text-end">Budget (recommended)</th><th scope="col">Attendance basis</th>
+        <th scope="col">Risk</th><th scope="col" class="text-end">Budget (recommended)</th>
+        {% if run.is_date_selection %}<th scope="col">Method</th>{% elif show_attendance %}<th scope="col">Attendance basis</th>{% endif %}
+        <th scope="col">Weather 6–9 a.m.{% if advisory.location_label %}<div class="bt-cell-sub fw-normal" style="text-transform: none; letter-spacing: 0" data-testid="weather-column-location">{{ advisory.location_label }}{% if not advisory.location_verified %} (approx.){% endif %}</div>{% endif %}</th>
       </tr></thead>
       <tbody>
         {% for d in days %}
         <tr>
           <td>{{ d.day_number }}</td>
-          <td class="text-nowrap">{{ d.date|date:"D j M Y" }}</td>
+          <td class="text-nowrap">{{ d.date|date:"D j M Y" }}{% if d.likely_closed %} <span class="badge text-bg-warning" data-testid="likely-closed-badge" title="{{ d.likely_closed }}">Schools likely closed</span>{% endif %}{% if run.is_date_selection %}<div class="bt-cell-sub">{{ d.school_days_ahead }} school day{{ d.school_days_ahead|pluralize }} after latest record</div>{% endif %}</td>
           <td class="text-end">{{ d.predicted_meals|intcomma }}</td>
           <td class="text-end fw-semibold">{{ d.recommended_meals|intcomma }}</td>
           <td class="text-end bt-cell-sub">+{{ d.buffer_meals }} ({{ d.buffer_pct }}%)</td>
           <td><span class="badge risk-badge risk-{{ d.risk_level|lower }}">{{ d.risk_level }}</span></td>
           <td class="text-end">{{ d.budget.recommended_cost|kes }}</td>
+          {% if run.is_date_selection %}
+          <td class="bt-cell-sub" data-testid="day-method">{{ d.method_label }}{% if d.experimental %} <span class="badge text-bg-secondary" data-testid="experimental-badge" title="{{ d.evidence }}">Experimental</span>{% endif %}</td>
+          {% elif show_attendance %}
           <td class="bt-cell-sub">{{ d.attendance_assumption }}</td>
+          {% endif %}
+          <td class="bt-weather-cell" data-testid="weather-cell">
+            {% with w=d.weather_cell %}
+            {% if w.tone == "heavy" %}<span class="badge bt-badge-rain" data-testid="rain-flag" title="{{ w.detail }}"><i class="bi bi-cloud-rain-heavy" aria-hidden="true"></i> {{ w.label }}</span>
+            {% elif w.tone == "none" %}<span class="bt-cell-sub">{{ w.label }}</span>
+            {% else %}<span class="badge bt-weather-badge bt-weather-badge--{{ w.tone }}" title="{{ w.detail }}"><i class="bi {% if w.tone == 'dry' %}bi-sun{% else %}bi-cloud-drizzle{% endif %}" aria-hidden="true"></i> {{ w.label }}</span>{% endif %}
+            <div class="bt-cell-sub">{{ w.text }}</div>
+            {% endwith %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+
+{% include "core/_forecast_vs_actual.html" %}
+
+{% if run.is_date_selection and summary.method_evaluation %}
+<section class="card mb-4" aria-labelledby="evidence-heading" data-testid="method-evidence">
+  <div class="card-body">
+    <details class="bt-disclosure">
+      <summary id="evidence-heading"><i class="bi bi-clipboard-check" aria-hidden="true"></i>How the method was chosen</summary>
+      <p class="small mt-2">The next school day after the latest record uses the saved model. Later dates use a direct estimate: the planning estimate (school meal level × weekday × month pattern) or the school's weekday average, whichever had the lower mean absolute error (MAE, meals) on {{ summary.method_evaluation.held_out_records }} held-out records after {{ summary.method_evaluation.train_end }}. Distances ahead with fewer than 20 held-out records have no evidence, so estimates there are experimental.</p>
+      <div class="table-responsive">
+        <table class="table table-sm bt-table mb-0">
+          <thead><tr><th scope="col">Distance ahead</th><th scope="col" class="text-end">Held-out records</th><th scope="col" class="text-end">Planning MAE</th><th scope="col" class="text-end">Weekday-average MAE</th><th scope="col">Used</th></tr></thead>
+          <tbody>
+            {% for b in summary.method_evaluation.buckets %}
+            <tr>
+              <td>{{ b.label }}</td><td class="text-end">{{ b.n }}</td>
+              <td class="text-end">{{ b.planning_mae|default_if_none:"—" }}</td><td class="text-end">{{ b.baseline_mae|default_if_none:"—" }}</td>
+              <td>{% if not b.evidence %}Experimental (too little evidence){% elif b.chosen == "weekday_baseline" %}Weekday average (baseline){% else %}Planning estimate{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+</section>
+{% endif %}
 
 <section class="card">
   <div class="card-body">

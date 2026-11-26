@@ -291,4 +291,13 @@
       });
     });
   });
+
+  /* Date fields: open the browser's date picker on a click anywhere in the field, not just on its
+     (now custom) calendar icon. showPicker() is missing or may throw in older browsers: ignore. */
+  document.addEventListener("click", function (event) {
+    var input = event.target;
+    if (!input || input.tagName !== "INPUT" || input.type !== "date" || input.disabled || input.readOnly) return;
+    if (typeof input.showPicker !== "function") return;
+    try { input.showPicker(); } catch (err) { /* not allowed here: the native control still works */ }
+  });
 })();

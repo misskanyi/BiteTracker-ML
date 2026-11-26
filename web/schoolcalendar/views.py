@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
+from services import calendar_service
 from web.accounts import access
 from web.audit.models import AuditLog
 from web.audit.services import log_action
@@ -90,8 +91,11 @@ def calendar_view(request):
     weeks = pycal.Calendar(firstweekday=0).monthdatescalendar(month.year, month.month)
     first, last = weeks[0][0], weeks[-1][-1]
     in_range = list(events.filter(start_date__lte=last, end_date__gte=first))
+    national = calendar_service.KenyaPrimaryCalendar()
     grid = [[{"date": d, "in_month": d.month == month.month, "is_today": d == today,
-              "events": [e for e in in_range if e.start_date <= d <= e.end_date]} for d in week] for week in weeks]
+              "events": [e for e in in_range if e.start_date <= d <= e.end_date],
+              **_national_day(national, d, week)} for d in week] for week in weeks]
+    month_end = (month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
     prev_month = (month - timedelta(days=1)).replace(day=1)
     next_month = (month + timedelta(days=32)).replace(day=1)
     base = {k: v for k, v in filters.items() if v and k != "year"}
@@ -101,8 +105,29 @@ def calendar_view(request):
         prev_query=urlencode({**base, "month": f"{prev_month:%Y-%m}"}),
         next_query=urlencode({**base, "month": f"{next_month:%Y-%m}"}),
         today_query=urlencode({**base, "month": f"{today:%Y-%m}"}),
+        national_periods=_national_periods(national, month, month_end),
+        national_name=national.name,
+        national_covers_month=national.first_day <= month_end and month <= national.last_day,
     )
     return render(request, "schoolcalendar/calendar.html", context)
+
+
+def _national_day(national, d: date, week: list[date]) -> dict:
+    """Closure shading, closure label and term open/close marks for one grid cell."""
+    closure = national.closure(d)
+    previous = d - timedelta(days=1)
+    # Label a closure on its first weekday in each week row, so every row says why it is grey.
+    show_label = bool(closure) and (previous not in week or national.closure(previous) != closure)
+    marks = [f"{p.name} opens" for p in national.terms if p.start == d]
+    marks += [f"{p.name} closes" for p in national.terms if p.end == d]
+    return {"closure": closure, "closure_label": closure.name if show_label else "", "term_marks": marks}
+
+
+def _national_periods(national, start: date, end: date) -> list[dict]:
+    """National-calendar periods overlapping [start, end], in date order."""
+    periods = [("Term", p) for p in national.terms] + [("Closed", p) for p in [*national.half_terms, *national.holidays]]
+    return [{"kind": kind, "period": p} for kind, p in sorted(periods, key=lambda kp: (kp[1].start, kp[1].end))
+            if p.start <= end and p.end >= start]
 
 
 def event_detail(request, pk: int):

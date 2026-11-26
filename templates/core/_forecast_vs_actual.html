@@ -1,0 +1,49 @@
+{% load humanize %}
+<section class="card mb-4" id="forecast-vs-actual" aria-labelledby="fva-heading" data-testid="forecast-vs-actual">
+  <div class="card-header bt-card-header">
+    <h2 class="bt-card-title" id="fva-heading"><i class="bi bi-clipboard-data" aria-hidden="true"></i>Forecast vs actual</h2>
+    {% if fva_accuracy %}<span class="badge bt-badge-primary" data-testid="fva-accuracy">MAE {{ fva_accuracy.mae }} meals · {{ fva_accuracy.n }} verified day{{ fva_accuracy.n|pluralize }}</span>{% endif %}
+  </div>
+  <div class="card-body">
+    <p class="bt-footnote">The original forecast below is never changed. Forecast error = recorded meals served − original forecast (positive: more were served than forecast). Only <strong>verified</strong> or <strong>published</strong> values count towards accuracy; pending values are shown for reference only.</p>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle bt-table" data-testid="fva-table">
+        <thead><tr>
+          <th scope="col">Date</th><th scope="col" class="text-end">Original forecast</th><th scope="col" class="text-end">Recorded meals served</th>
+          <th scope="col" class="text-end">Forecast error</th><th scope="col">Verification status</th>
+          <th scope="col" class="text-end" title="Meals prepared minus meals served (planning figure)">Prepared − served</th><th scope="col"></th>
+        </tr></thead>
+        <tbody>
+        {% for r in fva_rows %}
+          <tr{% if r.record and not r.record.is_verified %} class="bt-row-pending"{% endif %}>
+            <td class="text-nowrap">{{ r.date|date:"D j M Y" }}</td>
+            <td class="text-end">{{ r.predicted|intcomma }}<div class="bt-cell-sub">{{ r.method }}</div></td>
+            <td class="text-end" data-testid="fva-served">{% if r.record %}{{ r.record.meals_served|intcomma }}{% if not r.record.is_verified %} <span class="bt-cell-sub">(pending)</span>{% endif %}{% else %}<span class="text-muted" title="No record yet">Not recorded</span>{% endif %}</td>
+            <td class="text-end" data-testid="fva-error">{% if r.error %}{% if r.error.error > 0 %}+{% endif %}{{ r.error.error|intcomma }}{% if r.error.pct is not None %} <span class="bt-cell-sub">({% if r.error.pct > 0 %}+{% endif %}{{ r.error.pct }}%)</span>{% endif %}{% if not r.record.is_verified %} <span class="bt-cell-sub">unverified</span>{% endif %}{% else %}—{% endif %}</td>
+            <td>{% if r.record %}{% include "core/_actual_status.html" with record=r.record %}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if r.record and r.record.prepared_minus_served is not None %}{% if r.record.prepared_minus_served > 0 %}+{% endif %}{{ r.record.prepared_minus_served|intcomma }}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if r.record %}<a class="small" href="{% url 'core:actual_detail' r.record.pk %}">Details</a>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if fva_no_school %}
+      <p class="small text-muted mb-0">This school has no school record in BiteTracker yet, so actual meals served can't be recorded against it.</p>
+    {% elif actual_form %}
+      <h3 class="bt-subheading mt-3">Record actual meals served</h3>
+      <form method="post" action="{% url 'core:record_actual' run.pk %}" class="row g-2 align-items-start" novalidate data-testid="record-actual-form">
+        {% csrf_token %}
+        {% if actual_form.non_field_errors %}<div class="col-12"><div class="alert alert-danger py-2" role="alert">{% for e in actual_form.non_field_errors %}{{ e }} {% endfor %}</div></div>{% endif %}
+        <div class="col-sm-4">{% include "partials/_field.html" with field=actual_form.date %}</div>
+        <div class="col-sm-4">{% include "partials/_field.html" with field=actual_form.meals_served %}</div>
+        <div class="col-sm-4">{% include "partials/_field.html" with field=actual_form.meals_prepared %}</div>
+        <div class="col-12"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-clipboard-check me-1" aria-hidden="true"></i>Save for review</button>
+          <span class="bt-footnote ms-2">One record per school and day. A pending value can be changed here; once verified, use “Details” to submit a correction.</span></div>
+      </form>
+    {% elif fva_can_record and not fva_recordable %}
+      <p class="small text-muted mb-0">All days in this forecast are in the future. Actual meals served can be recorded from the day itself.</p>
+    {% endif %}
+  </div>
+</section>

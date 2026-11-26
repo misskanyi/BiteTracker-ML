@@ -55,7 +55,7 @@ ACTIVE_DATA_PATH: Path = Path(os.getenv("BITETRACKER_DATA_PATH", str(SYNTHETIC_D
 # default dataset. Keep the link in .env, not in committed code.
 GOOGLE_SHEET_URL: str = os.getenv("BITETRACKER_GOOGLE_SHEET_URL", "").strip()
 USE_GOOGLE_SHEET: bool = bool(GOOGLE_SHEET_URL)
-GOOGLE_SHEET_DATASET_NAME: str = "Food4Education Google Sheet"
+GOOGLE_SHEET_DATASET_NAME: str = "Food4Education Data"
 # The sheet has no meal-cost column; budgeting uses this value (KSh) when it
 # is set. Unset means unknown, so the cost column is left empty, not zero.
 _cost_per_meal = os.getenv("BITETRACKER_COST_PER_MEAL_KSH", "").strip()

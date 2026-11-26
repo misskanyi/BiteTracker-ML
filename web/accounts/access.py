@@ -146,6 +146,40 @@ def can_upload(user) -> bool:
     return can_edit_school_data(user)
 
 
+# --- Recorded actuals (forecast vs actual) ----------------------------------------------------
+#
+# Viewing follows school scope (404 outside it). Writing is split by role: School Managers record
+# and correct actuals for their assigned schools; only System Administrators verify, reject,
+# request corrections and publish. Stakeholders are read-only. Pending, rejected and suspended
+# accounts never reach these checks (AccountStatusMiddleware), and they fail here too because
+# every role check requires an active account.
+
+
+def can_record_actuals(user, school_code: str | None = None) -> bool:
+    """School Managers, for their assigned schools only (System Administrators review instead)."""
+    if not is_school_manager(user) or not is_approved(user):
+        return False
+    if school_code is None:
+        return accessible_schools(user).exists()
+    return can_access_school_code(user, school_code)
+
+
+def can_review_actuals(user) -> bool:
+    """Verify, reject, request or approve corrections, and publish into forecasting history."""
+    return is_system_admin(user) and is_approved(user)
+
+
+def visible_actuals(user):
+    """Recorded actuals the user may see: those for schools in scope."""
+    from web.schools.models import ActualMealRecord
+
+    records = ActualMealRecord.objects.select_related("school", "submitted_by", "reviewed_by", "published_by")
+    if not (user.is_authenticated and is_approved(user)):
+        return records.none()
+    codes = accessible_school_codes(user)
+    return records if codes is None else records.filter(school__school_id__in=codes)
+
+
 # --- Account management ---------------------------------------------------------------------
 
 
@@ -258,6 +292,15 @@ def model_evaluation_required(view):
     @wraps(view)
     def wrapper(request, *args, **kwargs):
         if not can_view_model_evaluation(request.user):
+            raise PermissionDenied
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
+def actual_review_required(view):
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        if not can_review_actuals(request.user):
             raise PermissionDenied
         return view(request, *args, **kwargs)
     return wrapper

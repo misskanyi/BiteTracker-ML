@@ -19,9 +19,11 @@
 <section class="card mb-4" data-testid="review-status"><div class="card-body">
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
     <div>
-      <h2 class="h6 mb-1">Administrator review {% include "schools/_review_status.html" with status=upload.review_status label=upload.get_review_status_display %}</h2>
+      <h2 class="h6 mb-1">Administrator review {% include "schools/_review_status.html" with status=upload.stage label=upload.stage_label %}</h2>
       {% if upload.review_status == "pending" %}<p class="small text-muted mb-0">An administrator will check the data and the supporting letter. You will be notified of the decision.</p>
       {% else %}<p class="small text-muted mb-0">{{ upload.get_review_status_display }} by {{ upload.reviewed_by.get_username|default:"a deleted account" }} on {{ upload.reviewed_at|date:"j M Y H:i" }}.</p>
+        {% if upload.published_at %}<p class="small text-muted mb-0" data-testid="published-note">Published to forecasting history on {{ upload.published_at|date:"j M Y H:i" }}.</p>
+        {% elif upload.stage == "verified" %}<p class="small text-muted mb-0">Verified. Its rows enter forecasting history when an administrator publishes them.</p>{% endif %}
         {% if upload.review_comment %}<p class="mb-0 mt-2">{{ upload.review_comment|linebreaksbr }}</p>{% endif %}{% endif %}
     </div>
     {% if can_download %}<div class="d-flex flex-wrap gap-2">

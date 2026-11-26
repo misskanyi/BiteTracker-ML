@@ -310,3 +310,6 @@ run_[0-9]*_[0-9]*/
 *.gsite
 # Local exports of Google Sheets / downloaded workbooks
 *.tsv
+
+# Local database backups
+db.sqlite3.bak*

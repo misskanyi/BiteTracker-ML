@@ -27,6 +27,7 @@ def record_forecast_run(result: ForecastResult, user, cost_per_meal: Decimal | N
         school_code=result.school_id,
         school_name=result.school_name,
         horizon_days=result.horizon_days,
+        selection_mode=(result.selection or {}).get("mode", ForecastRun.SelectionMode.HORIZON),
         origin_date=result.origin_date,
         first_forecast_date=result.first_forecast_date,
         last_forecast_date=result.last_forecast_date,

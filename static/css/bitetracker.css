@@ -347,7 +347,19 @@ b, strong { font-weight: var(--bt-weight-heading); }
 .form-control:disabled, .form-select:disabled { background-color: var(--bt-surface-muted); color: var(--bt-text-subtle); }
 .form-text { color: var(--bt-text-muted); font-size: var(--bt-text-xs); }
 .form-check-input:checked { background-color: var(--bt-btn-primary-bg); border-color: var(--bt-btn-primary-bg); }
-[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.85); }
+/* Date fields: a visible, theme-coloured calendar icon on every browser (Safari draws none of its own).
+   Chrome's native indicator stays clickable but transparent over the icon; layout.js opens the picker
+   on a click anywhere in the field. Firefox keeps its own icon (excluded below to avoid two). */
+@supports not (-moz-appearance: none) {
+  input[type="date"].form-control {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%237C3AED'%3e%3cpath d='M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2M1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857zM6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2'/%3e%3c/svg%3e");
+    background-repeat: no-repeat; background-position: right 0.9rem center; background-size: 1.05rem;
+    padding-right: 2.75rem; cursor: pointer;
+  }
+  [data-theme="dark"] input[type="date"].form-control { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23A78BFA'%3e%3cpath d='M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2M1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857zM6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-9 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2'/%3e%3c/svg%3e"); }
+  input[type="date"].form-control:disabled { cursor: not-allowed; opacity: 0.7; }
+  input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
+}
 
 /* Password field with an inline show/hide toggle inside the input's right edge. */
 .bt-password-field { position: relative; }
@@ -841,6 +853,16 @@ a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
 .bt-cal__week:last-child .bt-cal__day { border-bottom: 0; }
 .bt-cal__day.is-weekend { background: color-mix(in srgb, var(--bt-surface-muted) 55%, transparent); }
 .bt-cal__day.is-outside { opacity: 0.5; }
+/* National-calendar closures: slightly greyed with a faint hatch so they read differently from weekends. */
+.bt-cal__day.is-closed, .bt-cal-swatch--closed {
+  background:
+    repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--bt-text-muted) 14%, transparent) 7px 8px),
+    color-mix(in srgb, var(--bt-text-muted) 8%, transparent);
+}
+.bt-cal__day.is-closed .bt-cal__date { color: var(--bt-text-subtle); }
+.bt-cal__closure, .bt-cal__term { display: flex; align-items: center; gap: 0.25rem; font-size: 0.6875rem; line-height: 1.3; color: var(--bt-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bt-cal__term { color: var(--bt-success-text, var(--bt-success)); font-weight: var(--bt-weight-label); }
+.bt-cal-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--bt-border); vertical-align: -2px; margin-right: 0.35rem; }
 .bt-cal__date { display: flex; align-items: center; justify-content: space-between; font-weight: var(--bt-weight-label); color: var(--bt-text-muted); }
 .bt-cal__day.is-today .bt-cal__date > span:first-child { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%; background: var(--bt-btn-primary-bg); color: var(--bt-on-primary); }
 .bt-cal__add { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--bt-text-subtle); text-decoration: none; opacity: 0; }
@@ -858,6 +880,7 @@ a.bt-user:hover { background: var(--bt-glass-hover); color: inherit; }
   .bt-cal__day { min-height: 64px; padding: 0.2rem; }
   .bt-cal__event { font-size: 0; padding: 0; height: 6px; border-left: 0; border-radius: 3px; }
   .bt-cal__more { display: none; }
+  .bt-cal__closure, .bt-cal__term { display: none; }
   .bt-cal__add { display: none; }
 }
 
@@ -1033,3 +1056,28 @@ html.bt-reduce-motion .bt-toast, html.bt-reduce-motion .bt-toast.is-leaving { an
   background: var(--bt-primary-soft); color: var(--bt-primary); font-size: 1.4rem;
 }
 .bt-access-status--rejected .bt-access-status__icon, .bt-access-status--suspended .bt-access-status__icon { background: var(--bt-danger-soft); color: var(--bt-danger); }
+
+/* Weather advisory (display only) and date-selection mode switch on the forecast page */
+.bt-weather__title { font-size: var(--bt-text-sm); font-weight: 700; margin: 0 0 0.25rem; color: inherit; }
+.bt-weather__days { padding-left: 1.1rem; margin: 0; }
+.bt-weather .bt-footnote { color: inherit; opacity: 0.85; }
+.bt-badge-rain { background: var(--bt-warning-soft); color: var(--bt-warning-text); font-weight: 600; }
+/* Radio-backed chips (same look as the History quick ranges): the checked option is the active chip. */
+.bt-mode-switch .bt-chip { cursor: pointer; margin: 0; }
+.bt-chip-input:checked + .bt-chip { color: var(--bt-on-primary); background: var(--bt-btn-primary-bg); border-color: var(--bt-btn-primary-bg); }
+.bt-chip-input:focus-visible + .bt-chip { outline: 2px solid var(--bt-primary); outline-offset: 2px; }
+/* Checkbox chips show a tick only when selected. */
+.bt-chip-tick { display: none; margin-right: 0.3rem; }
+.bt-chip-input:checked + .bt-chip .bt-chip-tick { display: inline-block; }
+
+/* Forecast vs actual: verification status of recorded meals served */
+.bt-actual-status { font-weight: 600; }
+.bt-actual-status--pending, .bt-actual-status--correction_requested { background: var(--bt-warning-soft); color: var(--bt-warning-text); }
+.bt-actual-status--verified { background: var(--bt-info-soft); color: var(--bt-info-text); }
+.bt-actual-status--published { background: var(--bs-success-bg-subtle, #d1e7dd); color: var(--bs-success-text-emphasis, #0a3622); }
+.bt-actual-status--rejected { background: var(--bs-danger-bg-subtle, #f8d7da); color: var(--bs-danger-text-emphasis, #58151c); }
+.bt-row-pending td { font-style: italic; }
+.bt-weather-cell { min-width: 11rem; }
+.bt-weather-badge { font-weight: 600; }
+.bt-weather-badge--dry { background: var(--bt-success-soft); color: var(--bt-success-text); }
+.bt-weather-badge--light, .bt-weather-badge--moderate { background: var(--bt-info-soft); color: var(--bt-info-text); }

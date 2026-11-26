@@ -20,6 +20,7 @@ urlpatterns = [
     path("schools/<int:pk>/edit/", views.school_edit, name="school_edit"),
     path("uploads/", views.uploads, name="uploads"),
     path("uploads/<int:pk>/", views.upload_review, name="upload_review"),
+    path("uploads/<int:pk>/publish/", views.upload_publish, name="upload_publish"),
     path("logs/", views.logs, name="logs"),
     path("issues/", views.issues, name="issues"),
     path("issues/<int:pk>/", views.issue_detail, name="issue_detail"),
